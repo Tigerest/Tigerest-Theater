@@ -1,0 +1,22 @@
+name: build
+
+on:
+  push:
+    branches:
+      - release
+      - prerelease
+      - test
+  workflow_dispatch:
+
+jobs:
+  macos:
+    uses: ./.github/workflows/build-macos.yml
+
+  windows:
+    uses: ./.github/workflows/build-windows.yml
+
+  linux:
+    uses: ./.github/workflows/build-linux.yml
+
+  appimage:
+    uses: ./.github/workflows/build-appimage.yml

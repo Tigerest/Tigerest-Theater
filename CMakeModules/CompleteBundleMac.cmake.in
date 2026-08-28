@@ -1,0 +1,370 @@
+set(app "${CMAKE_INSTALL_PREFIX}/@EXE@")
+set(framework_path "${app}/Contents/Frameworks")
+set(weprocess "${framework_path}/QtWebEngineCore.framework/Versions/Current/Helpers/QtWebEngineProcess.app")
+
+# Detect homebrew prefix
+execute_process(
+  COMMAND brew --prefix
+  OUTPUT_VARIABLE brew_prefix
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+set(brew_lib "${brew_prefix}/lib")
+set(brew_qt_lib "${brew_prefix}/opt/qt/lib")
+
+set(args ${app})
+list(APPEND args "-verbose=2")
+list(APPEND args "-qmldir=@SOURCE_ROOT@/src/ui")
+list(APPEND args "-libpath=@QTROOT@/lib")
+list(APPEND args "-libpath=${brew_qt_lib}")
+list(APPEND args "-libpath=${brew_lib}")
+foreach(BIN ${BINS})
+  list(APPEND args "-executable=${app}/${BIN}")
+endforeach(BIN ${BINS})
+
+set(ENV{DYLD_LIBRARY_PATH} @QTROOT@/lib:${brew_qt_lib}:${brew_lib}:@DEPENDENCY_ROOT@/lib)
+set(ENV{DYLD_FRAMEWORK_PATH} @QTROOT@/lib:${brew_qt_lib}:${brew_lib}:@DEPENDENCY_ROOT@/lib)
+
+execute_process(
+  COMMAND ${CMAKE_COMMAND} -E remove "${app}/Contents/Resources/qt.conf"
+  COMMAND "@QTROOT@/bin/macdeployqt" ${args}
+  WORKING_DIRECTORY "@QTROOT@/bin"
+)
+
+#
+# fix_install_names: Fix library paths for bundled dylibs/sos
+#
+function(fix_lib_dependencies lib framework_libs_var)
+  set(framework_libs ${${framework_libs_var}})
+
+  execute_process(
+    COMMAND otool -L "${lib}"
+    OUTPUT_VARIABLE otool_output
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
+  string(REPLACE "\n" ";" otool_lines "${otool_output}")
+
+  foreach(line ${otool_lines})
+    string(STRIP "${line}" line)
+
+    # Check if dependency needs fixing
+    set(needs_fix FALSE)
+    if(line MATCHES "^(/usr/local|/opt/homebrew|@rpath|@loader_path)")
+      set(needs_fix TRUE)
+    endif()
+
+    # Fix flat Qt refs like @executable_path/../Frameworks/QtCore -> framework path
+    if(line MATCHES "^@executable_path/../Frameworks/(Qt[^/ ]+) ")
+      set(qt_name "${CMAKE_MATCH_1}")
+      string(REGEX REPLACE " \\(compatibility.*$" "" old_ref "${line}")
+      set(new_ref "@executable_path/../Frameworks/${qt_name}.framework/Versions/A/${qt_name}")
+      message(STATUS "Fixing flat Qt ref ${old_ref} -> ${new_ref}")
+      execute_process(COMMAND install_name_tool -change "${old_ref}" "${new_ref}" "${lib}" ERROR_QUIET)
+      continue()
+    endif()
+
+    if(needs_fix)
+      # Extract dependency path (remove compatibility version suffix)
+      string(REGEX REPLACE " \\(compatibility.*$" "" dependency_str "${line}")
+      string(STRIP "${dependency_str}" dependency_str)
+
+      # Resolve the actual path
+      if(dependency_str MATCHES "^@rpath/(.+)")
+        set(dep_name "${CMAKE_MATCH_1}")
+        # Search multiple potential locations for @rpath dependencies
+        set(search_paths "${brew_lib}/${dep_name}")
+        # Add Cellar paths - some libs (like libjxl_cms) aren't symlinked to main lib dir
+        file(GLOB cellar_candidates "${brew_prefix}/Cellar/*/*/lib/${dep_name}")
+        list(APPEND search_paths ${cellar_candidates})
+
+        set(resolved_path "")
+        foreach(candidate ${search_paths})
+          if(EXISTS "${candidate}")
+            set(resolved_path "${candidate}")
+            break()
+          endif()
+        endforeach()
+
+        if(NOT resolved_path)
+          message(WARNING "Could not resolve @rpath dependency: ${dep_name}")
+          continue()
+        endif()
+      elseif(dependency_str MATCHES "^@loader_path/(.+)")
+        get_filename_component(dep_name "${CMAKE_MATCH_1}" NAME)
+        # Same search logic for @loader_path
+        set(search_paths "${brew_lib}/${dep_name}")
+        file(GLOB cellar_candidates "${brew_prefix}/Cellar/*/*/lib/${dep_name}")
+        list(APPEND search_paths ${cellar_candidates})
+
+        set(resolved_path "")
+        foreach(candidate ${search_paths})
+          if(EXISTS "${candidate}")
+            set(resolved_path "${candidate}")
+            break()
+          endif()
+        endforeach()
+
+        if(NOT resolved_path)
+          message(WARNING "Could not resolve @loader_path dependency: ${dep_name}")
+          continue()
+        endif()
+      else()
+        set(resolved_path "${dependency_str}")
+      endif()
+
+      # Check if this is a framework reference (e.g., Python.framework/Versions/3.x/Python)
+      if(dependency_str MATCHES "\\.framework/")
+        get_filename_component(bin_name "${dependency_str}" NAME)
+
+        # Qt frameworks: macdeployqt handles them, just fix refs to use framework path
+        if(bin_name MATCHES "^Qt")
+          # Extract framework-relative path (e.g., QtCore.framework/Versions/A/QtCore)
+          string(REGEX MATCH "[^/]+\\.framework/.*" fw_rel_path "${dependency_str}")
+          set(target "@executable_path/../Frameworks/${fw_rel_path}")
+          message(STATUS "Fixing Qt framework ${dependency_str} -> ${target}")
+          execute_process(COMMAND install_name_tool -change "${dependency_str}" "${target}" "${lib}" ERROR_QUIET)
+          continue()
+        endif()
+
+        # Non-Qt frameworks (e.g., Python): copy as flat file
+        set(target "@executable_path/../Frameworks/${bin_name}")
+
+        list(FIND framework_libs "${bin_name}" idx)
+        if(idx EQUAL -1)
+          # Resolve the framework binary path
+          string(REGEX REPLACE "^@rpath" "${brew_lib}" resolved_fw "${dependency_str}")
+          string(REGEX REPLACE "^@loader_path" "${brew_lib}" resolved_fw "${resolved_fw}")
+
+          if(EXISTS "${resolved_fw}")
+            get_filename_component(real_path "${resolved_fw}" REALPATH)
+            message(STATUS "Copying framework binary ${real_path} -> ${framework_path}/${bin_name}")
+            file(COPY "${real_path}" DESTINATION "${framework_path}")
+            get_filename_component(real_name "${real_path}" NAME)
+            if(NOT "${real_name}" STREQUAL "${bin_name}")
+              file(RENAME "${framework_path}/${real_name}" "${framework_path}/${bin_name}")
+            endif()
+            execute_process(COMMAND install_name_tool -id "${target}" "${framework_path}/${bin_name}" ERROR_QUIET)
+            list(APPEND framework_libs "${bin_name}")
+            set_property(GLOBAL APPEND PROPERTY LIBS_TO_FIX "${framework_path}/${bin_name}")
+          else()
+            message(WARNING "Could not find framework binary: ${resolved_fw}")
+            continue()
+          endif()
+        endif()
+
+        message(STATUS "Fixing ${dependency_str} -> ${target}")
+        execute_process(COMMAND install_name_tool -change "${dependency_str}" "${target}" "${lib}" ERROR_QUIET)
+        continue()
+      endif()
+
+      get_filename_component(dep_name "${resolved_path}" NAME)
+      set(target "@executable_path/../Frameworks/${dep_name}")
+
+      # Copy if not already in Frameworks
+      list(FIND framework_libs "${dep_name}" idx)
+      if(idx EQUAL -1 AND EXISTS "${resolved_path}")
+        # Resolve symlinks to get the actual file
+        get_filename_component(real_path "${resolved_path}" REALPATH)
+        message(STATUS "Copying ${real_path} to ${framework_path}/${dep_name}")
+        file(COPY "${real_path}" DESTINATION "${framework_path}")
+        # Rename if the real file has a different name
+        get_filename_component(real_name "${real_path}" NAME)
+        if(NOT "${real_name}" STREQUAL "${dep_name}")
+          file(RENAME "${framework_path}/${real_name}" "${framework_path}/${dep_name}")
+        endif()
+        # Set the ID of the newly copied library to its new location
+        execute_process(COMMAND install_name_tool -id "${target}" "${framework_path}/${dep_name}" ERROR_QUIET)
+        list(APPEND framework_libs "${dep_name}")
+        set(${framework_libs_var} "${framework_libs}" PARENT_SCOPE)
+        # Queue newly added lib for processing
+        set_property(GLOBAL APPEND PROPERTY LIBS_TO_FIX "${framework_path}/${dep_name}")
+      endif()
+
+      # Fix the reference in the current library
+      message(STATUS "Fixing ${dependency_str} -> ${target} in ${lib}")
+      execute_process(COMMAND install_name_tool -change "${dependency_str}" "${target}" "${lib}" ERROR_QUIET)
+    endif()
+  endforeach()
+endfunction()
+
+# Build initial list of framework libs
+file(GLOB existing_dylibs "${framework_path}/*.dylib")
+file(GLOB existing_sos "${framework_path}/*.so")
+set(framework_libs "")
+foreach(f ${existing_dylibs} ${existing_sos})
+  get_filename_component(fname "${f}" NAME)
+  list(APPEND framework_libs "${fname}")
+endforeach()
+
+# Collect all libs to fix
+file(GLOB_RECURSE all_dylibs "${app}/*.dylib")
+file(GLOB_RECURSE all_sos "${app}/*.so")
+# Framework binaries have no extension - scan them for deps like QtDBus
+file(GLOB framework_bins "${framework_path}/*.framework/Versions/*/[A-Z]*")
+list(FILTER framework_bins EXCLUDE REGEX "\\.(plist|h|json|tbd)$")
+list(FILTER framework_bins EXCLUDE REGEX "/(Headers|Resources)/")
+set_property(GLOBAL PROPERTY LIBS_TO_FIX ${all_dylibs} ${all_sos} ${framework_bins})
+
+# Process libs iteratively (handles newly discovered deps)
+set(max_iterations 100)
+set(iteration 0)
+while(iteration LESS max_iterations)
+  get_property(libs_to_fix GLOBAL PROPERTY LIBS_TO_FIX)
+  if(NOT libs_to_fix)
+    break()
+  endif()
+
+  # Clear the queue and process
+  set_property(GLOBAL PROPERTY LIBS_TO_FIX "")
+  list(REMOVE_DUPLICATES libs_to_fix)
+
+  foreach(lib ${libs_to_fix})
+    if(EXISTS "${lib}")
+      fix_lib_dependencies("${lib}" framework_libs)
+    endif()
+  endforeach()
+
+  math(EXPR iteration "${iteration} + 1")
+endwhile()
+
+message(STATUS "Library path fixing complete")
+
+#
+# sdl2-compat: Homebrew's sdl2 formula is now a compatibility layer that loads
+# the real SDL3 library at runtime via dlopen. Since SDL3 is not a linker
+# dependency, it is invisible to otool and is never picked up by the fixup loop
+# above. Detect sdl2-compat and bundle libSDL3 explicitly.
+#
+set(sdl2_compat_lib "${framework_path}/libSDL2-2.0.0.dylib")
+if(EXISTS "${sdl2_compat_lib}")
+  execute_process(
+    COMMAND strings -a "${sdl2_compat_lib}"
+    OUTPUT_VARIABLE sdl2_compat_strings
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  if(sdl2_compat_strings MATCHES "libSDL3\\.dylib")
+    set(sdl3_target "${framework_path}/libSDL3.dylib")
+    if(NOT EXISTS "${sdl3_target}")
+      set(sdl3_source "")
+      foreach(candidate "${brew_lib}/libSDL3.dylib" "${brew_lib}/libSDL3.0.dylib")
+        if(EXISTS "${candidate}")
+          get_filename_component(sdl3_source "${candidate}" REALPATH)
+          break()
+        endif()
+      endforeach()
+      if(sdl3_source)
+        message(STATUS "sdl2-compat detected, bundling SDL3 into ${framework_path}")
+        file(COPY "${sdl3_source}" DESTINATION "${framework_path}")
+        get_filename_component(sdl3_source_name "${sdl3_source}" NAME)
+        if(NOT "${sdl3_source_name}" STREQUAL "libSDL3.dylib")
+          file(RENAME "${framework_path}/${sdl3_source_name}" "${sdl3_target}")
+        endif()
+        execute_process(COMMAND install_name_tool -id "@executable_path/../Frameworks/libSDL3.dylib" "${sdl3_target}" ERROR_QUIET)
+      else()
+        message(WARNING "sdl2-compat detected but libSDL3 was not found in ${brew_lib}; the app will fail at runtime with 'Failed loading SDL3 library.'")
+      endif()
+    endif()
+  endif()
+endif()
+
+# List all bundled libraries for verification
+file(GLOB final_dylibs "${framework_path}/*.dylib")
+message(STATUS "=== Bundled libraries in Frameworks ===")
+foreach(lib ${final_dylibs})
+  get_filename_component(libname "${lib}" NAME)
+  message(STATUS "  ${libname}")
+endforeach()
+message(STATUS "=== End bundled libraries ===")
+
+#
+# fix_webengine: Fix QtWebEngineProcess paths and create Frameworks symlink
+#
+set(webengine_link_path "${weprocess}/Contents/Frameworks")
+set(webengine_bin "${weprocess}/Contents/MacOS/QtWebEngineProcess")
+
+if(EXISTS "${weprocess}" AND NOT EXISTS "${webengine_link_path}")
+  message(STATUS "Creating Frameworks symlink for QtWebEngineProcess")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -E create_symlink "../../../../../../../Frameworks" "${webengine_link_path}"
+  )
+endif()
+
+if(EXISTS "${webengine_bin}")
+  execute_process(
+    COMMAND otool -L "${webengine_bin}"
+    OUTPUT_VARIABLE otool_output
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
+  string(REPLACE "\n" ";" otool_lines "${otool_output}")
+
+  foreach(line ${otool_lines})
+    string(STRIP "${line}" line)
+
+    if(line MATCHES "^(/opt/homebrew|/usr/local)")
+      string(REGEX REPLACE " \\(compatibility.*$" "" dependency_str "${line}")
+      string(STRIP "${dependency_str}" dependency_str)
+
+      # Extract framework path component after /lib
+      string(REGEX REPLACE "^.*/lib" "" framework_suffix "${dependency_str}")
+      set(target "@executable_path/../Frameworks${framework_suffix}")
+
+      message(STATUS "Fixing WebEngine: ${dependency_str} -> ${target}")
+      execute_process(COMMAND install_name_tool -id "${target}" "${webengine_bin}" ERROR_QUIET)
+      execute_process(COMMAND install_name_tool -change "${dependency_str}" "${target}" "${webengine_bin}" ERROR_QUIET)
+    endif()
+  endforeach()
+endif()
+
+message(STATUS "WebEngine path fixing complete")
+
+#
+# Code signing (optional)
+#
+macro(sign_binary BIN)
+  message(STATUS "Signing: ${BIN}")
+  execute_process(
+    COMMAND ${CODESIGN} "${BIN}"
+    RESULT_VARIABLE result
+  )
+  if(NOT ${result} EQUAL 0)
+    message(FATAL_ERROR "Failed to sign ${BIN}")
+  endif(NOT ${result} EQUAL 0)
+endmacro(sign_binary BIN)
+
+if(@DO_SIGN@)
+  sign_binary(${weprocess})
+  file(GLOB_RECURSE LIBS
+    FOLLOW_SYMLINKS
+    "${app}/*.dylib"
+  )
+  file(GLOB FRAMEWORKS FOLLOW_SYMLINKS LIST_DIRECTORIES true "${framework_path}/*")
+  foreach(LIB ${LIBS} ${FRAMEWORKS})
+    sign_binary(${LIB})
+  endforeach(LIB ${LIBS})
+
+  foreach(BIN ${BINS})
+    sign_binary(${app}/${BIN})
+  endforeach(BIN ${BINS})
+
+  sign_binary(${app})
+
+  message("Verifying signature")
+  execute_process(
+    COMMAND codesign --verbose=4 --verify "${CMAKE_INSTALL_PREFIX}/@EXE@"
+    RESULT_VARIABLE result
+  )
+  if(NOT ${result} EQUAL 0)
+    message(FATAL_ERROR "Failed to verify binary!")
+  endif(NOT ${result} EQUAL 0)
+  execute_process(
+    COMMAND spctl --verbose=4 --assess --type execute "${CMAKE_INSTALL_PREFIX}/@EXE@"
+    RESULT_VARIABLE result
+  )
+  if(NOT ${result} EQUAL 0)
+    message(FATAL_ERROR "Failed to verify binary!")
+  endif(NOT ${result} EQUAL 0)
+endif(@DO_SIGN@)

@@ -1,0 +1,70 @@
+name: build-macos
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            artifact: macos-arm64
+          - runner: macos-15-intel
+            artifact: macos-x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        # using older version due to severe memory leak
+        # https://qt-project.atlassian.net/browse/QTBUG-141377https://qt-project.atlassian.net/browse/QTBUG-141377
+        #version: '6.10.1'
+        version: '6.9.3'
+        arch: clang_64
+        modules: 'qtwebengine qtwebchannel qtpositioning'
+    - name: Install dependencies
+      run: |
+        brew update
+        brew install mpv
+    - name: Release build
+      run: |
+        cmake -B build -G Ninja \
+          -DQTROOT=$QT_ROOT_DIR \
+          -DCMAKE_PREFIX_PATH=$QT_ROOT_DIR \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+          -DCMAKE_INSTALL_PREFIX=build/output \
+          -DCHECK_FOR_UPDATES=OFF \
+          -DUSE_STATIC_MPVQT=ON
+        cmake --build build --target install
+    - name: Run unit tests
+      run: ctest --test-dir build --output-on-failure
+    - name: Sign and create dmg
+      run: |
+        codesign --force --deep -s - "./build/output/Tigerest Theater.app/"
+        brew install create-dmg
+        VERSION=$(cat VERSION)
+        ARCH=$(uname -m)
+        DMG_NAME="TigerestTheater-${VERSION}-${ARCH}.dmg"
+        create-dmg \
+          --volname "Tigerest Theater v${VERSION}" \
+          --no-internet-enable \
+          --window-size 500 300 \
+          --icon-size 100 \
+          --icon "Tigerest Theater.app" 125 150 \
+          --app-drop-link 375 150 \
+          "${DMG_NAME}" "./build/output/Tigerest Theater.app"
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ matrix.artifact }}
+        path: ${{ github.workspace }}/TigerestTheater-*.dmg

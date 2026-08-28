@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Tigerest Theater">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffc433"/>
+      <stop offset="1" stop-color="#f2a900"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#111112"/>
+  <path d="M72 104h145l36 63-26 45-45-78H90zm165 0h202l-30 52H323l-45 78zm-125 106h89l-25 43 67 116 39-67h56l-96 166zm139 18h55l-24 42h-55zm50-18h112l-24 42h-112zm0 78h76l-24 42-23-40h-29z" fill="url(#gold)"/>
+  <path d="M321 187h91l-20 35h-91z" fill="#f4f1ea"/>
+</svg>

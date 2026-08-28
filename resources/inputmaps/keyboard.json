@@ -1,0 +1,101 @@
+{
+  "name": "Keyboard Generic",
+  "idmatcher": "Keyboard.*",
+  "mapping":
+  {
+    // standard navigation, we allow shift modifiers
+    "(Shift\\+)?Left": "left",
+    "(Shift\\+)?Right": "right",
+    "(Shift\\+)?Up": "up",
+    "(Shift\\+)?Down": "down",
+    "(Return|Enter)": "enter",
+    "(Esc|Backspace)": {
+      "short": "back",
+      "long": "exit"
+    },
+
+    // map X and Shift+X to X. This allows normal number input
+    "(?:Shift\\+)?([0-9])": "%1",
+
+    // map X and Shift+X to X for letters, space to space. This allows normal text input
+    "(?:Shift\\+)?([A-Z])": "%1",
+    "Space": ["space", "play_pause"],
+
+    // map some other normal buttons that might be useful
+    "(?:Shift\\+)?(\\.|\\:|\\_)": "%1",
+
+    // map Shift+Letter to action jump+letter
+    "Shift\\+([A-Z])": "jump+%1",
+
+    "P": "play_pause",
+    "Ctrl\\+P": "pause",
+    "X": "stop",
+    "B": "back",
+    "H": "home",
+    "A": "cycle_audio",
+    "Ctrl\\+A": "cycle_audio_back",
+    "L": "cycle_subtitles",
+    "Ctrl\\+L": "cycle_subtitles_back",
+    "S": "toggle_subtitles",
+    "Alt\\+A": "increase_audio_delay",
+    "Alt\\+Shift\\+A": "decrease_audio_delay",
+    "Alt\\+S": "increase_subtitles_delay",
+    "Alt\\+Shift\\+S": "decrease_subtitles_delay",
+    "PgUp": "seek_backward",
+    "PgDown": "seek_forward",
+    "Home": "step_backward",
+    "End": "step_forward",
+    "Ctrl\\+F": "search",
+    "Ctrl\\+M": "host:minimize",
+    "Meta\\+Down": "host:minimize",
+    "Ctrl\\+W": "host:quit",
+
+    // application shortcuts
+    "Ctrl\\+Shift\\+F": "host:toggleWebMode",
+    "Meta\\+Ctrl\\+F": "host:fullscreen",
+    "Meta\\+Enter": "host:toggleWebMode",
+    "F11": "host:fullscreen",
+    "Shift\\+F11": "host:fullscreen",
+    "Ctrl\\+Q": "host:close",
+    "Ctrl\\+Shift\\+R": "host:reload",
+    "Ctrl\\+Shift\\+D": "host:toggleDebug",
+    "Ctrl\\+Shift\\+A": "host:cycle_setting main.alwaysOnTop",
+
+    // emulate some of of PHT's behaviour
+    "I": "host:toggleDebug",
+    "W": "toggle_watched",
+    "\\\\": "host:fullscreen",
+    "Z": "host:cycle_setting video.aspect",
+    "T": "host:cycle_setting main.alwaysOnTop",
+
+    // media keys from the FLIRC and on Linux keyboards
+    "Toggle Media Play\\/Pause": "play_pause",
+
+    // Microsoft Windows Media Center SE; Logitech Harmony device
+    "Media Pause": "pause",
+    "Media Play": "play_pause",
+    "Media Stop": "stop",
+    "Media Rewind": "seek_backward",
+    "Media Fast Forward": "seek_forward",
+    "Media Previous": "step_backward",
+    "Media Next": "step_forward",
+    "Back": "back",
+
+    // Windows Media Center keyboard shortcuts
+    "Alt\\+(Return|Enter)": "host:fullscreen",
+    "Ctrl\\+Shift\\+P": "play_pause",
+    "Ctrl\\+Shift\\+S": "stop",
+    "Ctrl\\+Shift\\+B": "seek_backward",
+    "Ctrl\\+Shift\\+G": "seek_forward",
+    "Ctrl\\+B": "step_backward",
+    "Ctrl\\+G": "step_forward",
+
+    // volume
+    "=": "increase_volume",
+    "(Shift\\+)?\\+": "increase_volume",
+    "\\-": "decrease_volume",
+
+    // debug command to crash the host. for testing
+    "Ctrl\\+Alt\\+Shift\\+F1": "host:crash!"
+  }
+}

@@ -1,0 +1,26 @@
+include(GNUInstallDirs)
+
+find_package(X11)
+if(X11_FOUND AND X11_Xrandr_FOUND)
+  include_directories(${X11_X11_INCLUDE_PATH} ${X11_Xrandr_INCLUDE_PATH})
+  set(X11XRANDR_FOUND 1)
+  add_definitions(-DUSE_X11XRANDR)
+else()
+  set(X11_LIBRARIES "")
+  set(X11_Xrandr_LIB "")
+endif()
+
+if(LINUX_X11POWER)
+  add_definitions(-DUSE_X11POWER)
+  Message(STATUS "Enabling X11/XDG screensaver management")
+else()
+  add_definitions(-DLINUX_DBUS=1)
+  Message(STATUS "Enabling D-Bus power management")
+endif()
+
+set(INSTALL_BIN_DIR ${CMAKE_INSTALL_BINDIR})
+set(INSTALL_RESOURCE_DIR ${CMAKE_INSTALL_DATADIR}/jellyfin-desktop)
+
+if(NOT OPENELEC)
+  include(InstallLinuxDesktopFile)
+endif()

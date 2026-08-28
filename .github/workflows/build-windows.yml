@@ -1,0 +1,117 @@
+name: build-windows
+
+env:
+  MPV_VERSION: "20251214-git-f7be2ee"
+  # using older version due to severe memory leak
+  # https://qt-project.atlassian.net/browse/QTBUG-141377
+  QT_VERSION: "6.9.3"
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - artifact: windows-x64
+            qt_arch: win64_msvc2022_64
+            mpv_arch: x86_64-v3
+            mpv_arch_fallback: x86_64
+            vc_redist_arch: x64
+            vcvars: vcvars64.bat
+            machine: X64
+          # ARM64 disabled - requires qt webengine builds
+          # - artifact: windows-arm64
+          #   qt_arch: win64_msvc2022_arm64
+          #   mpv_arch: aarch64
+          #   mpv_arch_fallback: ""
+          #   vc_redist_arch: arm64
+          #   vcvars: vcvarsamd64_arm64.bat
+          #   machine: ARM64
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+    - name: Install Qt 6
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: "${{ env.QT_VERSION }}"
+        arch: "${{ matrix.qt_arch }}"
+        modules: "qtwebengine qtwebchannel qtpositioning"
+    - name: Install Inno Setup
+      run: |
+        choco install innosetup -y
+      shell: powershell
+    - name: Install dependencies
+      run: |
+        mkdir build
+        curl -L https://sourceforge.net/projects/mpv-player-windows/files/libmpv/mpv-dev-${{ matrix.mpv_arch }}-${{ env.MPV_VERSION }}.7z/download > mpv.7z
+        7z x mpv.7z
+        mkdir mpv
+        mv include mpv
+        gendef libmpv-2.dll
+        mv libmpv-2.dll mpv/libmpv-2.dll
+        mv libmpv-2.def mpv.def
+        mv mpv.def libmpv.dll.a mpv/
+        mv mpv build/
+        if [ -n "${{ matrix.mpv_arch_fallback }}" ]; then
+          curl -L https://sourceforge.net/projects/mpv-player-windows/files/libmpv/mpv-dev-${{ matrix.mpv_arch_fallback }}-${{ env.MPV_VERSION }}.7z/download > mpv-fallback.7z
+          7z x mpv-fallback.7z -ompv-fallback-tmp
+          mkdir build/mpv-fallback
+          mv mpv-fallback-tmp/libmpv-2.dll build/mpv-fallback/
+        fi
+      shell: bash
+    - name: Bundle VC runtime DLLs
+      run: |
+        mkdir deps
+        mkdir deps/vcruntime
+        # Dynamically locate VS installation on runner
+        $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+        if (-not $vsPath) {
+            $vsPath = (Get-ChildItem "C:\Program Files\Microsoft Visual Studio\*\*" | Where-Object { Test-Path "$_\VC\Redist\MSVC" } | Select-Object -First 1).FullName
+        }
+        $vsRedist = Get-ChildItem "$vsPath\VC\Redist\MSVC\*\${{ matrix.vc_redist_arch }}\Microsoft.VC*.CRT" | Select-Object -First 1
+        if (-not $vsRedist) {
+            $vsRedist = Get-ChildItem "$vsPath\VC\Redist\MSVC" -Recurse -Filter "Microsoft.VC*.CRT" | Where-Object { $_.FullName -like "*${{ matrix.vc_redist_arch }}*" } | Select-Object -First 1
+        }
+        Copy-Item "$vsRedist\*.dll" deps/vcruntime/
+        # Also grab VCRedist installer for optional system-wide install
+        Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile deps/vc_redist.x64.exe
+      shell: powershell
+    - name: Build
+      run: |
+        set "VS_PATH="
+        for /f "tokens=*" %%i in ('"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath 2^>nul') do set "VS_PATH=%%i"
+        if not defined VS_PATH (
+            for /d %%d in ("C:\Program Files\Microsoft Visual Studio\*") do (
+                for /d %%e in ("%%d\*") do (
+                    if exist "%%e\VC\Auxiliary\Build\${{ matrix.vcvars }}" set "VS_PATH=%%e"
+                )
+            )
+        )
+        call "%VS_PATH%\VC\Auxiliary\Build\${{ matrix.vcvars }}"
+        cd build
+        set PATH=%PATH%;C:\Program Files (x86)\Inno Setup 6;%CD%
+        set "QT_ROOT_DIR=%QT_ROOT_DIR:\=/%"
+        cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=output -DQTROOT=%QT_ROOT_DIR% -DMPV_INCLUDE_DIR=mpv/include -DMPV_LIBRARY=mpv/libmpv-2.dll -DVCRUNTIME_DIR=%CD%\..\deps\vcruntime -DVCREDIST_EXE=%CD%\..\deps\vc_redist.x64.exe -DCHECK_FOR_UPDATES=OFF -DUSE_STATIC_MPVQT=ON ..
+        lib /def:mpv\mpv.def /out:mpv\libmpv-2.dll.lib /MACHINE:${{ matrix.machine }}
+        ninja
+        ninja windows_all
+      shell: cmd
+    - name: Archive installer
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ matrix.artifact }}-installer
+        path: ${{ github.workspace }}/build/TigerestTheater-*.exe
+    - name: Archive portable ZIP
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ matrix.artifact }}-portable
+        path: ${{ github.workspace }}/build/TigerestTheater-*.zip

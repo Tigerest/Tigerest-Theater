@@ -1,0 +1,56 @@
+Source: jellyfin-desktop
+Section: video
+Priority: optional
+Maintainer:  Izzie Walton <izzie@iwalton.com>, Joshua Boniface <joshua@boniface.me>
+Build-Depends: debhelper (>= 10),
+               autoconf,
+               automake,
+               libtool,
+               libharfbuzz-dev,
+               libfreetype6-dev,
+               libfontconfig1-dev,
+               libx11-dev,
+               libxrandr-dev,
+               libvdpau-dev,
+               libva-dev,
+               mesa-common-dev,
+               libegl1-mesa-dev,
+               yasm,
+               libasound2-dev,
+               libpulse-dev,
+               libuchardet-dev,
+               zlib1g-dev,
+               libfribidi-dev,
+               git,
+               libgnutls28-dev,
+               libgl1-mesa-dev,
+               libsdl2-dev,
+               cmake,
+               wget,
+               g++,
+               qt6-webengine-dev,
+               qt6-declarative-dev,
+               qt6-base-dev,
+               qt6-wayland-dev,
+               libcec-dev,
+               libmpv-dev,
+               wget,
+               unzip,
+               qt6-base-private-dev
+Standards-Version: 3.9.4
+Homepage: https://jellyfin.org/
+Vcs-Git: https://github.org/jellyfin/jellyfin-desktop.git
+Vcs-Browser: https://github.org/jellyfin/jellyfin-desktop
+
+Package: jellyfin-desktop
+Architecture: any
+Depends: ${shlibs:Depends},
+         qml6-module-qtwebengine,
+         qml6-module-qtwebchannel,
+         qml6-module-qtquick-controls,
+         qml6-module-qtquick-window,
+         qml6-module-qtqml-workerscript,
+         qml6-module-qtquick-templates,
+         qml6-module-qt-labs-platform
+Description: Jellyfin is the Free Software Media System.
+ This package provides the Jellyfin desktop media player.

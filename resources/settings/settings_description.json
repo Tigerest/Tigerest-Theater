@@ -1,0 +1,1030 @@
+[
+  {
+    "section": "__meta__",
+    "version": 10
+  },
+  {
+    "section": "state",
+    "hidden": true,
+    "storage": true,
+    "values":[
+      {
+        "value": "geometry",
+        "default": "",
+        "hidden": true
+      }
+    ]
+  },
+  {
+    "section": "main",
+    "order": 1,
+    "values": [
+      {
+        "value": "webMode",
+        "default": "desktop",
+        "hidden": true,
+        "possible_values": [
+          [ "desktop", "desktop" ],
+          [ "tv", "tv" ]
+        ]
+      },
+      {
+        "value": "layout",
+        "default": "desktop",
+        "hidden": true,
+        "possible_values": [
+          [ "desktop", "desktop" ],
+          [ "tv", "tv" ]
+        ]
+      },
+      {
+        "value": "fullscreen",
+        "display_name": "启动时全屏",
+        "help": "启动客户端后直接进入全屏。网页内容请求的 HTML5 全屏仍可正常使用。",
+        "default": false,
+        "platforms_excluded": "oe"
+      },
+      {
+        "value": "minimizeOnDefocus",
+        "default": false,
+        "platforms": [ "windows" ],
+        "hidden": true
+      },
+      {
+        "value": "alwaysOnTop",
+        "display_name": "窗口始终置顶",
+        "help": "让大河影院窗口始终显示在其他窗口上方。",
+        "default": false
+      },
+      {
+        "value": "hdmi_poweron",
+        "default": false,
+        "hidden": true,
+        "platforms": [ "oe_rpi" ]
+      },
+      {
+        "value": "disablemouse",
+        "default": false,
+        "hidden": true
+      },
+      {
+        "value": "logLevel",
+        "default": "debug",
+        "hidden": true,
+        "possible_values": [
+          [ "debug", "debug" ],
+          [ "info", "info" ],
+          [ "warn", "warn" ],
+          [ "error", "error" ],
+          [ "fatal", "fatal" ],
+          [ "disable", "disable" ]
+        ]
+      },
+      {
+        "value": "useOpenGL",
+        "display_name": "使用 OpenGL 显示",
+        "help": "使用 OpenGL 作为客户端界面显示后端；修改后需要重启客户端。",
+        "default": false,
+        "platforms": [ "windows" ]
+      },
+      {
+        "value": "showPowerOptions",
+        "default": true,
+        "hidden": true
+      },
+      {
+        "value": "useSystemVideoCodecs",
+        "default": [
+          {
+            "value": true,
+            "platforms": [ "oe" ]
+          },
+          {
+            "value": false
+          }
+        ],
+        "hidden": true
+      },
+      {
+        "value": "forceFSScreen",
+        "display_name": "指定全屏显示器",
+        "help": "指定全屏时使用的显示器；留空表示使用当前显示器。",
+        "platforms_excluded": [ "oe" ],
+        "default": ""
+      },
+      {
+        "value": "forceAlwaysFS",
+        "default": false,
+        "hidden": true
+      },
+      {
+        "value": "sdlEnabled",
+        "default": true,
+        "hidden": true
+      },
+      {
+        "value": "checkForUpdates",
+        "display_name": "检查客户端更新",
+        "help": "允许客户端更新脚本检查新版本。",
+        "default": true
+      },
+      {
+        "value": "enableInputRepeat",
+        "display_name": "允许按键连发",
+        "help": "按住方向键等控制键时连续触发对应操作。",
+        "default": true
+      },
+      {
+        "value": "ignoreSSLErrors",
+        "default": false,
+        "hidden": true
+      },
+      {
+        "value": "autodetectCertBundle",
+        "display_name": "自动检测系统证书",
+        "help": "使用系统证书库建立 TLS 安全连接。",
+        "default": true,
+        "platforms": [ "linux" ]
+      },
+      {
+        "value": "userWebClient",
+        "default": "",
+        "hidden": true
+      },
+      {
+        "value": "enableWindowsMediaIntegration",
+        "display_name": "启用 Windows 媒体控制",
+        "default": true,
+        "platforms": [ "windows" ]
+      },
+      {
+        "value": "enableWindowsTaskbarIntegration",
+        "display_name": "启用 Windows 任务栏集成",
+        "default": true,
+        "platforms": [ "windows" ]
+      },
+      {
+        "value": "enableWindowsTrayIcon",
+        "display_name": "启用 Windows 系统托盘",
+        "default": false,
+        "platforms": [ "windows" ]
+      },
+      {
+        "value": "enableMPV",
+        "display_name": "启用 MPV 播放器",
+        "help": "启用 MPV 播放视频和音频。关闭后会回退到网页 HTML5 播放器；修改后需要重启客户端。",
+        "default": true
+      },
+      {
+        "value": "allowBrowserZoom",
+        "display_name": "允许网页界面缩放",
+        "help": "允许用 Ctrl+加减号、Ctrl+滚轮或触控板手势缩放网页界面；触控板缩放修改后需要重启客户端。",
+        "default": true
+      }
+    ]
+  },
+  {
+    "section": "audio",
+    "order": 2,
+    "values": [
+      {
+        "value": "devicetype",
+        "display_name": "音频设备类型",
+        "help": "选择音频连接方式。\n\n- 基础输出：关闭音频直通。\n- S/PDIF：将环绕声转换为光纤/同轴支持的格式。\n- HDMI：支持更多无损音频直通格式。",
+        "default": "basic",
+        "possible_values": [
+          [ "basic", "基础输出" ],
+          [ "spdif", "S/PDIF" ],
+          [ "hdmi", "HDMI" ]
+        ]
+      },
+      {
+        "value": "channels",
+        "display_name": "最大输出声道",
+        "help": "限制播放器可使用的声道数；macOS 默认自动检测，其他平台默认立体声。",
+        "default": [
+          {
+            "value": "auto",
+            "platforms": [ "osx" ]
+          },
+          {
+            "value": "2.0"
+          }
+        ],
+        "possible_values": [
+          [ "auto", "自动检测" ],
+          [ "2.0", "立体声（2.0）" ],
+          [ "5.1,2.0", "最高 5.1 环绕声" ],
+          [ "7.1,5.1,2.0", "最高 7.1 环绕声" ]
+        ]
+      },
+      {
+        "value": "device",
+        "display_name": "音频输出设备",
+        "help": "强制使用指定的音频设备；留空或 Auto 表示自动选择。",
+        "default": "auto"
+      },
+      {
+        "value": "normalize",
+        "display_name": "音量标准化",
+        "help": "自动平衡不同媒体之间的响度差异。",
+        "default": true
+      },
+      {
+        "value": "exclusive",
+        "display_name": "独占音频设备",
+        "help": "独占控制音频设备，避免系统混音；默认关闭。",
+        "default": false,
+        "platforms": [ "osx", "windows" ]
+      },
+      {
+        "value": "passthrough.ac3",
+        "display_name": "AC3 音频直通",
+        "help": "将 AC3 码流直接交给功放解码；需要选择 S/PDIF 或 HDMI，并关闭视频转码。",
+        "default": false
+      },
+      {
+        "value": "passthrough.dts",
+        "display_name": "DTS 音频直通",
+        "help": "将 DTS 码流直接交给功放解码；需要选择 S/PDIF 或 HDMI，并关闭视频转码。",
+        "default": false
+      },
+      {
+        "value": "passthrough.eac3",
+        "display_name": "E-AC3 音频直通",
+        "help": "将 E-AC3 码流直接交给功放解码；需要选择 HDMI，并关闭视频转码。",
+        "default": false,
+        "platforms_excluded": [ "osx", "oe_rpi" ]
+      },
+      {
+        "value": "passthrough.dts-hd",
+        "display_name": "DTS-HD 音频直通",
+        "help": "将 DTS-HD 码流直接交给功放解码；需要选择 HDMI，并关闭视频转码。",
+        "default": false,
+        "platforms_excluded": [ "osx", "oe_rpi" ]
+      },
+      {
+        "value": "passthrough.truehd",
+        "display_name": "TrueHD 音频直通",
+        "help": "将 TrueHD 码流直接交给功放解码；需要选择 HDMI，并关闭视频转码。",
+        "default": false,
+        "platforms_excluded": [ "osx", "oe_rpi" ]
+      }
+    ]
+  },
+  {
+    "section": "video",
+    "order": 3,
+    "values": [
+      {
+        "value": "debug.force_vo",
+        "default": "",
+        "hidden": true
+      },
+      {
+        "value": "refreshrate.auto_switch",
+        "display_name": "自动匹配显示刷新率",
+        "help": "按媒体帧率切换显示器刷新率；默认关闭。",
+        "default": false
+      },
+      {
+        "value": "refreshrate.delay",
+        "default": 3,
+        "hidden": true
+      },
+      {
+        "value": "refreshrate.avoid_25hz_30hz",
+        "default": true,
+        "hidden": true
+      },
+      {
+        "value": "hardwareDecoding",
+        "display_name": "硬件解码方式",
+        "help": "选择视频硬件解码策略。安全自动模式优先稳定性；复制回显模式兼容 MPV 着色器链；完全硬解负载最低但可能绕过部分着色器；遇到花屏时可关闭硬解。系统配置模式下以用户 mpv.conf 为准。",
+        "default": "safe",
+        "possible_values": [
+          [ "safe", "安全自动（auto-safe，推荐）" ],
+          [ "enabled", "完全硬解（自动）", { "platforms_excluded": "osx" } ],
+          [ "enabled", "完全硬解（现代 macOS）", { "platforms": "osx" } ],
+          [ "osx_compat", "完全硬解（旧版 macOS）", { "platforms": "osx" } ],
+          [ "copy", "硬解后复制回显（兼容着色器）" ],
+          [ "disabled", "关闭硬件解码" ]
+        ],
+        "platforms_excluded": "oe_rpi"
+      },
+      {
+        "value": "deinterlace",
+        "display_name": "视频去隔行",
+        "help": "对隔行扫描视频执行去隔行处理；默认关闭。",
+        "default": false,
+        "platforms_excluded": "oe_rpi"
+      },
+      {
+        "value": "prefer_transcode_to_h265",
+        "display_name": "转码时优先使用 H.265",
+        "default": false
+      },
+      {
+        "value": "allow_transcode_to_hevc",
+        "display_name": "允许转码为 HEVC",
+        "help": "允许服务器使用 HEVC 输出转码流；也可用于规避部分杜比视界内容被错误直接播放的问题。",
+        "default": false
+      },
+      {
+        "value": "force_transcode_hevc",
+        "display_name": "强制转码 HEVC 视频",
+        "default": false
+      },
+      {
+        "value": "force_transcode_4k",
+        "display_name": "强制转码 4K 视频",
+        "default": false
+      },
+      {
+        "value": "force_transcode_av1",
+        "display_name": "强制转码 AV1 视频",
+        "default": false
+      },
+      {
+        "value": "force_transcode_hdr",
+        "display_name": "强制转码 HDR 视频",
+        "help": "不向服务器声明 HDR 直接播放能力，使 HDR 内容走服务器转码。",
+        "default": false
+      },
+      {
+        "value": "force_transcode_hi10p",
+        "display_name": "强制转码 Hi10P 视频",
+        "default": false
+      },
+      {
+        "value": "force_transcode_dovi",
+        "display_name": "强制转码杜比视界",
+        "default": true
+      },
+      {
+        "value": "always_force_transcode",
+        "display_name": "始终强制服务器转码",
+        "default": false
+      },
+      {
+        "value": "sync_mode",
+        "display_name": "音画同步模式",
+        "help": "控制音频与视频如何同步。显示重采样会轻微调整音频以贴合显示刷新率，减少跳帧或重复帧；音频时钟最稳健；丢补音频仅建议排错时使用。系统配置模式下以用户 mpv.conf 为准。",
+        "default": "display-resample",
+        "possible_values": [
+          [ "audio", "跟随音频时钟" ],
+          [ "display-resample", "显示重采样（推荐）" ],
+          [ "display-adrop", "丢弃/补充音频帧" ]
+        ]
+      },
+      {
+        "value": "audio_delay.normal",
+        "default": 0,
+        "hidden": true,
+        "possible_range": {
+          "min": -300,
+          "max": 300,
+          "step": 50
+        }
+      },
+      {
+        "value": "audio_delay.24hz",
+        "default": 0,
+        "hidden": true,
+        "possible_range": {
+          "min": -300,
+          "max": 300,
+          "step": 50
+        }
+      },
+      {
+        "value": "audio_delay.25hz",
+        "default": 0,
+        "hidden": true,
+        "possible_range": {
+          "min": -300,
+          "max": 300,
+          "step": 50
+        }
+      },
+      {
+        "value": "audio_delay.50hz",
+        "default": 0,
+        "hidden": true,
+        "possible_range": {
+          "min": -300,
+          "max": 300,
+          "step": 50
+        }
+      },
+      {
+        "value": "cache",
+        "display_name": "网络缓存大小",
+        "help": "控制串流视频使用的缓存上限，单位为 MB。系统配置模式下以用户 mpv.conf 为准。",
+        "default": 75,
+        "possible_values": [
+          [ 10, "较小（10 MB）" ],
+          [ 75, "默认（75 MB）" ],
+          [ 150, "较大（150 MB）", { "platforms_excluded": "oe_rpi" } ],
+          [ 500, "超大（500 MB）", { "platforms_excluded": "oe_rpi" } ]
+        ]
+      },
+      {
+        "value": "aspect",
+        "display_name": "画面比例",
+        "default": "normal",
+        "possible_values": [
+          [ "custom", "默认" ],
+          [ "normal", "保持原始比例" ],
+          [ "zoom", "缩放填充" ],
+          [ "force_4_3", "强制 4:3" ],
+          [ "force_16_9", "强制 16:9" ],
+          [ "force_16_9_if_4_3", "仅将 4:3 强制为 16:9" ],
+          [ "stretch", "拉伸填满" ],
+          [ "noscaling", "不缩放" ]
+        ]
+      },
+      {
+        "value": "default_playback_speed",
+        "display_name": "默认播放速度",
+        "default": 1.0,
+        "possible_values": [
+          [ 0.5, "0.5x" ],
+          [ 0.75, "0.75x" ],
+          [ 1.0, "1x" ],
+          [ 1.25, "1.25x" ],
+          [ 1.5, "1.5x" ],
+          [ 1.75, "1.75x" ],
+          [ 2.0, "2x" ],
+          [ 2.5, "2.5x" ],
+          [ 3.0, "3x" ],
+          [ 3.5, "3.5x" ],
+          [ 4.0, "4.0x" ]
+        ]
+      }
+    ]
+  },
+  {
+    "section": "subtitles",
+    "order": 4,
+    "values": [
+      {
+        "value": "ass_scale_border_and_shadow",
+        "display_name": "ASS 边框与阴影按分辨率缩放",
+        "help": "让 ASS 字幕的文字边框和阴影随视频分辨率同比缩放。",
+        "default": true
+      },
+      {
+        "value": "ass_style_override",
+        "display_name": "ASS 字幕样式覆盖",
+        "help": "控制是否用客户端样式覆盖字幕脚本。默认遵循 MPV 判断；“遵循字幕脚本”完全保留原样；“应用客户端样式”使用 sub-ass 选项；“强制覆盖”可能破坏特效；“仅覆盖缩放”额外应用字幕缩放；“移除样式”会删除 ASS 标签与特效。",
+        "default": "",
+        "possible_values": [
+          [ "", "默认（由 MPV 判断）" ],
+          [ "yes", "应用客户端样式" ],
+          [ "no", "遵循字幕脚本" ],
+          [ "force", "强制覆盖全部样式" ],
+          [ "scale", "仅额外覆盖缩放" ],
+          [ "strip", "移除 ASS 样式与标签" ]
+        ]
+      },
+      {
+        "value": "placement",
+        "display_name": "字幕位置",
+        "default": "",
+        "possible_values": [
+          [ "", "默认" ],
+          [ "left,bottom", "左下" ],
+          [ "right,bottom", "右下" ],
+          [ "center,bottom", "下方居中" ],
+          [ "left,top", "左上" ],
+          [ "right,top", "右上" ],
+          [ "center,top", "上方居中" ]
+        ]
+      },
+      {
+        "value": "color",
+        "display_name": "字幕文字颜色",
+        "default": "",
+        "possible_values": [
+          [ "", "默认" ],
+          [ "#000000", "黑色" ],
+          [ "#FFFFFF", "白色" ],
+          [ "#EEEEEE", "浅灰色" ],
+          [ "#CCCCCC", "柔和浅灰色" ],
+          [ "#FBF93E", "黄色" ],
+          [ "#FFFFCC", "浅黄色" ],
+          [ "#EEEDB8", "柔和浅黄色" ]
+        ]
+      },
+      {
+        "value": "border_color",
+        "display_name": "字幕边框颜色",
+        "default": "",
+        "possible_values": [
+          [ "", "默认" ],
+          [ "#000000", "黑色" ],
+          [ "#FFFFFF", "白色" ],
+          [ "#EEEEEE", "浅灰色" ],
+          [ "#CCCCCC", "柔和浅灰色" ],
+          [ "#FBF93E", "黄色" ],
+          [ "#FFFFCC", "浅黄色" ],
+          [ "#EEEDB8", "柔和浅黄色" ]
+        ]
+      },
+      {
+        "value": "border_size",
+        "display_name": "字幕边框粗细",
+        "default": -1,
+        "possible_values": [
+          [ -1, "默认" ],
+          [ 0, "无边框" ],
+          [ 1, "极细" ],
+          [ 2, "较细" ],
+          [ 3, "标准" ],
+          [ 4, "较粗" ],
+          [ 5, "超粗" ]
+        ]
+      },
+      {
+        "value": "background_color",
+        "display_name": "字幕背景颜色",
+        "default": "",
+        "possible_values": [
+          [ "", "默认" ],
+          [ "#000000", "黑色" ],
+          [ "#FFFFFF", "白色" ],
+          [ "#EEEEEE", "浅灰色" ],
+          [ "#CCCCCC", "柔和浅灰色" ],
+          [ "#FBF93E", "黄色" ],
+          [ "#FFFFCC", "浅黄色" ],
+          [ "#EEEDB8", "柔和浅黄色" ]
+        ]
+      },
+      {
+        "value": "background_transparency",
+        "display_name": "字幕背景透明度",
+        "default": "",
+        "possible_values": [
+          [ "", "默认" ],
+          [ "FF", "0%" ],
+          [ "C0", "25%" ],
+          [ "80", "50%" ],
+          [ "40", "75%" ],
+          [ "00", "100%" ]
+        ]
+      },
+      {
+        "value": "size",
+        "display_name": "字幕字号",
+        "default": -1,
+        "possible_values": [
+          [ -1, "默认" ],
+          [ 18, "极小" ],
+          [ 24, "较小" ],
+          [ 32, "标准" ],
+          [ 42, "较大" ],
+          [ 60, "超大" ]
+        ]
+      },
+      {
+        "value": "font",
+        "display_name": "字幕字体",
+        "help": "内置配置默认使用参考 mpv.conf 中的 Segoe UI；ASS 字幕仍会优先遵循字幕脚本自带字体。",
+        "default": "Segoe UI",
+        "possible_values": [
+          [ "", "默认" ],
+          [ "Segoe UI", "Segoe UI（参考配置）" ],
+          [ "serif", "衬线体" ],
+          [ "sans-serif", "无衬线体" ],
+          [ "script", "手写体" ],
+          [ "monospace", "等宽字体" ],
+          [ "display", "展示字体" ],
+          [ "cursive", "连笔字体" ],
+          [ "fantasy", "装饰字体" ]
+        ]
+      },
+      {
+        "value": "referenceMpvDefaultsMigrated",
+        "default": false,
+        "hidden": true
+      }
+    ]
+  },
+  {
+    "section": "mpv",
+    "order": 5,
+    "values": [
+      {
+        "value": "configMode",
+        "display_name": "MPV 配置模式",
+        "help": "自动模式会优先读取当前用户的 mpv.conf；没有用户配置时使用客户端自带的稳定配置、脚本和 shader。切换后需要重启客户端。",
+        "default": "auto",
+        "possible_values": [
+          [ "auto", "自动：优先用户配置（推荐）" ],
+          [ "embedded", "仅使用大河内置模式" ],
+          [ "system", "仅使用系统 MPV 配置" ]
+        ]
+      },
+      {
+        "value": "renderBackend",
+        "display_name": "视频渲染后端",
+        "help": "GPU-Next 原生嵌入把 mpv 子窗口绑定到客户端窗口，可使用完整 libplacebo、D3D11/Vulkan、UOSC 与帧处理统计；libmpv Render API 兼容性更稳，但不具备 gpu-next 独有能力。切换后需要重启客户端。",
+        "default": "auto",
+        "possible_values": [
+          [ "auto", "自动：Windows/macOS 使用 GPU-Next（推荐）" ],
+          [ "gpu-next", "原生 GPU-Next 嵌入" ],
+          [ "libmpv", "libmpv Render API 兼容模式" ]
+        ]
+      },
+      {
+        "value": "systemConfigDir",
+        "display_name": "系统 MPV 配置目录",
+        "help": "留空时自动检测 Windows 的 %APPDATA%\\mpv，以及 macOS 的 ~/.config/mpv 或 ~/Library/Application Support/mpv。",
+        "default": ""
+      },
+      {
+        "value": "configModeMigrated",
+        "default": false,
+        "hidden": true
+      },
+      {
+        "value": "shaderPreset",
+        "display_name": "画质 / 着色器预设",
+        "help": "只保留已确认的三档：默认档采用 Anime AA 高强度参数；真人档沿用真人影视高画质；激进测试档加载完整 Anime4K 链，主要用于检查 shader 是否真实进入帧处理流水线。",
+        "default": "default",
+        "possible_values": [
+          [ "default", "默认（Anime AA 高强度）" ],
+          [ "liveaction", "真人影视高画质" ],
+          [ "aggressive", "激进测试（Anime4K 完整链）" ]
+        ]
+      },
+      {
+        "value": "advancedProfileOverrides",
+        "display_name": "用下方高级参数覆盖当前档位",
+        "help": "默认关闭，以保证三套档位按预设原样加载。只有需要逐项调试缩放、去色带、HDR 等参数时才开启；开启后，下方高级参数会覆盖所选档位中的同名项。",
+        "default": false
+      },
+      {
+        "value": "enableUosc",
+        "display_name": "使用 uosc 接管播放界面",
+        "help": "开启后播放时隐藏 Emby 网页控制层，由 uosc 提供整套播放界面；关闭后回退到 Emby HTML 播放界面。修改后需要重启客户端。",
+        "default": true
+      },
+      {
+        "value": "enableDanmaku",
+        "display_name": "启用 uosc_danmaku 弹幕插件",
+        "help": "提供弹幕搜索、匹配、开关与菜单。修改后需要重启客户端。",
+        "default": true
+      },
+      {
+        "value": "scale",
+        "display_name": "亮度缩放算法（scale）",
+        "help": "视频放大时的缩放算法。ewa_lanczossharp 画质较高；spline36 更均衡；bilinear 适合低性能设备。",
+        "default": "ewa_lanczos",
+        "possible_values": [
+          [ "ewa_lanczossharp", "EWA Lanczos 锐化型（高画质）" ],
+          [ "spline36", "36 阶样条（均衡）" ],
+          [ "lanczos", "Lanczos 窗函数" ],
+          [ "bicubic", "双三次插值" ],
+          [ "bilinear", "双线性插值（低负载）" ]
+        ]
+      },
+      {
+        "value": "cscale",
+        "display_name": "色度缩放算法（cscale）",
+        "help": "色度平面的缩放算法，通常与亮度缩放保持一致。",
+        "default": "ewa_lanczos",
+        "possible_values": [
+          [ "ewa_lanczossharp", "EWA Lanczos 锐化型（高画质）" ],
+          [ "spline36", "36 阶样条（均衡）" ],
+          [ "lanczos", "Lanczos 窗函数" ],
+          [ "bicubic", "双三次插值" ],
+          [ "bilinear", "双线性插值（低负载）" ]
+        ]
+      },
+      {
+        "value": "dscale",
+        "display_name": "缩小算法（dscale）",
+        "help": "视频分辨率高于窗口或屏幕时使用。米切尔算法清晰且不易产生振铃。",
+        "default": "mitchell",
+        "possible_values": [
+          [ "mitchell", "米切尔（推荐）" ],
+          [ "hermite", "埃尔米特" ],
+          [ "bicubic", "双三次插值" ],
+          [ "bilinear", "双线性插值（低负载）" ]
+        ]
+      },
+      {
+        "value": "interpolation",
+        "display_name": "插帧平滑（interpolation）",
+        "help": "在显示刷新率与视频帧率不整除时减少抖动；建议配合“显示重采样”同步模式使用。",
+        "default": false
+      },
+      {
+        "value": "tscale",
+        "display_name": "时间缩放算法（tscale）",
+        "help": "启用插帧平滑时使用的时间轴缩放算法。",
+        "default": "oversample",
+        "possible_values": [
+          [ "oversample", "超采样（推荐）" ],
+          [ "linear", "线性插值" ],
+          [ "catmull_rom", "Catmull-Rom 样条" ]
+        ]
+      },
+      {
+        "value": "deband",
+        "display_name": "色带抑制（deband）",
+        "help": "减轻渐变天空、暗部等区域的色阶断层，会增加少量 GPU 负载。",
+        "default": true
+      },
+      {
+        "value": "debandIterations",
+        "display_name": "色带抑制迭代次数",
+        "help": "迭代次数越高处理越细致，负载也越高；当前默认档使用 3 次。",
+        "default": 3,
+        "possible_values": [
+          [ 1, "1 次（低负载）" ],
+          [ 2, "2 次" ],
+          [ 3, "3 次（默认）" ],
+          [ 4, "4 次" ]
+        ]
+      },
+      {
+        "value": "debandThreshold",
+        "display_name": "色带识别阈值",
+        "help": "数值越高，越容易把轻微色带纳入处理；过高可能损失细小纹理。",
+        "default": 24,
+        "input_type": "number"
+      },
+      {
+        "value": "debandRange",
+        "display_name": "色带抑制作用范围",
+        "help": "控制平滑处理的采样半径；范围越大，处理大面积渐变的能力越强。",
+        "default": 12,
+        "input_type": "number"
+      },
+      {
+        "value": "debandGrain",
+        "display_name": "去色带后补充颗粒",
+        "help": "补回少量颗粒以减轻塑料感和平涂感；当前默认档使用 12。",
+        "default": 12,
+        "input_type": "number"
+      },
+      {
+        "value": "sigmoidUpscaling",
+        "display_name": "放大前使用 S 型亮度处理",
+        "help": "放大前执行 sigmoid 处理，减少高锐度缩放造成的边缘过冲。",
+        "default": true
+      },
+      {
+        "value": "correctDownscaling",
+        "display_name": "修正缩小采样",
+        "help": "缩小画面时修正采样误差，尽量保留真实纹理。",
+        "default": true
+      },
+      {
+        "value": "scaleAntiring",
+        "display_name": "亮度缩放抗振铃强度",
+        "help": "范围 0 到 1；数值越高，越能抑制高反差边缘的白边与光晕。",
+        "default": 0.95,
+        "input_type": "number"
+      },
+      {
+        "value": "cscaleAntiring",
+        "display_name": "色度缩放抗振铃强度",
+        "help": "范围 0 到 1；数值越高，越能抑制彩色边缘附近的假色与光晕。",
+        "default": 0.95,
+        "input_type": "number"
+      },
+      {
+        "value": "targetColorspaceHint",
+        "display_name": "自动提示目标色彩空间",
+        "help": "根据显示设备能力自动选择目标色域与输出色彩空间。",
+        "default": true
+      },
+      {
+        "value": "iccProfileAuto",
+        "display_name": "自动读取显示器 ICC 色彩配置",
+        "help": "读取系统显示器 ICC 配置，使色彩管理更准确。",
+        "default": true
+      },
+      {
+        "value": "toneMapping",
+        "display_name": "HDR 色调映射",
+        "help": "HDR 输出到 SDR 显示器时的亮度映射算法；内置默认使用 BT.2446A。",
+        "default": "bt.2446a",
+        "possible_values": [
+          [ "bt.2446a", "BT.2446A（默认，自然耐看）" ],
+          [ "auto", "自动选择" ],
+          [ "bt.2390", "BT.2390（高光保留）" ],
+          [ "mobius", "莫比乌斯曲线" ],
+          [ "reinhard", "莱因哈德曲线" ],
+          [ "hable", "Hable 电影曲线" ],
+          [ "clip", "直接裁切高光" ]
+        ]
+      },
+      {
+        "value": "gamutMappingMode",
+        "display_name": "广色域压缩方式",
+        "help": "把超出显示器色域的颜色映射到可显示范围；感知模式优先保持主观层次。",
+        "default": "perceptual",
+        "possible_values": [
+          [ "perceptual", "感知映射（推荐）" ],
+          [ "relative", "相对色度" ],
+          [ "saturation", "优先保持饱和度" ],
+          [ "desaturate", "逐步降低饱和度" ],
+          [ "clip", "直接裁切越界颜色" ],
+          [ "auto", "自动选择" ]
+        ]
+      },
+      {
+        "value": "hdrComputePeak",
+        "display_name": "动态计算 HDR 峰值",
+        "help": "按画面内容动态估算峰值亮度，以改善 HDR 到 SDR 的高光保留。",
+        "default": true
+      },
+      {
+        "value": "ditherDepth",
+        "display_name": "抖动输出位深",
+        "help": "自动模式根据输出设备选择位深；关闭抖动可能在渐变区域出现色带。",
+        "default": "auto",
+        "possible_values": [
+          [ "auto", "自动选择（推荐）" ],
+          [ "8", "8 位" ],
+          [ "10", "10 位" ],
+          [ "no", "关闭" ]
+        ]
+      },
+      {
+        "value": "blendSubtitles",
+        "display_name": "字幕混合阶段",
+        "help": "默认不把字幕混入视频 shader 链，保持用户配置中的字幕清晰度、颜色和 ASS 排版。",
+        "default": "no",
+        "possible_values": [
+          [ "video", "随视频混合" ],
+          [ "yes", "在所有视频滤镜后混合" ],
+          [ "no", "不参与视频混合（默认）" ]
+        ]
+      },
+      {
+        "value": "audioLanguage",
+        "display_name": "首选音轨语言",
+        "help": "使用 mpv 的 alang 语法，例如 jpn,ja,chi,zh,eng。留空表示跟随 Emby 选择。",
+        "input_type": "text",
+        "default": ""
+      },
+      {
+        "value": "subtitleLanguage",
+        "display_name": "首选字幕语言",
+        "help": "使用 mpv 的 slang 语法，例如 chi,zh,chs,sc,eng。留空表示跟随 Emby 选择。",
+        "input_type": "text",
+        "default": ""
+      },
+      {
+        "value": "cachePause",
+        "display_name": "缓存不足时自动暂停",
+        "help": "网络缓存不足时等待缓冲，降低高码率串流反复卡顿的概率。",
+        "default": true
+      },
+      {
+        "value": "demuxerMaxBackBytes",
+        "display_name": "回退缓存",
+        "help": "允许 mpv 保留用于向后跳转的缓存大小。数值越大占用内存越多。",
+        "default": 50,
+        "possible_values": [
+          [ 10, "10 MB" ],
+          [ 50, "50 MB（推荐）" ],
+          [ 100, "100 MB" ],
+          [ 250, "250 MB" ]
+        ]
+      },
+      {
+        "value": "screenshotFormat",
+        "display_name": "截图格式",
+        "help": "供 mpv/uosc 的截图命令使用。PNG 无损，JPG 文件较小。",
+        "default": "png",
+        "possible_values": [
+          [ "png", "PNG（无损）" ],
+          [ "jpg", "JPG" ],
+          [ "webp", "WebP" ]
+        ]
+      },
+      {
+        "value": "screenshotDirectory",
+        "display_name": "截图目录",
+        "help": "留空使用 mpv 默认位置；可填写 Windows 或 macOS 绝对路径。",
+        "input_type": "text",
+        "default": ""
+      }
+    ]
+  },
+  {
+    "section": "path",
+    "hidden": true,
+    "values": [
+      {
+        "value": "startupurl_desktop",
+        "default": "bundled"
+      },
+      {
+        "value": "startupurl_extension",
+        "default": "bundled"
+      }
+    ]
+  },
+  {
+    "section": "cec",
+    "hidden": true,
+    "values": [
+      {
+        "value": "hdmiport",
+        "default": 0
+      },
+      {
+        "value": "verbose_logging",
+        "default": false
+      },
+      {
+        "value": "enable",
+        "default": true
+      },
+      {
+        "value": "suspendonstandby",
+        "default": false
+      },
+      {
+        "value": "poweroffonstandby",
+        "default": false
+      },
+      {
+        "value": "activatesource",
+        "default": true
+      },
+      {
+        "value": "usekeyupdown",
+        "default": false
+      }
+    ]
+  },
+  {
+    "section": "appleremote",
+    "hidden": true,
+    "values": [
+      {
+        "value": "emulatepht",
+        "default": true
+      }
+    ]
+  },
+  {
+    "section": "albumart",
+    "hidden": true,
+    "values": [
+      {
+        "value": "cacheSize",
+        "default": 10485760
+      }
+    ]
+  },
+  {
+    "section": "system",
+    "hidden": true,
+    "values": [
+        {
+          "value": "systemname",
+          "default": "TigerestTheater",
+          "hidden": true,
+          "platforms": [ "oe" ]
+        },
+        {
+          "value": "lircd_enabled",
+          "default": false,
+          "platforms": [ "oe" ]
+        },
+        {
+          "value": "smbd_enabled",
+          "default": false,
+          "platforms": [ "oe" ]
+        },
+        {
+          "value": "sshd_enabled",
+          "default": false,
+          "platforms": [ "oe" ]
+        }
+    ]
+  },
+  {
+    "section": "other",
+    "order": 7,
+    "values": [
+      {
+        "value": "other_conf",
+        "display_name": "手动 MPV 配置",
+        "help": "每行填写一个 mpv.conf 格式的配置，例如 sub-border-size=5。高级设置会覆盖上面的客户端选项；删除配置后需重启才能完全恢复默认值。",
+        "input_type": "textarea",
+        "default": ""
+      }
+    ]
+  }
+]

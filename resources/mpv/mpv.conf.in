@@ -1,0 +1,181 @@
+# Tigerest Theater / 大河影院内置 mpv 配置
+# 本文件会部署到用户配置目录，所有可调整项都附有中文说明；个人修改请优先写入末尾包含的 user-overrides.conf。
+
+# 启动时应用设置页选中的画质档；新安装默认使用“默认”档，即用户提供的 anime-aa-insane 参数。
+profile=@TIGEREST_PROFILE@
+# 关闭 mpv 原生 OSC，避免与内置 UOSC 同时显示两套播放器控件。
+osc=no
+# 保留音量、字幕和档位切换等临时 OSD 提示，但不让播放状态常驻画面。
+osd-level=1
+# 启用 mpv 默认快捷键；同名按键仍可由下方指定的 input.conf 覆盖。
+input-default-bindings=yes
+# 从当前配置根目录读取 Tigerest 内置快捷键。
+input-conf=~~/input.conf
+# 不自动扫描 scripts 目录，避免用户脚本与内置 UOSC、弹幕脚本重复加载。
+load-scripts=no
+# 启用 mpv 官方 stats 脚本；默认不显示，只在快捷键或 UOSC 诊断按钮触发时出现。
+load-stats-overlay=yes
+# 鼠标停止移动 800 毫秒后自动隐藏，减少全屏播放时的遮挡。
+cursor-autohide=800
+# 文件播放结束后卸载当前媒体，不把最后一帧永久停在播放器窗口中。
+keep-open=no
+# 没有媒体时保持 mpv 核心存活，便于 Emby 在下一次播放时复用同一个播放器实例。
+idle=yes
+# 不让 mpv 在空闲时自行创建独立窗口，播放器窗口完全由 Tigerest 宿主管理。
+force-window=no
+# Emby 负责断点与跨设备进度；禁止 mpv 另存可能带鉴权参数的播放 URL。
+save-position-on-quit=no
+# 换集时恢复暂停、倍速、平移和缩放，避免上一集的临时操作污染下一集。
+reset-on-next-file=pause,speed,video-pan-x,video-pan-y,video-zoom
+
+# Windows 内置模式会在这里生成 input-ipc-server=mpvpipe，供 SVP 通过命名管道连接；macOS 不创建该 Windows 专用管道。
+@TIGEREST_IPC_SERVER@
+
+# 默认字幕字体使用用户提供配置中的 Segoe UI；系统缺少该字体时由字体回退机制选择可用字体。
+sub-font=Segoe UI
+# 把普通文本字幕放大到 1.4 倍，改善 4K 全屏下的可读性。
+sub-scale=1.4
+# 完整保留 ASS 字幕作者的样式和排版，不使用客户端样式覆盖脚本设计。
+sub-ass-override=no
+# 使用 0.5 的字幕描边，在保持清晰的同时避免边框过粗。
+sub-border-size=0.5
+# 使用 0.5 的字幕阴影偏移，增强复杂背景下的可读性。
+sub-shadow-offset=0.5
+# 给字幕底部保留 30 像素边距，避免文字紧贴屏幕底边或 UOSC 时间轴。
+sub-margin-y=30
+
+# 根据应用设置显式加载 UOSC、档位菜单与弹幕脚本；未启用的插件不会写入这里。
+@TIGEREST_SCRIPTS@
+
+# 下面定义三个可切换档位共用的无外部 shader 高画质基础。
+[tigerest-quality-base]
+# 这是内部继承用的公共基础，不在 UOSC 档位菜单中单独显示。
+profile-desc=Tigerest 公共画质基础（不含外部 shader）
+# 继承 mpv 官方 high-quality 预设，先取得高质量渲染基线。
+profile=high-quality
+# 自动选择 mpv 白名单中的安全硬件解码器，失败时回退到软件解码。
+hwdec=auto-safe
+# 把目标输出色彩空间提示给 D3D11/Vulkan 与系统合成器，帮助正确输出 SDR/HDR。
+target-colorspace-hint=yes
+# 自动读取系统显示器 ICC 配置并生成校色 3D LUT。
+icc-profile-auto=yes
+# 对 HDR 内容逐帧估算峰值与平均亮度，实现随场景变化的色调映射。
+hdr-compute-peak=yes
+# HDR 与 SDR 转换使用 ITU BT.2446 Method A，兼顾亮度与高光层次。
+tone-mapping=bt.2446a
+# 使用感知型色域映射软压缩越界颜色，避免直接裁切造成色阶和色相突变。
+gamut-mapping-mode=perceptual
+# 启用 mpv 内置去色带，减轻天空、雾气和暗部渐变中的阶梯。
+deband=yes
+# 公共基础做四轮去色带；具体档位可以覆盖成更适合其内容的数值。
+deband-iterations=4
+# 公共基础使用 48 的去色带阈值，适合较明显的渐变断层。
+deband-threshold=48
+# 公共基础使用 18 的初始搜索半径，覆盖较大范围的平滑渐变。
+deband-range=18
+# 公共基础补回少量颗粒，避免去色带后产生塑料感。
+deband-grain=6
+# 放大前做 S 型亮度变换，减少 Lanczos 在高反差边缘产生的过冲和光环。
+sigmoid-upscaling=yes
+# 缩小时扩展卷积核的有效采样范围，提高下采样质量。
+correct-downscaling=yes
+# 公共基础的亮度放大使用较锐的 EWA Lanczos Sharp。
+scale=ewa_lanczossharp
+# 公共基础的色度恢复同样使用 EWA Lanczos Sharp。
+cscale=ewa_lanczossharp
+# 缩小使用较均衡的 Mitchell，兼顾锐度、模糊和振铃控制。
+dscale=mitchell
+# 在 gpu-next 下以 0.7 强度抑制亮度缩放产生的振铃。
+scale-antiring=0.7
+# 在 gpu-next 下以 0.7 强度抑制色度缩放产生的彩边和振铃。
+cscale-antiring=0.7
+# 根据实际交换链位深自动选择抖动目标，减少低位深输出中的渐变色带。
+dither-depth=auto
+# 字幕在独立 OSD 阶段合成，不经过视频 shader，保持文字锐度和原始颜色。
+blend-subtitles=no
+# 让视频跟随显示器刷新节奏，并轻微重采样音频以维持音画同步。
+video-sync=display-resample
+# 关闭 mpv 自带时间轴插帧，避免与 SVP 等外部插帧链重复处理。
+interpolation=no
+
+# “默认”档：完整采用用户提供的 anime-aa-insane 参数，作为新安装的默认画质。
+[tigerest-default]
+# UOSC 和设置页显示的中文档位说明。
+profile-desc=默认（Anime AA 高强度）
+# 继承公共 HDR、色彩、同步和缩放基础。
+profile=tigerest-quality-base
+# 动画默认档减少到三轮去色带，降低 GPU 负载并保护细线。
+deband-iterations=3
+# 使用 24 的较保守阈值，减少把背景笔触和颗粒误当作色带。
+deband-threshold=24
+# 把初始搜索半径缩到 12，降低大范围平滑对轮廓的影响。
+deband-range=12
+# 补回 12 的颗粒，遮盖残余量化误差并减轻平涂感。
+deband-grain=12
+# 亮度放大改用自然一些的 EWA Lanczos，为后续 RAVU 留出更柔和的底子。
+scale=ewa_lanczos
+# 色度恢复同步改用 EWA Lanczos，减少彩色轮廓的人工勾边感。
+cscale=ewa_lanczos
+# 在 gpu-next 下把亮度抗振铃提高到 0.95，优先压制 halo 和轮廓外溢。
+scale-antiring=0.95
+# 在 gpu-next 下把色度抗振铃提高到 0.95，减少动画线稿旁的彩色假边。
+cscale-antiring=0.95
+# 切入此档前清空已有外部 shader，避免多次切档后列表累加。
+glsl-shaders=
+# 缩小时启用 SSimDownscaler，提高高分辨率视频缩放到较小窗口时的稳定性。
+glsl-shader=~~/shaders/SSim/SSimDownscaler_RT.glsl
+# 使用亮度结构引导 4:2:0 色度重建，改善彩色线条和边缘过渡。
+glsl-shader=~~/shaders/CfL/KrigBilateral.glsl
+# 放大时使用 RAVU Zoom R3 做较强的边缘重建和抗锯齿处理。
+glsl-shader=~~/shaders/RAISR/ravu_zoom_ar_r3.glsl
+
+# “真人”档：沿用当前真人影视高画质链，适合电影、剧集与泛用实拍内容。
+[tigerest-liveaction]
+# UOSC 和设置页显示的中文档位说明。
+profile-desc=真人影视高画质
+# 继承公共 HDR、色彩、去色带和缩放基础。
+profile=tigerest-quality-base
+# 切入此档前清空已有外部 shader，避免继承动画档的 Krig/RAVU 链。
+glsl-shaders=
+# 缩小时使用 SSimDownscaler 保持高质量下采样。
+glsl-shader=~~/shaders/SSim/SSimDownscaler_RT.glsl
+# 放大真人与泛用内容时使用 RAVU Zoom R3 强化可见细节。
+glsl-shader=~~/shaders/RAISR/ravu_zoom_ar_r3.glsl
+
+# “激进测试”档：保留当前 Anime4K 激进展示链，主要用于确认 shader 是否真实加载并进入帧流水线。
+[tigerest-aggressive-test]
+# UOSC 和设置页显示的中文档位说明。
+profile-desc=激进测试（Anime4K 完整链路）
+# 继承公共 HDR、色彩、同步和缩放基础。
+profile=tigerest-quality-base
+# 使用四轮去色带，让测试画面更容易观察处理链的介入。
+deband-iterations=4
+# 使用 40 的较强阈值，强化对色带和脏噪点的清理。
+deband-threshold=40
+# 使用 18 的搜索半径处理大面积平滑区域。
+deband-range=18
+# 只补回少量颗粒，保留明显的数码修复测试观感。
+deband-grain=4
+# 亮度放大使用较锐的 EWA Lanczos Sharp，放大 Anime4K 的可见差异。
+scale=ewa_lanczossharp
+# 色度恢复同样使用 EWA Lanczos Sharp，使测试链的边缘变化更明显。
+cscale=ewa_lanczossharp
+# 把亮度抗振铃降低到 0.5，为锐化和轮廓重建保留更明显的展示空间。
+scale-antiring=0.5
+# 把色度抗振铃降低到 0.5，便于观察彩色轮廓的处理差异。
+cscale-antiring=0.5
+# 切入此档前清空已有外部 shader，保证统计中只出现这一套完整测试链。
+glsl-shaders=
+# 缩小时启用 SSimDownscaler，验证下采样 shader 的挂载状态。
+glsl-shader=~~/shaders/SSim/SSimDownscaler_RT.glsl
+# 无条件运行 Anime4K Restore CNN UL，验证 CNN 恢复 Pass 已进入链路。
+glsl-shader=~~/shaders/Anime4K/Anime4K_Restore_CNN_UL.glsl
+# 放大超过 shader 条件时运行 Anime4K x2 UL，验证超分 Pass 已进入链路。
+glsl-shader=~~/shaders/Anime4K/Anime4K_Upscale_CNN_x2_UL.glsl
+# 无条件运行 Thin HQ 收细线条，形成容易在 Stats 中识别的完整测试链。
+glsl-shader=~~/shaders/Anime4K/Anime4K_Thin_HQ.glsl
+
+# 返回全局配置上下文，确保下面的用户覆盖不是激进测试 Profile 的一部分。
+[default]
+# 最后读取用户自定义覆盖；需要高级调整时请只修改 user-overrides.conf，升级不会覆盖已有内容。
+include=~~/user-overrides.conf

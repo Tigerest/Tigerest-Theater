@@ -1,0 +1,179 @@
+; Tigerest Theater Installer Script for Inno Setup
+; Based on WiX configuration from JMP.wxs and Bundle.wxs
+;
+; NOTE: Media Feature Pack downloads for Windows N editions are not included in this
+; Inno Setup version as they require MSU package handling that was specific to WiX Bundle.
+; Users on Windows N editions will need to install Media Feature Pack manually if needed.
+
+#define MyAppName "Tigerest Theater"
+#define MyAppVersion "@VERSION_STRING@"
+#define MyAppPublisher "Tigerest"
+#define MyAppURL "https://tigerest.top"
+#define MyAppExeName "Tigerest Theater.exe"
+#define MyAppGUID "{{a78bea4a-5bd0-4aa3-bdf3-579b4f58a921}"
+#define DeployPath "@CMAKE_INSTALL_PREFIX@"
+
+[Setup]
+; NOTE: The value of AppId uniquely identifies this application.
+AppId={#MyAppGUID}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}
+AppComments=Unofficial Emby desktop client powered by libmpv
+AppContact={#MyAppPublisher}
+DefaultDirName={autopf}\Tigerest Theater
+DisableProgramGroupPage=yes
+; Require Windows 10 1903 or newer
+MinVersion=10.0.18362
+ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed=x64compatible
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
+OutputDir=.
+OutputBaseFilename=TigerestTheater-{#MyAppVersion}-windows-x64
+SetupIconFile=@PROJECT_SOURCE_DIR@/bundle/win/tigerest.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
+Compression=lzma2/ultra64
+SolidCompression=yes
+WizardStyle=modern
+WizardImageFile=@PROJECT_SOURCE_DIR@/bundle/win/wizard-image.png
+WizardSmallImageFile=@PROJECT_SOURCE_DIR@/bundle/win/wizard-small-image.png
+DisableWelcomePage=no
+LicenseFile=
+DisableDirPage=no
+DisableReadyPage=no
+CloseApplications=yes
+RestartApplications=no
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+
+[Files]
+; Main application files (exclude redist folder - handled separately)
+Source: "{#DeployPath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "redist,redist/*,vc_redist.x64.exe"
+; Bundled VC runtime DLLs - only copied if needed (see Code section)
+Source: "{#DeployPath}/redist/*.dll"; DestDir: "{app}"; Flags: ignoreversion; Check: NeedsBundledRuntime
+; Bundled VCRedist installer - extracted to temp for potential system-wide install
+Source: "{#DeployPath}/vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall; Check: ShouldExtractVCRedist
+
+[Icons]
+Name: "{autoprograms}\Tigerest Theater"; Filename: "{app}\{#MyAppExeName}"; Comment: "Unofficial Emby desktop client"; WorkingDir: "{app}"
+Name: "{autodesktop}\Tigerest Theater"; Filename: "{app}\{#MyAppExeName}"; Comment: "Unofficial Emby desktop client"; WorkingDir: "{app}"; Tasks: desktopicon
+
+[Run]
+; Install VCRedist if downloaded
+Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /passive /norestart"; StatusMsg: "Installing Visual C++ Redistributable..."; Flags: waituntilterminated; Check: ShouldInstallVCRedist
+; Launch app after install
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch Tigerest Theater"; Flags: nowait postinstall skipifsilent
+
+[Code]
+var
+  RemoveUserData: Boolean;
+  VCRedistNeeded: Boolean;
+  InstallVCRedist: Boolean;
+  UseBundledRuntime: Boolean;
+
+function HasSystemVCRuntime: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{sys}\vcruntime140.dll'));
+end;
+
+function NeedsBundledRuntime: Boolean;
+begin
+  // Use bundled DLLs if: system doesn't have VCRedist AND (user install OR user declined VCRedist install)
+  Result := UseBundledRuntime;
+end;
+
+function ShouldExtractVCRedist: Boolean;
+begin
+  // Extract bundled VCRedist to temp if: admin install AND system missing VCRedist AND user wants to install it
+  Result := InstallVCRedist;
+end;
+
+function ShouldInstallVCRedist: Boolean;
+begin
+  // Run VCRedist installer if user chose to install it
+  Result := InstallVCRedist;
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  VCRedistNeeded := not HasSystemVCRuntime;
+  InstallVCRedist := False;
+  UseBundledRuntime := False;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  NeedsRestart := False;
+
+  if not VCRedistNeeded then
+  begin
+    Log('VCRedist already installed on system');
+    Exit;
+  end;
+
+  // Check if running as admin
+  if IsAdmin then
+  begin
+    // Offer to install VCRedist system-wide
+    if MsgBox('Visual C++ Redistributable is not installed.' + #13#10 + #13#10 +
+              'Would you like to install it system-wide?' + #13#10 +
+              '(Recommended - receives security updates via Windows Update)' + #13#10 + #13#10 +
+              'If you choose No, bundled runtime libraries will be used instead.',
+              mbConfirmation, MB_YESNO) = IDYES then
+    begin
+      InstallVCRedist := True;
+      Log('Will install VCRedist system-wide');
+    end
+    else
+    begin
+      // User declined, use bundled
+      Log('User declined VCRedist install, using bundled runtime');
+      UseBundledRuntime := True;
+    end;
+  end
+  else
+  begin
+    // Non-admin install, use bundled
+    Log('Non-admin install, using bundled runtime');
+    UseBundledRuntime := True;
+  end;
+end;
+
+// Note: AVX2 detection for libmpv is now handled at app runtime via delay-load
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  DataDir: String;
+  CacheDir: String;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    DataDir := ExpandConstant('{localappdata}\Tigerest Theater');
+    CacheDir := ExpandConstant('{localappdata}\cache\Tigerest Theater');
+
+    if DirExists(DataDir) or DirExists(CacheDir) then
+      RemoveUserData := MsgBox('Do you want to remove your Tigerest Theater user data?',
+                               mbConfirmation, MB_YESNO) = IDYES;
+  end
+  else if CurUninstallStep = usPostUninstall then
+  begin
+    if RemoveUserData then
+    begin
+      DataDir := ExpandConstant('{localappdata}\Tigerest Theater');
+      CacheDir := ExpandConstant('{localappdata}\cache\Tigerest Theater');
+      DelTree(DataDir, True, True, True);
+      DelTree(CacheDir, True, True, True);
+    end;
+  end;
+end;

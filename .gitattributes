@@ -1,0 +1,22 @@
+* text=auto
+
+# Windows command scripts must retain CRLF when checked out.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Cross-platform sources and macOS/Linux scripts use stable LF endings.
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+*.cpp text eol=lf
+*.h text eol=lf
+*.mm text eol=lf
+*.js text eol=lf
+*.qml text eol=lf
+*.py text eol=lf
+*.conf text eol=lf
+*.in text eol=lf
+*.plist text eol=lf

@@ -1,0 +1,55 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    - name: Install build dependencies from debian/control
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes devscripts equivs ninja-build lcov
+        sudo mk-build-deps -i -r -t "apt-get --yes" debian/control
+
+    - name: Configure
+      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSE_STATIC_MPVQT=ON -DCOVERAGE=ON
+
+    - name: Build
+      run: cmake --build build
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure
+
+    - name: Collect coverage
+      run: |
+        lcov --capture --directory build --output-file coverage.info \
+          --ignore-errors mismatch
+        lcov --remove coverage.info \
+          '/usr/*' '*/external/*' '*/tests/*' '*/build/*' \
+          --output-file coverage.info \
+          --ignore-errors unused
+        lcov --summary coverage.info 2>&1 | grep -v 'no data found' > coverage_summary.txt
+
+    - name: Save PR number
+      if: github.event_name == 'pull_request'
+      run: echo "${{ github.event.pull_request.number }}" > pr_number.txt
+
+    - name: Upload coverage artifact
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v7
+      with:
+        name: coverage
+        path: |
+          coverage_summary.txt
+          pr_number.txt
