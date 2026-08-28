@@ -102,7 +102,7 @@ async function main() {
 
     const Player = context.window._mpvVideoPlayer;
     const instance = new Player({
-        events: {trigger(target, name) { triggered.push({target, name}); }},
+        events: {trigger(target, name, args) { triggered.push({target, name, args}); }},
         loading,
         appRouter: {showVideoOsd() {}},
         globalize: {translate(value) { return value; }},
@@ -131,6 +131,9 @@ async function main() {
 
     player.canceled.emit();
     assert.strictEqual(triggered.filter(event => event.name === 'stopped').length, 1);
+    const canceledStop = triggered.filter(event => event.name === 'stopped').at(-1).args[0];
+    assert.strictEqual(canceledStop.playNext, false, 'native cancel would auto-play the next queue item');
+    assert.strictEqual(canceledStop.resetPlayQueue, true, 'native cancel did not clear the stale play queue');
     assert.strictEqual(windowEnds, 1);
     assert.strictEqual(videoDialog, null);
     player.canceled.emit();
@@ -144,6 +147,8 @@ async function main() {
 
     player.finished.emit();
     assert.strictEqual(triggered.filter(event => event.name === 'stopped').length, 2);
+    const naturalStop = triggered.filter(event => event.name === 'stopped').at(-1).args[0];
+    assert.strictEqual(naturalStop.playNext, undefined, 'natural completion no longer advances the queue');
     assert.strictEqual(windowEnds, 2, 'natural completion did not end the window session');
     assert.strictEqual(videoDialog, null, 'natural completion left the media container mounted');
 
@@ -152,6 +157,9 @@ async function main() {
     assert.strictEqual(windowBegins, 3);
     await instance.stop(false);
     assert.strictEqual(nativeStops, 1);
+    const explicitStop = triggered.filter(event => event.name === 'stopped').at(-1).args[0];
+    assert.strictEqual(explicitStop.playNext, false, 'explicit stop would auto-play the next queue item');
+    assert.strictEqual(explicitStop.resetPlayQueue, true, 'explicit stop did not clear the stale play queue');
     assert.strictEqual(windowEnds, 3, 'stop(false) did not end the window session');
     assert.strictEqual(videoDialog, null, 'stop(false) left the media container mounted');
 

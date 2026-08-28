@@ -144,9 +144,11 @@
             this.onCanceled = () => {
                 console.log('[MPV Signal] canceled');
                 const canceledSessionId = this._sessionId;
-                if (this.onEndedInternal()) {
+                if (this.onEndedInternal({playNext: false, resetPlayQueue: true})) {
                     // Native Escape/UOSC stop bypasses the web player's stop()
-                    // method, so finish the visual/window teardown here.
+                    // method.  Explicit user cancellation must also opt out of
+                    // Emby's default next-track behavior or playback relaunches
+                    // immediately after the native window is hidden.
                     if (this._sessionId === canceledSessionId)
                         this.removeMediaDialog();
                 }
@@ -533,14 +535,15 @@
             window.api.player.setAudioStream(relIndex != null ? relIndex : -1);
         }
 
-        onEndedInternal() {
+        onEndedInternal(stopOptions = {}) {
             if (!this._sessionActive) return false;
 
             this._sessionActive = false;
             this.clearStartupTimer();
             this.loading.hide();
             const stopInfo = {
-                src: this._currentSrc
+                src: this._currentSrc,
+                ...stopOptions
             };
 
             this.events.trigger(this, 'stopped', [stopInfo]);
@@ -553,7 +556,7 @@
 
         stop(destroyPlayer) {
             this.requestNativeStop();
-            this.onEndedInternal();
+            this.onEndedInternal({playNext: false, resetPlayQueue: true});
             this.removeMediaDialog();
 
             if (destroyPlayer) {

@@ -75,12 +75,6 @@ local function update_button()
 	})
 	mp.commandv('script-message-to', 'uosc', 'set-button', 'diagnostics', diagnostics_payload)
 
-	local exit_payload = utils.format_json({
-		icon = 'exit_to_app',
-		tooltip = '退出播放并返回媒体库',
-		command = 'stop',
-	})
-	mp.commandv('script-message-to', 'uosc', 'set-button', 'tigerest-exit', exit_payload)
 end
 
 local function apply_profile(name)

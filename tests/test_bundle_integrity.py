@@ -228,6 +228,9 @@ def test_native_player_composition() -> None:
     require('commandAsync({QStringLiteral("cycle"), QStringLiteral("pause")})' in mpv_item and
             "m_leftDoubleClickHandledLocally" in mpv_item,
             "left double-click does not perform one local pause toggle")
+    mpv_input = read("resources/mpv/input.conf")
+    require("MBTN_LEFT_DBL ignore" in mpv_input and "MBTN_LEFT_DBL cycle" not in mpv_input,
+            "mpv input.conf does not suppress the duplicate/default double-click action")
     require("initializeController();" in mpv_item and
             'setPropertyBlocking(QStringLiteral("wid")' in mpv_item and
             'setPropertyBlocking(QStringLiteral("vo"), QStringLiteral("gpu-next"))' in mpv_item,
@@ -294,9 +297,12 @@ def test_native_player_composition() -> None:
     require("tigerest-window-mode-button" in shell and "installWindowModeEntry" in shell,
             "Emby window/fullscreen control is missing")
     uosc = read("resources/mpv/script-opts/uosc.conf")
-    profile_menu = read("resources/mpv/plugins/profile_menu.lua")
-    require("button:tigerest-exit" in uosc and "退出播放并返回媒体库" in profile_menu,
-            "UOSC exit-playback button is missing")
+    top_bar = read("resources/mpv/plugins/uosc/elements/TopBar.lua")
+    require("top_bar_controls=left" in uosc and "button:tigerest-exit" not in uosc and
+            "icon = 'exit_to_app'" in top_bar and "mp.command('stop')" in top_bar,
+            "UOSC exit-playback button is not wired to the upper-left stop action")
+    require("playNext: false" in video_player and "resetPlayQueue: true" in video_player,
+            "explicit playback cancellation can still auto-advance the Emby queue")
 
 
 def test_brand_assets() -> None:
