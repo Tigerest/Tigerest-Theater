@@ -1,7 +1,16 @@
-const DEFAULT_SERVERS = [
-    'http://192.168.5.150:8095',
-    'http://nas.tigerest.top:8095'
-];
+const DEFAULT_LOCAL_SERVER_IP = '192.168.5.150';
+const DEFAULT_LOCAL_SERVER = `http://${DEFAULT_LOCAL_SERVER_IP}:8095/`;
+const DEFAULT_REMOTE_SERVER = 'http://nas.tigerest.top:8095/';
+
+function normalizeServer(server) {
+    return (server || '').trim().replace(/\/+$/, '').toLowerCase();
+}
+
+function isTigerestDefaultServer(server) {
+    const normalized = normalizeServer(server);
+    return normalized === normalizeServer(DEFAULT_LOCAL_SERVER) ||
+        normalized === normalizeServer(DEFAULT_REMOTE_SERVER);
+}
 
 async function tryConnect(server) {
     try {
@@ -157,7 +166,7 @@ function showManualConnection(savedServer) {
     address.classList.remove('connecting');
     address.style.visibility = 'visible';
     address.disabled = false;
-    address.value = savedServer || DEFAULT_SERVERS[0];
+    address.value = savedServer || DEFAULT_REMOTE_SERVER;
     spinner.style.display = 'none';
     button.style.visibility = 'visible';
     document.removeEventListener('keydown', cancelOnEscape);
@@ -191,7 +200,9 @@ async function autoConnect(servers) {
     return false;
 }
 
-// Auto-connect on load. A saved choice wins; fresh installs prefer LAN and then WAN.
+// Auto-connect on load. The private address is only attempted when an active
+// interface is on the NAS subnet; outside the LAN the public domain is used
+// immediately. Custom saved servers still take precedence.
 (async () => {
     console.log('Auto-connect: starting');
 
@@ -200,9 +211,18 @@ async function autoConnect(servers) {
     const savedServer = window.jmpInfo.settings.main.userWebClient;
     console.log('Auto-connect: savedServer =', savedServer);
 
-    const candidates = savedServer
-        ? [savedServer, ...DEFAULT_SERVERS]
-        : DEFAULT_SERVERS;
+    const isOnServerLan = window.api.system.isAddressOnLocalSubnet(DEFAULT_LOCAL_SERVER_IP);
+    console.log('Auto-connect: on server LAN =', isOnServerLan);
+
+    const defaultCandidates = isOnServerLan
+        ? [DEFAULT_LOCAL_SERVER, DEFAULT_REMOTE_SERVER]
+        : [DEFAULT_REMOTE_SERVER];
+    const candidates = savedServer && !isTigerestDefaultServer(savedServer)
+        ? [savedServer, ...defaultCandidates]
+        : defaultCandidates;
     const connected = await autoConnect(candidates);
-    if (!connected && isConnecting) showManualConnection(savedServer);
+    const manualDefault = savedServer && !isTigerestDefaultServer(savedServer)
+        ? savedServer
+        : DEFAULT_REMOTE_SERVER;
+    if (!connected && isConnecting) showManualConnection(manualDefault);
 })();

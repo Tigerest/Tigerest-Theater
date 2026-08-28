@@ -19,7 +19,7 @@
 
 // Network timeouts (milliseconds)
 constexpr int NETWORK_REQUEST_TIMEOUT_MS = 30000;
-constexpr int CONNECTIVITY_RETRY_INTERVAL_MS = 5000;
+constexpr int CONNECTIVITY_REQUEST_TIMEOUT_MS = 5000;
 
 class SystemComponent : public ComponentBase
 {
@@ -47,9 +47,11 @@ public:
   Q_INVOKABLE void checkServerConnectivity(QString url);
   Q_INVOKABLE void cancelServerConnectivity();
   Q_SIGNAL void serverConnectivityResult(QString url, bool success, QString resolvedUrl);
+  Q_INVOKABLE bool isAddressOnLocalSubnet(const QString& address) const;
 
   static QString extractBaseUrl(const QString& url);
-  void resolveUrl(const QString& url, std::function<void(const QString&)> callback);
+  void resolveUrl(const QString& url, std::function<void(const QString&)> callback,
+                  int timeoutMs = NETWORK_REQUEST_TIMEOUT_MS);
 
   Q_INVOKABLE QString getUserAgent();
 
@@ -166,8 +168,6 @@ private:
   qreal m_scale;
   QNetworkReply* m_connectivityCheckReply;
   QNetworkReply* m_resolveUrlReply;
-  QTimer* m_connectivityRetryTimer;
-  QString m_pendingConnectivityUrl;
   QHash<QString, QVariantMap> m_downloads;
   QHash<QString, QUrl> m_downloadUrls;
   QHash<QString, ActiveDownload*> m_activeDownloads;

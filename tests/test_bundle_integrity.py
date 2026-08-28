@@ -191,6 +191,22 @@ def test_default_server_seed() -> None:
     seed = compat[seed_start:seed_end]
     require(not re.search(r"(?i)(password|access.?token|api.?key|username)", seed),
             "default server seed contains a credential field")
+    require("ManualAddress: remoteAddress" in seed,
+            "public default server is not the manual fallback")
+
+    startup = read("native/find-webclient.js")
+    for marker in (
+        "isAddressOnLocalSubnet(DEFAULT_LOCAL_SERVER_IP)",
+        "[DEFAULT_LOCAL_SERVER, DEFAULT_REMOTE_SERVER]",
+        "[DEFAULT_REMOTE_SERVER]",
+        "savedServer && !isTigerestDefaultServer(savedServer)",
+    ):
+        require(marker in startup, f"LAN/WAN startup routing is missing: {marker}")
+
+    system = read("src/system/SystemComponent.cpp")
+    require("emit serverConnectivityResult(url, false" in system and
+            "CONNECTIVITY_RETRY_INTERVAL_MS" not in system,
+            "failed startup probes do not advance to the WAN fallback")
 
 
 def test_native_player_composition() -> None:
@@ -333,19 +349,37 @@ def test_no_embedded_tokens() -> None:
     literal_password = re.compile(
         rb"(?i)(?:password|passwd|pwd)\s*[:=]\s*['\"][^'\"]+['\"]"
     )
+    literal_test_account = re.compile(
+        rb"(?i)(?:test|emby|jellyfin)[_-]?"
+        rb"(?:username|user|account|login|email|password|pass|passwd)"
+        rb"\s*[:=]\s*['\"][^'\"]+['\"]"
+    )
     scan_roots = ["src", "native", "resources", "bundle", "CMakeModules", "dev"]
     allowed_suffixes = {
         ".cpp", ".h", ".js", ".json", ".in", ".cmake", ".sh", ".bat",
         ".yml", ".yaml", ".conf", ".lua", ".plist", ".xml", ".desktop",
     }
     offenders: list[str] = []
+    account_offenders: list[str] = []
     for root_name in scan_roots:
         for path in (ROOT / root_name).rglob("*"):
-            if path.is_file() and path.suffix.lower() in allowed_suffixes:
-                contents = path.read_bytes()
+            if not path.is_file():
+                continue
+            contents = path.read_bytes()
+            if path.suffix.lower() in allowed_suffixes:
                 if token.search(contents) or literal_password.search(contents):
                     offenders.append(str(path.relative_to(ROOT)))
+            if path.suffix.lower() in allowed_suffixes | {".md", ".html", ".css"}:
+                if literal_test_account.search(contents):
+                    account_offenders.append(str(path.relative_to(ROOT)))
     require(not offenders, "literal credential found in source: " + ", ".join(offenders))
+    require(not account_offenders,
+            "literal test account found in source: " + ", ".join(account_offenders))
+
+    for path in (ROOT / "README.md", ROOT / "PLAN.md", ROOT / "BUILD_REPORT.md",
+                 ROOT / "TEST_REPORT.md"):
+        require(not literal_test_account.search(path.read_bytes()),
+                f"literal test account found in {path.name}")
 
     log_source = read(ROOT / "src" / "utils" / "Log.cpp")
     for marker in (

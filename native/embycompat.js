@@ -20,7 +20,7 @@
                 credentials.Servers = [{
                     Id: '62526c3bf747439c99327ddec5fed4a8',
                     Name: 'TIGEREST-NAS',
-                    ManualAddress: localAddress,
+                    ManualAddress: remoteAddress,
                     LocalAddress: localAddress,
                     RemoteAddress: remoteAddress,
                     IsLocalServer: true,

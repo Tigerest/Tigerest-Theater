@@ -67,13 +67,6 @@ QMap<SystemComponent::PlatformArch, QString> g_platformArchNames = {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 SystemComponent::SystemComponent(QObject* parent) : ComponentBase(parent), m_platformType(platformTypeUnknown), m_platformArch(platformArchUnknown), m_doLogMessages(false), m_scale(1), m_connectivityCheckReply(nullptr), m_resolveUrlReply(nullptr)
 {
-  m_connectivityRetryTimer = new QTimer(this);
-  m_connectivityRetryTimer->setSingleShot(true);
-  connect(m_connectivityRetryTimer, &QTimer::timeout, [this]() {
-    qInfo() << "Retrying connectivity check for" << m_pendingConnectivityUrl;
-    checkServerConnectivity(m_pendingConnectivityUrl);
-  });
-
   m_networkManager = new QNetworkAccessManager(this);
 
 // define OS Type
@@ -608,13 +601,15 @@ void SystemComponent::setReplyTimeout(QNetworkReply* reply, int ms)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void SystemComponent::resolveUrl(const QString& url, std::function<void(const QString&)> callback)
+void SystemComponent::resolveUrl(const QString& url, std::function<void(const QString&)> callback,
+                                 int timeoutMs)
 {
   // Abort any pending resolve
   if (m_resolveUrlReply) {
-    m_resolveUrlReply->abort();
-    m_resolveUrlReply->deleteLater();
+    QNetworkReply* previousReply = m_resolveUrlReply;
     m_resolveUrlReply = nullptr;
+    previousReply->abort();
+    previousReply->deleteLater();
   }
 
   QNetworkRequest request(url);
@@ -625,7 +620,7 @@ void SystemComponent::resolveUrl(const QString& url, std::function<void(const QS
   m_resolveUrlReply = m_networkManager->head(request);
 
   QNetworkReply* reply = m_resolveUrlReply;
-  setReplyTimeout(reply, NETWORK_REQUEST_TIMEOUT_MS);
+  setReplyTimeout(reply, timeoutMs);
 
   if (SettingsComponent::Get().ignoreSSLErrors()) {
     connect(reply, QOverload<const QList<QSslError>&>::of(&QNetworkReply::sslErrors),
@@ -633,9 +628,13 @@ void SystemComponent::resolveUrl(const QString& url, std::function<void(const QS
   }
   connect(reply, &QNetworkReply::finished, this, [this, reply, callback]() {
     if (reply->error() == QNetworkReply::OperationCanceledError) {
+      // cancelServerConnectivity() and a newer request clear the member before
+      // aborting. If this is still the active reply, its own timeout fired.
+      const bool timedOut = m_resolveUrlReply == reply;
       reply->deleteLater();
-      if (m_resolveUrlReply == reply) {
+      if (timedOut) {
         m_resolveUrlReply = nullptr;
+        callback(QString());
       }
       return;
     }
@@ -655,21 +654,20 @@ void SystemComponent::resolveUrl(const QString& url, std::function<void(const QS
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void SystemComponent::checkServerConnectivity(QString url)
 {
-  // Stop any pending retry
-  if (m_connectivityRetryTimer->isActive()) {
-    m_connectivityRetryTimer->stop();
-  }
-
   if (m_connectivityCheckReply) {
-    m_connectivityCheckReply->abort();
-    m_connectivityCheckReply->deleteLater();
+    QNetworkReply* previousReply = m_connectivityCheckReply;
     m_connectivityCheckReply = nullptr;
+    previousReply->abort();
+    previousReply->deleteLater();
   }
-
-  // Store for retry
-  m_pendingConnectivityUrl = url;
 
   resolveUrl(url, [this, url](const QString& fullResolvedUrl) {
+    if (fullResolvedUrl.isEmpty()) {
+      qWarning() << "checkServerConnectivity: URL resolution timed out for" << url;
+      emit serverConnectivityResult(url, false, QString());
+      return;
+    }
+
     QString baseUrl = extractBaseUrl(fullResolvedUrl);
 
     QString checkUrl = baseUrl + "/System/Info/Public";
@@ -683,7 +681,7 @@ void SystemComponent::checkServerConnectivity(QString url)
     m_connectivityCheckReply = m_networkManager->get(request);
 
     QNetworkReply* reply = m_connectivityCheckReply;
-    setReplyTimeout(reply, NETWORK_REQUEST_TIMEOUT_MS);
+    setReplyTimeout(reply, CONNECTIVITY_REQUEST_TIMEOUT_MS);
 
     if (SettingsComponent::Get().ignoreSSLErrors()) {
       connect(reply, QOverload<const QList<QSslError>&>::of(&QNetworkReply::sslErrors),
@@ -692,9 +690,12 @@ void SystemComponent::checkServerConnectivity(QString url)
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, url, fullResolvedUrl]() {
       if (reply->error() == QNetworkReply::OperationCanceledError) {
+        const bool timedOut = m_connectivityCheckReply == reply;
         reply->deleteLater();
-        if (m_connectivityCheckReply == reply) {
+        if (timedOut) {
           m_connectivityCheckReply = nullptr;
+          qWarning() << "checkServerConnectivity: request timed out for" << url;
+          emit serverConnectivityResult(url, false, QString());
         }
         return;
       }
@@ -712,29 +713,19 @@ void SystemComponent::checkServerConnectivity(QString url)
         qWarning() << "checkServerConnectivity: error:" << reply->errorString();
       }
 
-      if (success) {
-        m_connectivityRetryTimer->stop();
-        m_pendingConnectivityUrl.clear();
-        emit serverConnectivityResult(url, success, fullResolvedUrl);
-      } else {
-        m_connectivityRetryTimer->start(CONNECTIVITY_RETRY_INTERVAL_MS);
-      }
+      emit serverConnectivityResult(url, success, success ? fullResolvedUrl : QString());
 
       reply->deleteLater();
       if (m_connectivityCheckReply == reply) {
         m_connectivityCheckReply = nullptr;
       }
     });
-  });
+  }, CONNECTIVITY_REQUEST_TIMEOUT_MS);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void SystemComponent::cancelServerConnectivity()
 {
-  if (m_connectivityRetryTimer->isActive()) {
-    m_connectivityRetryTimer->stop();
-  }
-
   // Save pointers before abort() since it synchronously triggers finished handlers
   // which may set member variables to nullptr
   if (m_resolveUrlReply) {
@@ -751,7 +742,36 @@ void SystemComponent::cancelServerConnectivity()
     reply->deleteLater();
   }
 
-  m_pendingConnectivityUrl.clear();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+bool SystemComponent::isAddressOnLocalSubnet(const QString& address) const
+{
+  QHostAddress targetAddress;
+  if (!targetAddress.setAddress(address)) {
+    return false;
+  }
+
+  for (const QNetworkInterface& interface : QNetworkInterface::allInterfaces()) {
+    const QNetworkInterface::InterfaceFlags flags = interface.flags();
+    if (!(flags & QNetworkInterface::IsUp) ||
+        !(flags & QNetworkInterface::IsRunning) ||
+        (flags & QNetworkInterface::IsLoopBack)) {
+      continue;
+    }
+
+    for (const QNetworkAddressEntry& entry : interface.addressEntries()) {
+      const QHostAddress localAddress = entry.ip();
+      const int prefixLength = entry.prefixLength();
+      if (localAddress.protocol() == targetAddress.protocol() &&
+          prefixLength >= 0 &&
+          targetAddress.isInSubnet(localAddress, prefixLength)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
