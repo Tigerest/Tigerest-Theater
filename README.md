@@ -31,10 +31,4 @@ dev/macos/test.sh
 dev/macos/bundle.sh
 ```
 
-## 数据与凭据
-
-测试账号只允许在运行时通过环境变量或操作系统凭据存储注入，不得写入源码、配置模板、日志或构建产物。日志会遮蔽 Emby/Jellyfin 常见令牌形式；默认服务器记录不包含账号、密码或访问令牌。
-
-Windows 配置位于 `%LOCALAPPDATA%\Tigerest Theater\profiles\<profile-id>\`，macOS 配置位于 `~/Library/Application Support/Tigerest Theater/profiles/<profile-id>/`，macOS 日志位于 `~/Library/Logs/Tigerest Theater/profiles/<profile-id>/`。
-
 本项目是非官方 Emby 客户端，与 Emby LLC 无隶属关系。第三方组件许可见源码树和安装包内对应文件。
