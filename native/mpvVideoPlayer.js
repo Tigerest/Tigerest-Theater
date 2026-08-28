@@ -114,6 +114,12 @@
              * @type {boolean}
              */
             this._hasConnection = false;
+            this._sessionActive = false;
+            this._sessionId = 0;
+            this._nativeStopRequested = false;
+            this._windowSessionActive = false;
+            this._startupTimer = null;
+            this._errorHandling = false;
             /**
              * @type {Array<{start: number, end: number}>}
              */
@@ -130,8 +136,29 @@
              * @private
              */
             this.onEnded = () => {
-                this.onEndedInternal();
+                if (this.onEndedInternal()) {
+                    this.removeMediaDialog();
+                }
             };
+
+            this.onCanceled = () => {
+                console.log('[MPV Signal] canceled');
+                const canceledSessionId = this._sessionId;
+                if (this.onEndedInternal()) {
+                    // Native Escape/UOSC stop bypasses the web player's stop()
+                    // method, so finish the visual/window teardown here.
+                    if (this._sessionId === canceledSessionId)
+                        this.removeMediaDialog();
+                }
+            };
+
+            this.onStopped = () => console.log('[MPV Signal] stopped');
+            this.onBuffering = (percent) => console.log(`[MPV Signal] buffering: ${percent}`);
+            this.onStateChanged = (newState, oldState) => console.log(`[MPV Signal] stateChanged: ${oldState} -> ${newState}`);
+            this.onVideoPlaybackActive = (active) => console.log(`[MPV Signal] videoPlaybackActive: ${active}`);
+            this.onWindowVisible = (visible) => console.log(`[MPV Signal] windowVisible: ${visible}`);
+            this.onVideoRectangleChanged = () => console.log('[MPV Signal] onVideoRecangleChanged');
+            this.onMetadata = (meta) => console.log(`[MPV Signal] onMetaData: ${meta?.Name || meta?.name || 'media'}`);
 
             /**
              * @private
@@ -149,6 +176,7 @@
              * @private
              */
             this.onPlaying = () => {
+                this.clearStartupTimer();
                 if (!this._started) {
                     this._started = true;
 
@@ -173,7 +201,7 @@
                         if (dlg) {
                             dlg.style.zIndex = 'unset';
                         }
-                    } else if (this._currentPlayOptions.fullscreen) {
+                    } else if (this._currentPlayOptions?.fullscreen) {
                         // Disabling uosc is an explicit fallback to Emby's HTML OSD.
                         this.appRouter.showVideoOsd();
                     }
@@ -206,6 +234,12 @@
              * @param e {Event} The event received from the `<video>` element
              */
             this.onError = async (error) => {
+                if (this._errorHandling) return;
+                this._errorHandling = true;
+                this.clearStartupTimer();
+                this.loading.hide();
+                this._sessionActive = false;
+                this.requestNativeStop();
                 this.removeMediaDialog();
                 console.error(`media error: ${error}`);
 
@@ -216,7 +250,7 @@
                 try {
                     await confirm({
                         title: "Playback Failed",
-                        text: `Playback failed with error "${error}". Retry with transcode? (Note this may hang the player.)`,
+                        text: `Playback failed with error "${error}". Retry with transcode?`,
                         cancelText: "Cancel",
                         confirmText: "Retry"
                     });
@@ -244,17 +278,56 @@
         }
 
         async play(options) {
+            this.clearStartupTimer();
+            this.loading.hide();
             this._started = false;
             this._timeUpdated = false;
             this._currentTime = null;
             this._bufferedRanges = [];
+            this._sessionActive = true;
+            this._sessionId += 1;
+            this._nativeStopRequested = false;
+            this._errorHandling = false;
+
+            if (!this._windowSessionActive && window.api.window) {
+                this._windowSessionActive = true;
+                window.api.window.beginPlaybackSession();
+            }
 
             this.resetSubtitleOffset();
             if (options.fullscreen) {
                 this.loading.show();
             }
-            const elem = await this.createMediaElement(options);
-            return await this.setCurrentSrc(elem, options);
+            this.startStartupTimer();
+            try {
+                const elem = await this.createMediaElement(options);
+                return await this.setCurrentSrc(elem, options);
+            } catch (error) {
+                await this.onError(error?.message || error);
+                throw error;
+            }
+        }
+
+        clearStartupTimer() {
+            if (this._startupTimer != null) {
+                clearTimeout(this._startupTimer);
+                this._startupTimer = null;
+            }
+        }
+
+        startStartupTimer() {
+            this.clearStartupTimer();
+            const startupSessionId = this._sessionId;
+            this._startupTimer = setTimeout(() => {
+                if (this._sessionId !== startupSessionId || !this._sessionActive || this._started) return;
+                this.onError('播放器启动超时（30 秒）');
+            }, 30000);
+        }
+
+        requestNativeStop() {
+            if (this._nativeStopRequested) return;
+            this._nativeStopRequested = true;
+            window.api.player.stop();
         }
 
         getSavedVolume() {
@@ -315,7 +388,7 @@
          * @private
          */
         setCurrentSrc(elem, options) {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 const val = options.url;
                 this._currentSrc = val;
                 console.debug('[MPV] Starting media playback');
@@ -367,7 +440,10 @@
                     streamdata,
                     audioRelIndex,
                     subtitleParam,
-                    resolve);
+                    (loaded) => {
+                        if (loaded) resolve();
+                        else reject(new Error('mpv 拒绝了媒体加载命令'));
+                    });
             });
         }
 
@@ -458,6 +534,11 @@
         }
 
         onEndedInternal() {
+            if (!this._sessionActive) return false;
+
+            this._sessionActive = false;
+            this.clearStartupTimer();
+            this.loading.hide();
             const stopInfo = {
                 src: this._currentSrc
             };
@@ -467,12 +548,13 @@
             this._currentTime = null;
             this._currentSrc = null;
             this._currentPlayOptions = null;
+            return true;
         }
 
         stop(destroyPlayer) {
-            window.api.player.stop();
-
+            this.requestNativeStop();
             this.onEndedInternal();
+            this.removeMediaDialog();
 
             if (destroyPlayer) {
                 this.destroy();
@@ -481,8 +563,8 @@
         }
 
         removeMediaDialog() {
-            window.api.player.stop();
-
+            this.clearStartupTimer();
+            this.loading.hide();
             window.api.player.setVideoRectangle(-1, 0, 0, 0);
 
             document.body.classList.remove('hide-scroll');
@@ -498,9 +580,17 @@
             if (document.webkitIsFullScreen && document.webkitExitFullscreen) {
                 document.webkitExitFullscreen();
             }
+
+            if (this._windowSessionActive && window.api.window) {
+                this._windowSessionActive = false;
+                window.api.window.endPlaybackSession();
+            }
         }
 
         destroy() {
+            if (this._sessionActive || this._currentSrc)
+                this.requestNativeStop();
+            this.onEndedInternal();
             this.removeMediaDialog();
 
             const player = window.api.player;
@@ -509,11 +599,19 @@
             player.playing.disconnect(this.onPlaying);
             player.positionUpdate.disconnect(this.onTimeUpdate);
             player.finished.disconnect(this.onEnded);
+            player.canceled.disconnect(this.onCanceled);
+            player.stopped.disconnect(this.onStopped);
             this._duration = undefined;
             player.updateDuration.disconnect(this.onDuration);
             player.error.disconnect(this.onError);
             player.paused.disconnect(this.onPause);
             player.bufferedRangesUpdated.disconnect(this.onBufferedRangesUpdated);
+            player.buffering.disconnect(this.onBuffering);
+            player.stateChanged.disconnect(this.onStateChanged);
+            player.videoPlaybackActive.disconnect(this.onVideoPlaybackActive);
+            player.windowVisible.disconnect(this.onWindowVisible);
+            player.onVideoRecangleChanged.disconnect(this.onVideoRectangleChanged);
+            player.onMetaData.disconnect(this.onMetadata);
         }
 
         /**
@@ -558,22 +656,18 @@
                     player.playing.connect(this.onPlaying);
                     player.positionUpdate.connect(this.onTimeUpdate);
                     player.finished.connect(this.onEnded);
+                    player.canceled.connect(this.onCanceled);
+                    player.stopped.connect(this.onStopped);
                     player.updateDuration.connect(this.onDuration);
                     player.error.connect(this.onError);
                     player.paused.connect(this.onPause);
                     player.bufferedRangesUpdated.connect(this.onBufferedRangesUpdated);
-
-                    // Log all other signals
-                    player.buffering.connect((percent) => {
-                        console.log(`[MPV Signal] buffering: ${percent}`);
-                    });
-                    player.canceled.connect(() => console.log('[MPV Signal] canceled'));
-                    player.stopped.connect(() => console.log('[MPV Signal] stopped'));
-                    player.stateChanged.connect((newState, oldState) => console.log(`[MPV Signal] stateChanged: ${oldState} -> ${newState}`));
-                    player.videoPlaybackActive.connect((active) => console.log(`[MPV Signal] videoPlaybackActive: ${active}`));
-                    player.windowVisible.connect((visible) => console.log(`[MPV Signal] windowVisible: ${visible}`));
-                    player.onVideoRecangleChanged.connect(() => console.log('[MPV Signal] onVideoRecangleChanged'));
-                    player.onMetaData.connect((meta) => console.log(`[MPV Signal] onMetaData: ${meta?.Name || meta?.name || 'media'}`));
+                    player.buffering.connect(this.onBuffering);
+                    player.stateChanged.connect(this.onStateChanged);
+                    player.videoPlaybackActive.connect(this.onVideoPlaybackActive);
+                    player.windowVisible.connect(this.onWindowVisible);
+                    player.onVideoRecangleChanged.connect(this.onVideoRectangleChanged);
+                    player.onMetaData.connect(this.onMetadata);
                 }
 
                 if (options.fullscreen) {

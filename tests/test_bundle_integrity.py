@@ -214,9 +214,9 @@ def test_native_player_composition() -> None:
     require("router.setTransparency(level)" in compat,
             "Emby transparency adapter is not wired to appRouter")
     qml = read("src/ui/webview.qml")
-    require("webRestoreDelay.restart()" in qml and "mainWindow.webRestoreReady" in qml and
-            "layer.enabled" not in qml,
-            "WebEngine native-window restoration still uses corruptible layer textures")
+    require("visible: video.nativeGpuNext" in qml and "webRestoreDelay" not in qml and
+            "webRestoreReady" not in qml and "layer.enabled" not in qml,
+            "WebEngine composition is not separated for GPU-Next and libmpv")
     player = read("native/mpvVideoPlayer.js")
     require("getExternalSubtitleUrl" in player and "new URL(deliveryUrl, this._currentSrc).href" in player,
             "external subtitle URLs are not resolved for libmpv")
@@ -225,10 +225,16 @@ def test_native_player_composition() -> None:
     mpv_item = read("src/player/MpvVideoItem.cpp")
     for marker in ("MOUSE_ENTER", "MOUSE_LEAVE", "WHEEL_UP", "keydown", "keyup", "mouseDoubleClickEvent"):
         require(marker in mpv_item, f"libmpv input bridge is missing: {marker}")
+    require('commandAsync({QStringLiteral("cycle"), QStringLiteral("pause")})' in mpv_item and
+            "m_leftDoubleClickHandledLocally" in mpv_item,
+            "left double-click does not perform one local pause toggle")
     require("initializeController();" in mpv_item and
             'setPropertyBlocking(QStringLiteral("wid")' in mpv_item and
             'setPropertyBlocking(QStringLiteral("vo"), QStringLiteral("gpu-next"))' in mpv_item,
             "native GPU-Next window embedding is missing")
+    mpv_item_header = read("src/player/MpvVideoItem.h")
+    require("Q_PROPERTY(bool nativeGpuNext" in mpv_item_header,
+            "QML cannot distinguish native GPU-Next from the libmpv Render API")
     require("ensureNativeHostWindow" in mpv_item and
             "new QWindow(parentWindow)" in mpv_item and
             "nativeHost->winId()" in mpv_item and
@@ -242,6 +248,10 @@ def test_native_player_composition() -> None:
             "requestActivate()" in mpv_item,
             "native gpu-next host cannot receive UOSC pointer/focus input")
     player_component = read("src/player/PlayerComponent.cpp")
+    require('QStringLiteral("replace")' in player_component and
+            'QStringLiteral("append-play")' in player_component and
+            "stop();\n  queueMedia" not in player_component,
+            "single media load still races stop with append-play")
     require("Rejected MPV profile attempt to leave the Render API" in player_component,
             "libmpv compatibility-backend protection is missing")
     require("fullscreenRequested" in mpv_item and "Qt::Key_F11" in mpv_item and
@@ -261,6 +271,32 @@ def test_native_player_composition() -> None:
             "uosc profile menu does not clear the previous shader list")
     require('value(SETTINGS_SECTION_MPV, "advancedProfileOverrides").toBool()' in player_component,
             "advanced settings still overwrite every profile by default")
+
+    video_player = read("native/mpvVideoPlayer.js")
+    for marker in (
+        "startStartupTimer()", "播放器启动超时（30 秒）", "requestNativeStop()",
+        "this.onCanceled", "player.canceled.disconnect(this.onCanceled)",
+        "window.api.window.beginPlaybackSession()", "window.api.window.endPlaybackSession()",
+    ):
+        require(marker in video_player, f"video lifecycle cleanup is missing: {marker}")
+    require("player.canceled.connect(()" not in video_player and
+            "window.api.player.stop();\n\n            window.api.player.setVideoRectangle" not in video_player,
+            "video lifecycle still leaks anonymous signals or issues duplicate stop")
+
+    window_manager = read("src/ui/WindowManager.cpp")
+    for marker in (
+        "beginPlaybackSession", "endPlaybackSession", "m_isFullScreen",
+        "m_playbackSessionStartedFullScreen", "m_playbackSessionEnteredFullScreen",
+    ):
+        require(marker in window_manager, f"playback window session is missing: {marker}")
+
+    shell = read("native/nativeshell.js")
+    require("tigerest-window-mode-button" in shell and "installWindowModeEntry" in shell,
+            "Emby window/fullscreen control is missing")
+    uosc = read("resources/mpv/script-opts/uosc.conf")
+    profile_menu = read("resources/mpv/plugins/profile_menu.lua")
+    require("button:tigerest-exit" in uosc and "退出播放并返回媒体库" in profile_menu,
+            "UOSC exit-playback button is missing")
 
 
 def test_brand_assets() -> None:

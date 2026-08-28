@@ -336,6 +336,15 @@ void MpvVideoItem::mousePressEvent(QMouseEvent* event)
 void MpvVideoItem::mouseReleaseEvent(QMouseEvent* event)
 {
     sendMousePosition(event->position());
+    if (event->button() == Qt::LeftButton && m_leftDoubleClickHandledLocally) {
+        // Qt delivers a double-click event instead of the second press, but it
+        // still delivers the matching release.  The double-click is handled
+        // directly below, so forwarding this unmatched keyup can make mpv/UOSC
+        // interpret one gesture twice.
+        m_leftDoubleClickHandledLocally = false;
+        event->accept();
+        return;
+    }
     const QString button = mouseButtonName(event->button());
     if (!button.isEmpty())
         commandAsync({QStringLiteral("keyup"), button});
@@ -344,6 +353,16 @@ void MpvVideoItem::mouseReleaseEvent(QMouseEvent* event)
 
 void MpvVideoItem::mouseDoubleClickEvent(QMouseEvent* event)
 {
+    sendMousePosition(event->position());
+    if (event->button() == Qt::LeftButton) {
+        // Do not combine mpv's own click timing with an explicitly injected
+        // double-click.  That can toggle pause twice and appear to do nothing.
+        commandAsync({QStringLiteral("cycle"), QStringLiteral("pause")});
+        m_leftDoubleClickHandledLocally = true;
+        event->accept();
+        return;
+    }
+
     const qreal dpr = window() ? window()->devicePixelRatio() : 1.0;
     const int x = qRound(qBound(0.0, event->position().x(), width()) * dpr);
     const int y = qRound(qBound(0.0, event->position().y(), height()) * dpr);

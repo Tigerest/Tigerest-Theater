@@ -24,11 +24,11 @@ Window
   property string debugInfo: ""
   property string videoInfo: ""
   property string webUrl: ""
-  // Hide WebEngine for the full native-video lifetime. MpvVideoItem owns a
-  // dedicated native child host, so its visible binding can hide the complete
-  // mpv window subtree before Chromium is composited again.
+  // Keep WebEngine composited underneath the native GPU-Next host. Recreating
+  // its scene texture after playback caused stale/duplicated library frames on
+  // Windows. The libmpv Render API shares this QML scene, so its compatibility
+  // path still hides WebEngine while the video item is active.
   property bool nativeVideoVisible: false
-  property bool webRestoreReady: true
   property bool useUoscPlaybackUi: components.settings.value("mpv", "enableUosc")
 
   property bool showSystemTrayIcon: webDesktopMode && components.system.isWindows &&
@@ -51,7 +51,7 @@ Window
   }
 
   function toggleFullscreen() {
-    visibility = (visibility === Window.FullScreen) ? Window.Windowed : Window.FullScreen
+    components.window.setFullScreen(!components.window.isFullScreen())
   }
 
   function toggleDebug() {
@@ -59,7 +59,7 @@ Window
   }
 
   function setFullScreen(enable) {
-    visibility = enable ? Window.FullScreen : Window.Windowed
+    components.window.setFullScreen(enable)
   }
 
   function minimizeWindow() {
@@ -73,7 +73,7 @@ Window
     mainWindow.requestActivate()
   }
 
-  onVisibilityChanged: {
+  onVisibilityChanged: function(visibility) {
     if (mainWindow.nativeVideoVisible)
       video.setPropertyAsync("fullscreen", visibility === Window.FullScreen)
   }
@@ -221,32 +221,12 @@ Window
     {
       mainWindow.nativeVideoVisible = visible
       if (visible && mainWindow.useUoscPlaybackUi) {
-        // libmpv and uosc own the whole playback surface.  The hidden web page
-        // keeps running so Emby still receives position, pause and stop events.
-        webRestoreDelay.stop()
-        mainWindow.webRestoreReady = false
+        // libmpv and uosc own input while the continuously composited Emby page
+        // remains ready underneath the native video host.
         video.forceActiveFocus()
-      } else if (!visible && mainWindow.useUoscPlaybackUi) {
-        // The dedicated host has already been hidden through video.visible.
-        // Keep one short frame barrier before WebEngine resumes; this is no
-        // longer relied upon to wait for mpv's own child-window destruction.
-        mainWindow.webRestoreReady = false
-        webRestoreDelay.restart()
       } else {
-        mainWindow.webRestoreReady = true
         web.forceActiveFocus()
       }
-    }
-  }
-
-  Timer
-  {
-    id: webRestoreDelay
-    interval: 180
-    repeat: false
-    onTriggered: {
-      mainWindow.webRestoreReady = true
-      web.forceActiveFocus()
     }
   }
 
@@ -260,7 +240,7 @@ Window
     focus: mainWindow.nativeVideoVisible && mainWindow.useUoscPlaybackUi
 
     onFullscreenRequested: function(fullscreen) {
-      mainWindow.setFullScreen(fullscreen)
+      components.window.setFullScreen(fullscreen)
     }
 
     width: mainWindow.contentItem.width
@@ -283,7 +263,7 @@ Window
     width: mainWindow.width
     height: mainWindow.height
     z: 100
-    visible: mainWindow.webRestoreReady && (!mainWindow.nativeVideoVisible || !mainWindow.useUoscPlaybackUi)
+    visible: video.nativeGpuNext || !mainWindow.nativeVideoVisible || !mainWindow.useUoscPlaybackUi
     enabled: !mainWindow.nativeVideoVisible || !mainWindow.useUoscPlaybackUi
     backgroundColor: "transparent"
 
@@ -367,7 +347,7 @@ Window
     onFullScreenRequested:
     {
       console.log("Request fullscreen: " + request.toggleOn)
-      mainWindow.setFullScreen(request.toggleOn)
+      components.window.setFullScreen(request.toggleOn)
       request.accept()
     }
 

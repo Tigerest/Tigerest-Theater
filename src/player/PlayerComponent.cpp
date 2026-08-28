@@ -312,17 +312,28 @@ void PlayerComponent::setWindow(QQuickWindow* window)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 bool PlayerComponent::load(const QString& url, const QVariantMap& options, const QVariantMap &metadata, const QVariant& audioStream , const QVariant& subtitleStream)
 {
-  stop();
-  queueMedia(url, options, metadata, audioStream, subtitleStream);
-  return true;
+  // Replacing the active entry is one atomic mpv operation.  The previous
+  // stop()+append-play sequence could leave mpv idle with the new item queued
+  // behind an already-finished playlist entry.
+  return loadMedia(url, options, metadata, audioStream, subtitleStream,
+                   QStringLiteral("replace"));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options, const QVariantMap &metadata, const QVariant& audioStream, const QVariant& subtitleStream)
 {
+  loadMedia(url, options, metadata, audioStream, subtitleStream,
+            QStringLiteral("append-play"));
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
+                                const QVariantMap& metadata, const QVariant& audioStream,
+                                const QVariant& subtitleStream, const QString& loadMode)
+{
   if (!m_mpv) {
-    qWarning() << "PlayerComponent::queueMedia: mpv not initialized yet";
-    return;
+    qWarning() << "PlayerComponent::loadMedia: mpv not initialized yet";
+    return false;
   }
 
   InputComponent::Get().cancelAutoRepeat();
@@ -337,7 +348,7 @@ void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options,
 
   QStringList command;
   command << "loadfile" << qurl.toString(QUrl::FullyEncoded);
-  command << "append-play"; // if nothing is playing, play it now, otherwise just enqueue it
+  command << loadMode;
 
 #if MPV_CLIENT_API_VERSION >= MPV_MAKE_VERSION(2, 3)
   command << "-1"; // insert_at_idx
@@ -372,7 +383,19 @@ void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options,
 
   command << extraArgs;
 
-  m_mpv->command( command);
+  const QVariant commandResult = m_mpv->command(command);
+  if (commandResult.metaType() == QMetaType::fromType<ErrorReturn>())
+  {
+    const ErrorReturn error = commandResult.value<ErrorReturn>();
+    qWarning() << "Unable to load media with mode" << loadMode
+               << ":" << m_mpv->getError(error.error);
+    return false;
+  }
+
+  m_playbackCanceled = false;
+  m_playbackError.clear();
+  m_lastPositionUpdate = 0.0;
+  m_replacementPending = loadMode == QStringLiteral("replace") && m_inPlayback;
 
   QVariantMap jellyfinMetadata = metadata["metadata"].toMap();
   QUrl jellyfinBaseUrl = qurl.adjusted(QUrl::RemovePath | QUrl::RemoveQuery);
@@ -381,6 +404,8 @@ void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options,
   // Request album art from the provider
   if (m_albumArtProvider)
     m_albumArtProvider->requestArtwork(jellyfinMetadata, jellyfinBaseUrl);
+
+  return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -575,7 +600,11 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
   {
     case MPV_EVENT_START_FILE:
     {
+      m_replacementPending = false;
       m_inPlayback = true;
+      m_playbackCanceled = false;
+      m_playbackError.clear();
+      m_lastPositionUpdate = 0.0;
       m_audioOutputWarningShown = false;
       emit windowVisible(m_windowVisible);
       break;
@@ -584,9 +613,19 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
     {
       auto *endFile = static_cast<mpv_event_end_file*>(event->data);
 
+      // loadfile=replace ends the old entry before START_FILE for the new one.
+      // That transition belongs to one logical web playback session and must
+      // not emit a terminal state or briefly reveal WebEngine in between.
+      if (m_replacementPending)
+      {
+        qDebug() << "Ignoring terminal state for atomically replaced media";
+        break;
+      }
+
       m_inPlayback = false;
       m_audioOutputWarningTimer.stop();
       m_audioOutputWarningShown = false;
+      m_windowVisible = false;
       emit windowVisible(false);
       m_playbackCanceled = false;
       m_playbackError = "";

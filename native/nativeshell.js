@@ -1192,7 +1192,78 @@ function installMpvSettingsEntry() {
     }, true);
 }
 
+function installWindowModeEntry() {
+    if (!document.head || !document.documentElement) {
+        setTimeout(installWindowModeEntry, 50);
+        return;
+    }
+
+    if (!document.getElementById('tigerest-window-entry-style')) {
+        const style = document.createElement('style');
+        style.id = 'tigerest-window-entry-style';
+        style.textContent = `
+            #tigerest-window-mode-button {
+                width: auto; min-width: 3.5em; padding: 0 .65em; margin: 0 .15em;
+                color: #f2f2f2; font: 700 12px/1 system-ui, sans-serif;
+                border-radius: 999px; border: 1px solid rgba(255,255,255,.28);
+                background: rgba(255,255,255,.08);
+            }
+            #tigerest-window-mode-button:hover,
+            #tigerest-window-mode-button:focus-visible {
+                color: #151515; background: #f2f2f2;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    let fullscreen = false;
+    const updateButton = () => {
+        const button = document.getElementById('tigerest-window-mode-button');
+        if (!button) return;
+        button.textContent = fullscreen ? '窗口' : '全屏';
+        button.title = fullscreen ? '恢复播放前的窗口状态' : '切换为全屏';
+        button.setAttribute('aria-label', button.title);
+    };
+    const refreshState = async () => {
+        if (!window.api?.window) return;
+        fullscreen = !!(await window.api.window.isFullScreen());
+        updateButton();
+    };
+    const mount = () => {
+        if (document.getElementById('tigerest-window-mode-button')) {
+            updateButton();
+            return;
+        }
+        const userButton = document.querySelector('.headerUserButton');
+        if (!userButton?.parentElement) return;
+
+        const button = document.createElement('button');
+        button.id = 'tigerest-window-mode-button';
+        button.type = 'button';
+        button.className = 'headerButton headerSectionItem paper-icon-button-light emby-button-focusscale';
+        button.addEventListener('click', async event => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!window.api?.window) return;
+            window.api.window.setFullScreen(!fullscreen);
+            await refreshState();
+        });
+        const settingsButton = document.getElementById('tigerest-mpv-settings-button');
+        userButton.parentElement.insertBefore(button, settingsButton || userButton);
+        updateButton();
+    };
+
+    mount();
+    const observer = new MutationObserver(mount);
+    observer.observe(document.documentElement, {childList: true, subtree: true});
+    window.initCompleted.then(() => {
+        window.api.window.fullScreenSwitched.connect(refreshState);
+        refreshState();
+    });
+}
+
 installMpvSettingsEntry();
+installWindowModeEntry();
 installHorizontalShelfDragging();
 
 let lastFullscreenState = window.jmpInfo.settings.main.fullscreen;

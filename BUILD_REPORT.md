@@ -1,11 +1,11 @@
 # Tigerest Theater 构建报告
 
-生成时间：2026-08-28（Asia/Shanghai）  
-最终候选版本：Windows x64 2.0.8-dev
+生成时间：2026-08-29（Asia/Shanghai）
+最终候选版本：Windows x64 2.0.9-dev
 
 ## 结论
 
-Windows x64 2.0.8-dev 已完成实际编译、CTest、Qt 运行库部署、安装器/便携 ZIP 生成、静默覆盖安装和安装目录启动验证。最终安装目录主程序与 `build/output` 的大小及 SHA-256 完全一致。macOS 没有 runner，本报告不声称 macOS 实机构建、安装或运行。
+Windows x64 2.0.9-dev 已完成实际编译、CTest、Qt 运行库部署、安装器和便携 ZIP 生成。便携包已在全新临时目录解压，`portable` 标记存在；构建目录、安装器 staging、便携 staging 与解压目录中的主程序大小及 SHA-256 完全一致。macOS 没有 runner，本报告不声称 macOS 实机构建、安装或运行。
 
 ## Windows 构建环境
 
@@ -28,39 +28,35 @@ Windows x64 2.0.8-dev 已完成实际编译、CTest、Qt 运行库部署、安�
 
 | 测试 | 结果 |
 | --- | --- |
-| `test_systemcomponent` | 通过，0.12 秒 |
-| `test_log` | 通过，0.12 秒 |
-| `test_settings` | 通过，0.12 秒 |
-| `test_displaymanager` | 通过，0.12 秒 |
-| `test_bundle_integrity` | 通过，0.78 秒，9 项检查 |
-| CTest 总计 | 5/5 通过，1.26 秒 |
+| `test_systemcomponent` | 通过，0.15 秒 |
+| `test_log` | 通过，0.15 秒 |
+| `test_settings` | 通过，0.14 秒 |
+| `test_displaymanager` | 通过，0.14 秒 |
+| `test_windowmanager` | 通过，0.62 秒 |
+| `test_bundle_integrity` | 通过，1.57 秒，9 项检查 |
+| `test_player_lifecycle` | 通过，0.04 秒 |
+| CTest 总计 | 7/7 通过，2.85 秒 |
 
 ## 最终产物
 
 | 产物 | 大小（字节） | SHA-256 |
 | --- | ---: | --- |
-| `build/TigerestTheater-2.0.8-dev-x64.exe` | 222,833,783 | `1E5A18118888F9F21E4032AC35BC1885A8C13ACCC8EB213889E322A3D28123CC` |
-| `build/TigerestTheater-2.0.8-dev-x64.zip` | 285,969,158 | `539B11F2C6AFAA5C4A0DC5BCA39B236B932401BD5ACB27EF1BF17CDB149BA873` |
-| `build/output/Tigerest Theater.exe` | 84,675,584 | `74D78A7666E9D1C956877F6A5D17647905BF9F3796D6E72D210DFA4B7995FC7E` |
-| 安装目录 `Tigerest Theater.exe` | 84,675,584 | `74D78A7666E9D1C956877F6A5D17647905BF9F3796D6E72D210DFA4B7995FC7E` |
+| `build/TigerestTheater-2.0.9-dev-x64.exe` | 222,838,241 | `BEFF76692F94D10D42BDB6D59318032D976F7197D71A8BEC7B9FFC94F53962AB` |
+| `build/TigerestTheater-2.0.9-dev-x64.zip` | 285,971,707 | `E51FBA2E9830DB60B2C8327B0645B6AF1DABCF82DBF77C5ABFEC3B8D9D500B3F` |
+| `build/output/Tigerest Theater.exe` | 84,676,608 | `19350913332B7E8C331CD2F1ED9744284FE26E2D61CA3AC976AE976B855814C3` |
+| 便携 ZIP 解压后的 `Tigerest Theater.exe` | 84,676,608 | `19350913332B7E8C331CD2F1ED9744284FE26E2D61CA3AC976AE976B855814C3` |
 
-安装目录为 `%LOCALAPPDATA%\Programs\Tigerest Theater`。最终安装器静默覆盖退出码为 0；安装后主程序成功启动并加载既有服务器会话。
+安装器和便携 ZIP 都来自同一 `build/output/Tigerest Theater.exe`。便携包的干净目录解压与标记检查通过。
 
-## 2.0.8 构建内容
+## 2.0.9 构建内容
 
-- 安装器侧栏大标志改为按画布宽度计算居中位置；重新生成 Windows 安装图、程序图标与 macOS 图标资源。
-- 连接阶段使用 Tigerest 透明字标，移除短暂显示 Jellyfin 启动标志的本地资源。
-- 原生 mpv 子窗口现在将焦点、鼠标、双击、滚轮和键盘事件送回已有输入命令，UOSC 可交互且不创建第二个 mpv 窗口。
-- Emby 剧集横向列表加入桌面鼠标拖动；超过阈值后抑制误点击，普通点击仍可选集。
-- 若系统默认音频设备被独占而 mpv 回退到空输出，播放器会暂停并打开不依赖 `current-ao` 过滤的完整设备恢复菜单，避免无声继续播放。
-- 内置配置精简为默认、真人、激进测试三档，快捷键固定为 Alt+1 / Alt+2 / Alt+3，目标非空 shader 数为 3 / 2 / 4。
-- 默认档采用参考 `anime-aa-insane` 参数；激进档保留可在 Stats 中识别的 Anime4K Restore/Upscale/Thin。
-- 配置模板的每条指令增加中文注释；字幕参数同步参考配置并带一次性旧默认迁移。
-- Windows 内置配置在 libmpv 初始化前写入 `input-ipc-server=mpvpipe`；macOS 不生成 Windows 命名管道。
-- 弹幕开关在 `file-loaded` 时恢复持久化值，并同步 UOSC 开关显示。
-- 设置页默认不再覆盖完整 profile；只有显式开启“高级档位覆盖”才应用单项调节。
-- 日志清洗支持 libmpv 冒号请求头和 Bearer 头，并在启动时原子迁移现存轮转日志。
-- 保留专用原生 mpv 子宿主、GPU-Next、UOSC、F11、完整 Stats 和退出页面隔离修复。
+- 左键双击由原生输入层直接执行一次 `cycle pause`，并吞掉对应的多余释放事件。
+- 单媒体加载改为原子 `loadfile replace`，队列追加继续使用 `append-play`，返回真实命令结果。
+- 播放会话信号改为具名连接和统一断开；自然结束、Esc、停止、错误、销毁和 30 秒启动超时均执行幂等清理。
+- GPU-Next 下 WebEngine 在原生视频层下持续合成；libmpv Render API 保留播放时隐藏网页的兼容路径。退出同步隐藏视频宿主，不再使用 180 ms 恢复定时器。
+- 全屏切换统一由 `WindowManager` 管理，播放结束恢复播放前的窗口化或最大化状态；播放前已全屏则保持全屏。
+- Emby 标题栏新增窗口/全屏按钮，UOSC 新增退出播放并返回媒体库按钮。
+- 新增播放器生命周期、窗口状态、加载语义、双后端资源契约和凭据安全回归测试。
 
 `windeployqt` 对未使用的 Qt Positioning NMEA 插件提示可选 `Qt6SerialPort` 依赖；主程序、WebEngine、libmpv、VC 运行库和实测播放不受影响。
 

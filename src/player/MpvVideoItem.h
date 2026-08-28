@@ -17,6 +17,7 @@ class MpvVideoItem : public MpvAbstractItem
 {
     Q_OBJECT
     QML_ELEMENT
+    Q_PROPERTY(bool nativeGpuNext READ usingNativeGpuNext CONSTANT)
 
 public:
     explicit MpvVideoItem(QQuickItem *parent = nullptr);
@@ -52,6 +53,7 @@ private:
     PlayerComponent* m_player = nullptr;
     bool m_escapeHandledLocally = false;
     bool m_spaceHandledLocally = false;
+    bool m_leftDoubleClickHandledLocally = false;
     bool m_fullscreenHandledLocally = false;
     bool m_statsHandledLocally = false;
     bool m_profileHandledLocally = false;

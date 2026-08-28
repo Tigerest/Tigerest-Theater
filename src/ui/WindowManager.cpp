@@ -37,6 +37,10 @@ WindowManager::WindowManager(QObject* parent)
     m_cursorVisible(true),
     m_cursorInsideWindow(true),
     m_previousVisibility(QWindow::Windowed),
+    m_isFullScreen(false),
+    m_playbackSessionActive(false),
+    m_playbackSessionStartedFullScreen(false),
+    m_playbackSessionEnteredFullScreen(false),
     m_geometrySaveTimer(nullptr),
     m_initialSize(),
     m_initialScreenSize()
@@ -99,6 +103,10 @@ void WindowManager::initializeWindow(QQuickWindow* window)
   });
 
   // Connect to window visibility changes (for fullscreen tracking)
+  const QWindow::Visibility initialVisibility = m_window->visibility();
+  m_isFullScreen = initialVisibility == QWindow::FullScreen;
+  if (initialVisibility != QWindow::FullScreen && initialVisibility != QWindow::Hidden)
+    m_previousVisibility = initialVisibility;
   connect(m_window, &QQuickWindow::visibilityChanged,
           this, &WindowManager::onVisibilityChanged);
 
@@ -215,6 +223,9 @@ void WindowManager::setFullScreen(bool enable)
   if (!m_window)
     return;
 
+  if (enable == isFullScreen())
+    return;
+
   if (enable)
   {
     // Use showFullScreen()
@@ -248,6 +259,38 @@ bool WindowManager::isFullScreen() const
     return false;
 
   return m_window->visibility() == QWindow::FullScreen;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::beginPlaybackSession()
+{
+  if (!m_window || m_playbackSessionActive)
+    return;
+
+  m_playbackSessionActive = true;
+  m_playbackSessionStartedFullScreen = isFullScreen();
+  m_playbackSessionEnteredFullScreen = false;
+  qDebug() << "Playback window session started; initially fullscreen="
+           << m_playbackSessionStartedFullScreen;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::endPlaybackSession()
+{
+  if (!m_playbackSessionActive)
+    return;
+
+  const bool restorePreviousState = !m_playbackSessionStartedFullScreen &&
+                                    (m_playbackSessionEnteredFullScreen || isFullScreen());
+  m_playbackSessionActive = false;
+  m_playbackSessionStartedFullScreen = false;
+  m_playbackSessionEnteredFullScreen = false;
+
+  if (restorePreviousState)
+    setFullScreen(false);
+
+  qDebug() << "Playback window session ended; restored previous state="
+           << restorePreviousState;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -327,7 +370,11 @@ void WindowManager::onVisibilityChanged(QWindow::Visibility visibility)
            << "m_previousVisibility=" << m_previousVisibility;
 
   bool isFS = (visibility == QWindow::FullScreen);
-  bool wasFS = (m_previousVisibility == QWindow::FullScreen);
+  bool wasFS = m_isFullScreen;
+  m_isFullScreen = isFS;
+
+  if (m_playbackSessionActive && isFS && !m_playbackSessionStartedFullScreen)
+    m_playbackSessionEnteredFullScreen = true;
 
   // Kiosk mode: force back to fullscreen if user tried to exit
   if (!isFS)

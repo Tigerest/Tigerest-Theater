@@ -34,7 +34,8 @@ public:
   explicit PlayerComponent(QObject* parent = nullptr);
   ~PlayerComponent() override;
 
-  // Deprecated. Corresponds to stop() + queueMedia().
+  // Replace the active playlist with one media item. Returns false if mpv
+  // rejects the load command synchronously.
   Q_INVOKABLE bool load(const QString& url, const QVariantMap& options, const QVariantMap& metadata, const QVariant& audioStream = QVariant(), const QVariant& subtitleStream = QVariant());
 
   // Append a media item to the internal playlist. If nothing is played yet, the
@@ -248,6 +249,9 @@ private:
   void checkCurrentAudioDevice(const QSet<QString>& old_devs, const QSet<QString>& new_devs);
   void appendAudioFormat(QTextStream& info, const QString& property) const;
   void updateVideoAspectSettings();
+  bool loadMedia(const QString& url, const QVariantMap& options, const QVariantMap& metadata,
+                 const QVariant& audioStream, const QVariant& subtitleStream,
+                 const QString& loadMode);
   QVariantList findStreamsForURL(const QString &url);
   void reselectStream(const QVariant &streamSelection, MediaType target);
   QString sanitizeMediaUrl(const QString& url, bool retainExistingCredential = false);
@@ -263,6 +267,7 @@ private:
   bool m_videoPlaybackActive;
   bool m_inPlayback;
   bool m_playbackCanceled;
+  bool m_replacementPending = false;
   QString m_playbackError;
   int m_bufferingPercentage;
   int m_lastBufferingPercentage;

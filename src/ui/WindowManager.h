@@ -43,6 +43,8 @@ public:
   // Fullscreen
   Q_INVOKABLE void setFullScreen(bool enable);
   Q_INVOKABLE bool isFullScreen() const;
+  Q_INVOKABLE void beginPlaybackSession();
+  Q_INVOKABLE void endPlaybackSession();
 
   // Cursor visibility
   Q_INVOKABLE void setCursorVisibility(bool visible);
@@ -114,6 +116,10 @@ private:
 
   // Window state
   QWindow::Visibility m_previousVisibility;  // State before fullscreen
+  bool m_isFullScreen;
+  bool m_playbackSessionActive;
+  bool m_playbackSessionStartedFullScreen;
+  bool m_playbackSessionEnteredFullScreen;
   QRect m_windowedGeometry;                  // Geometry when in Windowed state
   QTimer* m_geometrySaveTimer;               // Debounced disk sync
 

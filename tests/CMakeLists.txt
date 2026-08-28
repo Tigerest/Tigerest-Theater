@@ -40,8 +40,20 @@ target_include_directories(test_displaymanager PRIVATE ${TEST_INCLUDE_DIRS})
 target_compile_definitions(test_displaymanager PRIVATE ${TEST_COMPILE_DEFS})
 add_test(NAME test_displaymanager COMMAND test_displaymanager)
 
+add_executable(test_windowmanager test_windowmanager.cpp)
+target_link_libraries(test_windowmanager jmp_core Qt6::Test)
+target_include_directories(test_windowmanager PRIVATE ${TEST_INCLUDE_DIRS})
+target_compile_definitions(test_windowmanager PRIVATE ${TEST_COMPILE_DEFS})
+add_test(NAME test_windowmanager COMMAND test_windowmanager)
+
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
   add_test(NAME test_bundle_integrity
            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_bundle_integrity.py)
+endif()
+
+find_program(Node_EXECUTABLE node)
+if(Node_EXECUTABLE)
+  add_test(NAME test_player_lifecycle
+           COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_player_lifecycle.js)
 endif()
