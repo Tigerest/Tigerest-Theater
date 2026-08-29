@@ -1,0 +1,78 @@
+name: publish-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing draft release tag
+        required: true
+        type: string
+      windows_run_id:
+        description: Successful build-windows run ID
+        required: true
+        type: string
+      macos_run_id:
+        description: Successful build-macos run ID containing macos-arm64
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs and draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          WINDOWS_RUN_ID: ${{ inputs.windows_run_id }}
+          MACOS_RUN_ID: ${{ inputs.macos_run_id }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-dev$ ]]
+          [[ "$WINDOWS_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$MACOS_RUN_ID" =~ ^[0-9]+$ ]]
+          test "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
+
+      - name: Download successful build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WINDOWS_RUN_ID: ${{ inputs.windows_run_id }}
+          MACOS_RUN_ID: ${{ inputs.macos_run_id }}
+        run: |
+          mkdir release-assets
+          gh run download "$WINDOWS_RUN_ID" --repo "$GITHUB_REPOSITORY" --name windows-x64-installer --dir release-assets
+          gh run download "$WINDOWS_RUN_ID" --repo "$GITHUB_REPOSITORY" --name windows-x64-portable --dir release-assets
+          gh run download "$MACOS_RUN_ID" --repo "$GITHUB_REPOSITORY" --name macos-arm64 --dir release-assets
+
+      - name: Verify names and generate checksums
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          EXE="TigerestTheater-${VERSION}-x64.exe"
+          ZIP="TigerestTheater-${VERSION}-x64.zip"
+          DMG="TigerestTheater-${VERSION}-arm64.dmg"
+          CHECKSUMS="TigerestTheater-${VERSION}-SHA256SUMS.txt"
+          test -f "release-assets/$EXE"
+          test -f "release-assets/$ZIP"
+          test -f "release-assets/$DMG"
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 3
+          (
+            cd release-assets
+            sha256sum "$EXE" "$ZIP" "$DMG" > "$CHECKSUMS"
+          )
+          {
+            echo '### Release SHA-256'
+            echo '```text'
+            cat "release-assets/$CHECKSUMS"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload assets to draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: gh release upload "$RELEASE_TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
