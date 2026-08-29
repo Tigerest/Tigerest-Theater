@@ -44,7 +44,9 @@ function Updater:destroy()
 end
 
 function Updater:quit()
-	mp.command('quit')
+	-- uosc is embedded in the application's long-lived libmpv instance. Never
+	-- terminate that core from a plugin dialog; return to Emby instead.
+	mp.command('stop')
 end
 
 function Updater:select_prev_button()

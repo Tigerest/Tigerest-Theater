@@ -30,13 +30,10 @@ function TopBar:init()
 		end
 	end
 
-	-- Tigerest embeds mpv inside the application.  Quitting the mpv core here
-	-- leaves the web playback session alive; stopping the item lets the host
-	-- report an explicit user cancellation and restore the media-library page.
-	local exit = {icon = 'exit_to_app', hover_bg = '2311e8', hover_fg = 'ffffff', command = function() mp.command('stop') end}
+	local close = {icon = 'close', hover_bg = '2311e8', hover_fg = 'ffffff', command = function() mp.command('stop') end}
 	local max = {icon = 'crop_square', command = maximized_command}
 	local min = {icon = 'minimize', command = function() mp.command('cycle window-minimized') end}
-	self.buttons = options.top_bar_controls == 'left' and {exit, max, min} or {min, max, exit}
+	self.buttons = options.top_bar_controls == 'left' and {close, max, min} or {min, max, close}
 
 	self:register_observers()
 	self:decide_enabled()

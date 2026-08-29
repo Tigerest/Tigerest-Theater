@@ -251,10 +251,10 @@ def test_native_player_composition() -> None:
             "requestActivate()" in mpv_item,
             "native gpu-next host cannot receive UOSC pointer/focus input")
     player_component = read("src/player/PlayerComponent.cpp")
-    require('QStringLiteral("replace")' in player_component and
+    require('m_inPlayback ? QStringLiteral("replace")' in player_component and
             'QStringLiteral("append-play")' in player_component and
             "stop();\n  queueMedia" not in player_component,
-            "single media load still races stop with append-play")
+            "single media load does not distinguish active replacement from idle/EOF startup")
     require("Rejected MPV profile attempt to leave the Render API" in player_component,
             "libmpv compatibility-backend protection is missing")
     require("fullscreenRequested" in mpv_item and "Qt::Key_F11" in mpv_item and
@@ -297,10 +297,26 @@ def test_native_player_composition() -> None:
     require("tigerest-window-mode-button" in shell and "installWindowModeEntry" in shell,
             "Emby window/fullscreen control is missing")
     uosc = read("resources/mpv/script-opts/uosc.conf")
-    top_bar = read("resources/mpv/plugins/uosc/elements/TopBar.lua")
-    require("top_bar_controls=left" in uosc and "button:tigerest-exit" not in uosc and
-            "icon = 'exit_to_app'" in top_bar and "mp.command('stop')" in top_bar,
-            "UOSC exit-playback button is not wired to the upper-left stop action")
+    uosc_main = read("resources/mpv/plugins/uosc/main.lua")
+    exit_button = read("resources/mpv/plugins/uosc/elements/TigerestExit.lua")
+    require("top_bar_controls=" in uosc and "button:tigerest-exit" not in uosc and
+            "tigerest_exit = require('elements/TigerestExit')" in uosc_main and
+            "self.idle_timer = mp.add_timeout(3" in exit_button and
+            "self.last_cursor_x == cursor.x" in exit_button and
+            "cursor:on('move', function()" in exit_button and
+            "self:register_mp_event('file-loaded', reveal)" in exit_button and
+            "function TigerestExit:get_visibility()" in exit_button and
+            "self:set_coordinates(margin, margin" in exit_button and
+            "mp.command('stop')" in exit_button,
+            "mouse-aware UOSC upper-left exit button is missing")
+    require("{title = t('Quit'), value = 'stop'}" in uosc_main and
+            "mp.command('quit')" not in uosc_main and
+            "mp.command('quit')" not in read("resources/mpv/plugins/uosc/elements/TopBar.lua") and
+            "mp.command('quit')" not in read("resources/mpv/plugins/uosc/elements/Updater.lua"),
+            "embedded UOSC can still destroy the shared libmpv core")
+    require("case MPV_END_FILE_REASON_QUIT:" in player_component and
+            "Embedded mpv received quit; treating playback as canceled" in player_component,
+            "unexpected mpv quit is not reported as user cancellation")
     require("playNext: false" in video_player and "resetPlayQueue: true" in video_player,
             "explicit playback cancellation can still auto-advance the Emby queue")
 

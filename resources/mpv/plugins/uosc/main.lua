@@ -351,7 +351,11 @@ function create_default_menu_items()
 				{title = t('Update uosc'), value = 'script-binding uosc/update'},
 			},
 		},
-		{title = t('Quit'), value = 'quit'},
+		-- This is an embedded libmpv instance. `quit` destroys the shared core,
+		-- leaving the Emby page alive but unable to start another item. Exiting
+		-- the player therefore means stopping the current file and returning to
+		-- the media page.
+		{title = t('Quit'), value = 'stop'},
 	}
 end
 
@@ -989,7 +993,6 @@ bind_command('delete-file-next', function() delete_file_navigate(1) end)
 bind_command('delete-file-quit', function()
 	mp.command('stop')
 	if state.path and not is_protocol(state.path) then delete_file(state.path) end
-	mp.command('quit')
 end)
 bind_command('menu-prev', function() Elements:maybe('menu', 'navigate_by_items', -1) end)
 bind_command('menu-next', function() Elements:maybe('menu', 'navigate_by_items', 1) end)
@@ -1155,6 +1158,7 @@ local constructors = {
 	window_border = require('elements/WindowBorder'),
 	buffering_indicator = require('elements/BufferingIndicator'),
 	pause_indicator = require('elements/PauseIndicator'),
+	tigerest_exit = require('elements/TigerestExit'),
 	top_bar = require('elements/TopBar'),
 	timeline = require('elements/Timeline'),
 	controls = options.controls and options.controls ~= 'never' and require('elements/Controls'),

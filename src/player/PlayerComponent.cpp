@@ -312,11 +312,17 @@ void PlayerComponent::setWindow(QQuickWindow* window)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 bool PlayerComponent::load(const QString& url, const QVariantMap& options, const QVariantMap &metadata, const QVariant& audioStream , const QVariant& subtitleStream)
 {
-  // Replacing the active entry is one atomic mpv operation.  The previous
-  // stop()+append-play sequence could leave mpv idle with the new item queued
-  // behind an already-finished playlist entry.
+  // Replace atomically while a file is active, but append-and-play from mpv's
+  // idle/EOF state.  libmpv accepts loadfile=replace immediately after EOF yet
+  // can leave the replacement dormant in the finished playlist; append-play
+  // is the documented operation that starts a newly appended idle item.  This
+  // avoids both that EOF stall and the old stop()+append-play race.
+  const QString loadMode = m_inPlayback ? QStringLiteral("replace")
+                                        : QStringLiteral("append-play");
+  qInfo() << "Primary media load mode:" << loadMode
+          << "active playback:" << m_inPlayback;
   return loadMedia(url, options, metadata, audioStream, subtitleStream,
-                   QStringLiteral("replace"));
+                   loadMode);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -642,8 +648,17 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
           m_playbackCanceled = true;
           break;
         }
-        case MPV_END_FILE_REASON_EOF:
         case MPV_END_FILE_REASON_QUIT:
+        {
+          // A quit request is a user cancellation in an embedded player, not
+          // natural EOF. Treating it as finished makes Emby auto-start the
+          // next queue item against an mpv core that is already shutting down,
+          // which leaves the web UI spinning until its startup watchdog fires.
+          qWarning() << "Embedded mpv received quit; treating playback as canceled";
+          m_playbackCanceled = true;
+          break;
+        }
+        case MPV_END_FILE_REASON_EOF:
         case MPV_END_FILE_REASON_REDIRECT:
           break;
       }

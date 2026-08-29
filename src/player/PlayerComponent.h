@@ -34,8 +34,8 @@ public:
   explicit PlayerComponent(QObject* parent = nullptr);
   ~PlayerComponent() override;
 
-  // Replace the active playlist with one media item. Returns false if mpv
-  // rejects the load command synchronously.
+  // Replace an active item atomically, or append-and-play when mpv is idle.
+  // Returns false if mpv rejects the selected load command synchronously.
   Q_INVOKABLE bool load(const QString& url, const QVariantMap& options, const QVariantMap& metadata, const QVariant& audioStream = QVariant(), const QVariant& subtitleStream = QVariant());
 
   // Append a media item to the internal playlist. If nothing is played yet, the
