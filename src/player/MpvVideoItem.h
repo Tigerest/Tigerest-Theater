@@ -3,6 +3,7 @@
 
 #include <MpvAbstractItem>
 #include <QPointF>
+#include <QString>
 #include <Qt>
 
 class PlayerComponent;
@@ -23,6 +24,7 @@ public:
     explicit MpvVideoItem(QQuickItem *parent = nullptr);
     void setPlayerComponent(PlayerComponent* player);
     bool usingNativeGpuNext() const { return m_nativeGpuNext; }
+    static bool shouldUseNativeGpuNext(const QString& requestedBackend);
 
     MpvController* controller() { return mpvController(); }
 

@@ -1,4 +1,5 @@
 #include <QtTest/QtTest>
+#include "../src/player/MpvVideoItem.h"
 #include "../src/settings/SettingsValue.h"
 #include "../src/settings/SettingsSection.h"
 
@@ -35,6 +36,7 @@ private slots:
   void testSectionDescriptionsSortsByIndexOrder();
   void testSetValueHidden();
   void testStorageFlag();
+  void testNativeGpuNextPlatformPolicy();
 };
 
 
@@ -141,6 +143,23 @@ void TestSettings::testIsHiddenMismatchedPlatform()
 
   // Wrong platform should override hidden = false.
   QVERIFY(sv.isHidden());
+}
+
+void TestSettings::testNativeGpuNextPlatformPolicy()
+{
+#if defined(Q_OS_WIN)
+  QVERIFY(MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("auto")));
+  QVERIFY(MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("gpu-next")));
+  QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("libmpv")));
+#elif defined(Q_OS_MAC)
+  QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("auto")));
+  QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("gpu-next")));
+  QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("libmpv")));
+#else
+  QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("auto")));
+  QVERIFY(MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("gpu-next")));
+  QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("libmpv")));
+#endif
 }
 
 /*!

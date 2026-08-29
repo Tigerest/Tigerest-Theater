@@ -629,11 +629,11 @@
       {
         "value": "renderBackend",
         "display_name": "视频渲染后端",
-        "help": "GPU-Next 原生嵌入把 mpv 子窗口绑定到客户端窗口，可使用完整 libplacebo、D3D11/Vulkan、UOSC 与帧处理统计；libmpv Render API 兼容性更稳，但不具备 gpu-next 独有能力。切换后需要重启客户端。",
+        "help": "Windows 可使用 GPU-Next 原生嵌入与完整 libplacebo/D3D11/Vulkan 能力。macOS 固定使用更稳定的 libmpv Render API，避免 Cocoa 播放窗口与客户端窗口分离。UOSC、shader 与帧处理统计在两种路径中均保留。切换后需要重启客户端。",
         "default": "auto",
         "possible_values": [
-          [ "auto", "自动：Windows/macOS 使用 GPU-Next（推荐）" ],
-          [ "gpu-next", "原生 GPU-Next 嵌入" ],
+          [ "auto", "自动：Windows GPU-Next / macOS Render API（推荐）" ],
+          [ "gpu-next", "原生 GPU-Next 嵌入", { "platforms_excluded": "osx" } ],
           [ "libmpv", "libmpv Render API 兼容模式" ]
         ]
       },

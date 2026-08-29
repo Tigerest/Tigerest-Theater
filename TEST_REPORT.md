@@ -5,7 +5,7 @@
 
 ## 结论
 
-2.0.11-dev 已在 Apple Silicon Mac 上完成 Release 实际编译、7 项 CTest、完整应用部署、临时签名、DMG 生成与校验，以及 GUI 首屏启动验收。应用窗口和 WebEngine 成功渲染到既有服务器的用户选择页；本轮未进入任何已有账号，也未执行真实播放。
+2.0.11-dev 已在 Apple Silicon Mac 上完成 Release 实际编译、7 项 CTest、完整应用部署、临时签名、DMG 生成与校验，以及真实媒体播放回归。测试使用本机既有登录会话，但没有记录或提交账号与令牌。
 
 2.0.10-dev 的 Windows 实际编译、7 项 CTest、安装版和便携版打包及便携 ZIP 一致性结果仍保留为历史验证。本轮没有重新执行 Windows 构建。
 
@@ -18,18 +18,18 @@ macOS 本机实测系统为 27.0 arm64。工程、主程序 Mach-O、Info.plist 
 | 检查 | 最终结果 |
 | --- | --- |
 | Windows 2.0.10 CTest | 7/7 通过，总耗时 2.49 秒 |
-| macOS 2.0.11 CTest | 7/7 通过，总耗时 4.01 秒 |
+| macOS 2.0.11 CTest | 7/7 通过，总耗时 5.39 秒 |
 | macOS Release 编译 | 通过，arm64 主程序生成成功 |
 | macOS 应用部署与签名 | 通过，断链的 4 个未使用可选插件已剔除，`codesign --verify --deep --strict` 通过 |
-| macOS DMG | 通过，309,995,783 字节，`hdiutil verify` 通过 |
-| macOS GUI 首屏 | 通过，窗口与 WebEngine 用户选择页实际渲染，最新启动日志无 fatal/库加载/插件加载/崩溃标记 |
-| `test_systemcomponent` | 通过（0.12 秒） |
-| `test_log` | 通过（0.12 秒，含冒号请求头与 Bearer 脱敏） |
-| `test_settings` | 通过（0.12 秒） |
-| `test_displaymanager` | 通过（0.12 秒） |
-| `test_windowmanager` | 通过（0.49 秒） |
-| `test_bundle_integrity` | 通过（1.47 秒，9 项完整性与凭据检查） |
-| `test_player_lifecycle` | 通过（0.05 秒） |
+| macOS DMG | 通过，310,001,968 字节，SHA-256 `2bcd993292213b1097c54252fe975e2f8bddd3c14a6fa9c9d076aa8da151d12f`，`hdiutil verify` 通过 |
+| macOS GUI 与播放 | 通过；真实媒体播放、单窗口、mpv 全屏进入/退出、停止、再次播放和正常关闭均实测 |
+| `test_systemcomponent` | 通过（0.65 秒） |
+| `test_log` | 通过（0.47 秒，含冒号请求头与 Bearer 脱敏） |
+| `test_settings` | 通过（0.47 秒，含 macOS 渲染后端策略） |
+| `test_displaymanager` | 通过（0.52 秒） |
+| `test_windowmanager` | 通过（0.52 秒） |
+| `test_bundle_integrity` | 通过（2.71 秒，9 项完整性、启动遮罩与凭据检查） |
+| `test_player_lifecycle` | 通过（0.04 秒） |
 | Windows 编译与打包 | 通过，安装器和便携 ZIP 均重新生成 |
 | 便携干净目录检查 | ZIP 解压成功、`portable` 标记存在，主程序 SHA-256 与 `build/output` 一致 |
 
@@ -96,20 +96,32 @@ macOS 的 `macdeployqt` 也会发现同类可选插件；本轮打包逻辑会�
 
 Windows 图形点击自动化组件本轮仍因本机内核资源路径缺失而无法初始化，因此没有把鼠标肉眼验收写成已执行；上述结果来自用户复现日志、Node 生命周期测试、C++/Python 回归与全新便携包一致性检查。
 
+## 2.0.11 macOS 单窗口与退出回归
+
+| 检查 | 结果 |
+| --- | --- |
+| 渲染后端 | macOS 的 `auto`、`gpu-next`、`libmpv` 三种存量设置都选择 libmpv Render API；Windows 的原生 GPU-Next 选择逻辑不变。 |
+| 播放窗口 | 真实媒体播放期间辅助功能树只有 1 个 `Tigerest Theater / 大河影院` 标准窗口，未再创建或拉起独立 mpv Cocoa 窗口。 |
+| UOSC 全屏 | 通过 mpv 命令设置 `fullscreen=yes/no` 后，宿主 `isFullScreen()` 分别返回 true/false；全屏始终属于同一个主窗口。 |
+| 键盘全屏 | 播放期间连续两次 F11 分别进入和退出主窗口全屏。 |
+| 播放退出 | 复用 Windows 2.0.11 的语义，UOSC 等价 `stop` 命令被 libmpv 接受，进入 `canceled`，Emby 收到 `onPlaybackStopped`，应用仍在运行且未自动续播。 |
+| 应用退出 | 停止播放后 `Command+Q` 正常退出，进程退出码为 0。 |
+| 启动画面 | WebEngine 首帧准备期间显示深色 Tigerest 图标遮罩，不再直接暴露服务器蓝色加载画布。 |
+
 ## 核心流程验收边界
 
 | 项目 | 结果 |
 | --- | --- |
 | 登录 | 历史版本已完成真实登录验收；本轮不提交或记录测试账号。 |
 | 浏览 | 首页、媒体库、详情页、剧集横向拖动与选集可用。 |
-| 在线播放 | 2.0.8 实际播放测试媒体；GPU-Next 画面、UOSC、跳转、全屏和可用 WASAPI 输出链正常。 |
+| 在线播放 | 2.0.8 Windows GPU-Next 画面、UOSC、跳转、全屏和 WASAPI 输出链正常；2.0.11 macOS Render API 真实播放、UOSC 同源全屏与停止路径通过。 |
 | 字幕与跳转 | 2.0.7 字幕切换实测通过；2.0.8 重新实测 UOSC 时间轴跳转通过，字幕实现本轮未改。 |
 | 下载与回放 | 2.0.4 已完成 224.4 MiB 样本下载、本地回放和删除清理；2.0.8 未改动下载实现。 |
 | 打包 | 2.0.10 安装器与便携 ZIP 生成成功；便携包全新目录解压和主程序哈希一致性通过。 |
 
 ## macOS 与外部条件
 
-- macOS：已在 macOS 27.0（Build 26A5416b）Apple Silicon 实机完成编译、7/7 CTest、打包、签名、DMG 校验和 GUI 首屏启动；未使用已有账号进行登录或播放。
+- macOS：已在 macOS 27.0（Build 26A5416b）Apple Silicon 实机完成编译、7/7 CTest、打包、签名、DMG 校验和真实播放；使用本机既有会话但未读取、记录或提交凭据。
 - 兼容性：工程、CI、主程序 Mach-O 和 `Info.plist` 均以 macOS 26.0 为最低目标；发布包支持范围为 macOS 26+，不声明支持 macOS 15～25。
 - 分发：本轮为 ad-hoc 签名，未做 Developer ID 签名或 Apple notarization。
 - Emby Connect：未提供独立 Connect 凭据，因此未做真实 Connect 账号绑定；目标服务器直连验收不受影响。

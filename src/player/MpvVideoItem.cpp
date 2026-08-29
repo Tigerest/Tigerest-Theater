@@ -43,10 +43,11 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
     });
 
     const QString backend = SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "renderBackend").toString();
-#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
-    m_nativeGpuNext = backend != QStringLiteral("libmpv");
-#else
-    m_nativeGpuNext = backend == QStringLiteral("gpu-next");
+    m_nativeGpuNext = shouldUseNativeGpuNext(backend);
+#if defined(Q_OS_MAC)
+    if (backend == QStringLiteral("gpu-next")) {
+        qWarning() << "Native GPU-Next embedding is disabled on macOS; using the libmpv Render API";
+    }
 #endif
     setNativeVideoOutput(m_nativeGpuNext);
 
@@ -59,6 +60,25 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
         Q_EMIT setProperty("opengl-es", "no");
 #endif
     }
+}
+
+bool MpvVideoItem::shouldUseNativeGpuNext(const QString& requestedBackend)
+{
+#if defined(Q_OS_WIN)
+    // Windows supports the low-level child HWND path used by GPU-Next. Auto
+    // therefore keeps the higher-performance native renderer there.
+    return requestedBackend != QStringLiteral("libmpv");
+#elif defined(Q_OS_MAC)
+    // mpv's native wid embedding is unstable when Cocoa and Qt own different
+    // parts of the window hierarchy: recent mpv can detach its Cocoa window,
+    // route fullscreen to the wrong toplevel, and shut down the shared core if
+    // that detached window is closed. Keep video inside the QML scene instead.
+    Q_UNUSED(requestedBackend)
+    return false;
+#else
+    // Other platforms retain the explicit opt-in used before this policy.
+    return requestedBackend == QStringLiteral("gpu-next");
+#endif
 }
 
 void MpvVideoItem::setPlayerComponent(PlayerComponent* player)

@@ -31,10 +31,14 @@ def test_settings() -> None:
     require(values["configModeMigrated"]["hidden"] is True,
             "legacy embedded-mode profiles need a one-time migration marker")
     require(values["renderBackend"]["default"] == "auto",
-            "native GPU-Next must be selected automatically on supported desktop platforms")
+            "the render backend must retain automatic platform selection")
     backends = {item[0] for item in values["renderBackend"]["possible_values"]}
     require(backends == {"auto", "gpu-next", "libmpv"},
             "MPV render backend choices are incomplete")
+    gpu_next = next(item for item in values["renderBackend"]["possible_values"]
+                    if item[0] == "gpu-next")
+    require(gpu_next[2].get("platforms_excluded") == "osx",
+            "unstable native GPU-Next must not be selectable on macOS")
     require(values["enableUosc"]["default"] is True, "uosc must be enabled by default")
     require(values["enableDanmaku"]["default"] is True, "danmaku must be enabled by default")
     advanced = {
@@ -235,6 +239,11 @@ def test_native_player_composition() -> None:
             'setPropertyBlocking(QStringLiteral("wid")' in mpv_item and
             'setPropertyBlocking(QStringLiteral("vo"), QStringLiteral("gpu-next"))' in mpv_item,
             "native GPU-Next window embedding is missing")
+    require("bool MpvVideoItem::shouldUseNativeGpuNext" in mpv_item and
+            "#elif defined(Q_OS_MAC)" in mpv_item and
+            "return false;" in mpv_item and
+            "Native GPU-Next embedding is disabled on macOS" in mpv_item,
+            "macOS can still enter the unstable native Cocoa window path")
     mpv_item_header = read("src/player/MpvVideoItem.h")
     require("Q_PROPERTY(bool nativeGpuNext" in mpv_item_header,
             "QML cannot distinguish native GPU-Next from the libmpv Render API")
@@ -333,6 +342,12 @@ def test_brand_assets() -> None:
     ]
     for relative in required:
         require((ROOT / relative).is_file(), f"missing Tigerest brand asset: {relative}")
+    webview = read("src/ui/webview.qml")
+    require("property bool startupCoverVisible: true" in webview and
+            'source: "qrc:/images/icon.png"' in webview and
+            'color: "#111112"' in webview and
+            "startupCoverTimer.restart()" in webview,
+            "startup can still expose the server's blue loading canvas")
     require("tigerest.ico" in read("bundle/win/JellyfinDesktop.iss.in"),
             "Windows installer still points at the legacy icon")
     require("tigerest.ico" in read("bundle/win/iconres.rc"),

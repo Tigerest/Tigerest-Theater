@@ -24,6 +24,7 @@ Window
   property string debugInfo: ""
   property string videoInfo: ""
   property string webUrl: ""
+  property bool startupCoverVisible: true
   // Keep WebEngine composited underneath the native GPU-Next host. Recreating
   // its scene texture after playback caused stale/duplicated library frames on
   // Windows. The libmpv Render API shares this QML scene, so its compatibility
@@ -214,6 +215,14 @@ Window
     when: !components.settings.allowBrowserZoom()
   }
 
+  Timer
+  {
+    id: startupCoverTimer
+    interval: 500
+    repeat: false
+    onTriggered: mainWindow.startupCoverVisible = false
+  }
+
   Connections
   {
     target: components.player
@@ -323,10 +332,15 @@ Window
       else if (loadingInfo.status == WebEngineView.LoadSucceededStatus)
       {
         console.log("WebEngineLoadRequest success: " + loadingInfo.url);
+        // Let the first composed web frame replace the startup cover instead
+        // of briefly exposing Emby's blue loading canvas.
+        if (mainWindow.startupCoverVisible)
+          startupCoverTimer.restart()
       }
       else if (loadingInfo.status == WebEngineView.LoadFailedStatus)
       {
         console.log("WebEngineLoadRequest failure: " + loadingInfo.url + " error code: " + loadingInfo.errorCode);
+        mainWindow.startupCoverVisible = false
         errorLabel.visible = true
         errorLabel.text = "无法加载 Emby 网页客户端。<br>" +
                           "请先尝试<a href='reload'>重新加载</a>。<br><br>错误详情：<pre>" +
@@ -361,6 +375,40 @@ Window
       console.log(error.url + " :" + error.description + error.error)
       if (components.settings.ignoreSSLErrors()) {
         error.acceptCertificate()
+      }
+    }
+  }
+
+  Rectangle
+  {
+    id: startupCover
+    anchors.fill: parent
+    z: 300
+    color: "#111112"
+    visible: mainWindow.startupCoverVisible && !mainWindow.nativeVideoVisible
+
+    Column
+    {
+      anchors.centerIn: parent
+      spacing: 18
+
+      Image
+      {
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: 112
+        height: 112
+        source: "qrc:/images/icon.png"
+        fillMode: Image.PreserveAspectFit
+        smooth: true
+      }
+
+      Text
+      {
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: "Tigerest Theater / 大河影院"
+        color: "#f4f1ea"
+        font.pixelSize: 20
+        font.weight: Font.Medium
       }
     }
   }
