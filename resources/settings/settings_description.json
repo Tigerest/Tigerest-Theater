@@ -618,22 +618,23 @@
       {
         "value": "configMode",
         "display_name": "MPV 配置模式",
-        "help": "自动模式会优先读取当前用户的 mpv.conf；没有用户配置时使用客户端自带的稳定配置、脚本和 shader。切换后需要重启客户端。",
-        "default": "auto",
+        "help": "Windows 与 macOS 默认都使用大河内置的稳定配置、脚本和 shader。只有主动选择自动或系统模式时才会读取当前用户的 mpv.conf；macOS 系统模式仍会隔离可能销毁播放器核心的用户脚本。切换后需要重启客户端。",
+        "default": "embedded",
         "possible_values": [
-          [ "auto", "自动：优先用户配置（推荐）" ],
-          [ "embedded", "仅使用大河内置模式" ],
+          [ "embedded", "仅使用大河内置模式（推荐）" ],
+          [ "auto", "自动：优先用户配置" ],
           [ "system", "仅使用系统 MPV 配置" ]
         ]
       },
       {
         "value": "renderBackend",
         "display_name": "视频渲染后端",
-        "help": "Windows 可使用 GPU-Next 原生嵌入与完整 libplacebo/D3D11/Vulkan 能力。macOS 固定使用更稳定的 libmpv Render API，避免 Cocoa 播放窗口与客户端窗口分离。UOSC、shader 与帧处理统计在两种路径中均保留。切换后需要重启客户端。",
+        "help": "Windows 使用嵌入主界面的 GPU-Next；macOS 使用独立的 GPU-Next/macvk 播放窗口，播放时隐藏 Emby，停止后自动恢复。libmpv Render API 仅作为兼容回退。切换后需要重启客户端。",
         "default": "auto",
         "possible_values": [
-          [ "auto", "自动：Windows GPU-Next / macOS Render API（推荐）" ],
+          [ "auto", "自动：GPU-Next（推荐）" ],
           [ "gpu-next", "原生 GPU-Next 嵌入", { "platforms_excluded": "osx" } ],
+          [ "gpu-next", "独立 GPU-Next/macvk 窗口", { "platforms": "osx" } ],
           [ "libmpv", "libmpv Render API 兼容模式" ]
         ]
       },
@@ -649,9 +650,14 @@
         "hidden": true
       },
       {
+        "value": "embeddedConfigDefaultMigrated",
+        "default": false,
+        "hidden": true
+      },
+      {
         "value": "shaderPreset",
         "display_name": "画质 / 着色器预设",
-        "help": "只保留已确认的三档：默认档采用 Anime AA 高强度参数；真人档沿用真人影视高画质；激进测试档加载完整 Anime4K 链，主要用于检查 shader 是否真实进入帧处理流水线。",
+        "help": "只保留已确认的三档：默认档采用 Anime AA 高强度参数；真人档沿用真人影视高画质；激进测试档加载完整 Anime4K 链，主要用于检查 shader 是否真实进入帧处理流水线。macOS 的独立 GPU-Next 窗口可使用完整链。",
         "default": "default",
         "possible_values": [
           [ "default", "默认（Anime AA 高强度）" ],

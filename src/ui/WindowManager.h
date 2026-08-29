@@ -76,6 +76,7 @@ private slots:
   void updateOpenGLInfo();
 
 private:
+  void updateNativePlaybackWindow(bool visible);
   // Geometry (separate size/position)
   void loadGeometry();
   QRect loadGeometryRect();
@@ -120,6 +121,8 @@ private:
   bool m_playbackSessionActive;
   bool m_playbackSessionStartedFullScreen;
   bool m_playbackSessionEnteredFullScreen;
+  bool m_mainWindowHiddenForNativePlayback;
+  QWindow::Visibility m_nativePlaybackPreviousVisibility;
   QRect m_windowedGeometry;                  // Geometry when in Windowed state
   QTimer* m_geometrySaveTimer;               // Debounced disk sync
 

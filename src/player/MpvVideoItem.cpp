@@ -45,9 +45,8 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
     const QString backend = SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "renderBackend").toString();
     m_nativeGpuNext = shouldUseNativeGpuNext(backend);
 #if defined(Q_OS_MAC)
-    if (backend == QStringLiteral("gpu-next")) {
-        qWarning() << "Native GPU-Next embedding is disabled on macOS; using the libmpv Render API";
-    }
+    if (m_nativeGpuNext)
+        qInfo() << "Using a separate macOS GPU-Next playback window";
 #endif
     setNativeVideoOutput(m_nativeGpuNext);
 
@@ -69,12 +68,9 @@ bool MpvVideoItem::shouldUseNativeGpuNext(const QString& requestedBackend)
     // therefore keeps the higher-performance native renderer there.
     return requestedBackend != QStringLiteral("libmpv");
 #elif defined(Q_OS_MAC)
-    // mpv's native wid embedding is unstable when Cocoa and Qt own different
-    // parts of the window hierarchy: recent mpv can detach its Cocoa window,
-    // route fullscreen to the wrong toplevel, and shut down the shared core if
-    // that detached window is closed. Keep video inside the QML scene instead.
-    Q_UNUSED(requestedBackend)
-    return false;
+    // Cocoa does not support mpv's wid embedding. Use the native GPU-Next
+    // window unless the user explicitly selects the Render API fallback.
+    return requestedBackend != QStringLiteral("libmpv");
 #else
     // Other platforms retain the explicit opt-in used before this policy.
     return requestedBackend == QStringLiteral("gpu-next");
@@ -217,10 +213,32 @@ void MpvVideoItem::initializeController()
 
     qDebug() << "Setting mpv controller and initializing";
     m_player->setNativeVideoOutput(m_nativeGpuNext);
-    connect(m_player, &PlayerComponent::fullscreenRequested, this,
-            &MpvVideoItem::fullscreenRequested, Qt::UniqueConnection);
+    // The macOS GPU-Next window owns its own fullscreen state. Forwarding that
+    // property to QML would fullscreen the hidden Emby window instead.
+#if defined(Q_OS_MAC)
+    if (!m_nativeGpuNext)
+#endif
+        connect(m_player, &PlayerComponent::fullscreenRequested, this,
+                &MpvVideoItem::fullscreenRequested, Qt::UniqueConnection);
 
     if (m_nativeGpuNext) {
+#if defined(Q_OS_MAC)
+        // macOS has no supported wid embedding path. Explicitly detach from
+        // any stale host and let gpu-next create its native Cocoa/macvk window.
+        const int widResult = setPropertyBlocking(QStringLiteral("wid"), qlonglong{-1});
+        const int voResult = setPropertyBlocking(QStringLiteral("vo"), QStringLiteral("gpu-next"));
+        const int apiResult = setPropertyBlocking(QStringLiteral("gpu-api"), QStringLiteral("vulkan"));
+        const int contextResult = setPropertyBlocking(QStringLiteral("gpu-context"), QStringLiteral("macvk"));
+        setPropertyBlocking(QStringLiteral("input-vo-keyboard"), true);
+        setPropertyBlocking(QStringLiteral("input-cursor"), true);
+        if (widResult < 0 || voResult < 0 || apiResult < 0 || contextResult < 0) {
+            qCritical() << "Unable to initialize macOS native gpu-next window; wid="
+                        << widResult << "vo=" << voResult << "api=" << apiResult
+                        << "context=" << contextResult;
+        } else {
+            qInfo() << "macOS native gpu-next window configured with macvk";
+        }
+#else
         QWindow* nativeHost = ensureNativeHostWindow();
         if (!nativeHost) {
             qCritical() << "Native gpu-next requested before its host window exists";
@@ -240,6 +258,7 @@ void MpvVideoItem::initializeController()
         } else {
             qInfo() << "Native gpu-next embedded into dedicated host window" << windowId;
         }
+#endif
     } else {
         setPropertyBlocking(QStringLiteral("vo"), QStringLiteral("libmpv"));
     }

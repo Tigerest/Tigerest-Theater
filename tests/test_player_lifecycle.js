@@ -134,6 +134,7 @@ async function main() {
     const canceledStop = triggered.filter(event => event.name === 'stopped').at(-1).args[0];
     assert.strictEqual(canceledStop.playNext, false, 'native cancel would auto-play the next queue item');
     assert.strictEqual(canceledStop.resetPlayQueue, true, 'native cancel did not clear the stale play queue');
+    assert.strictEqual(nativeStops, 0, 'native cancel issued a duplicate stop during signal cleanup');
     assert.strictEqual(windowEnds, 1);
     assert.strictEqual(videoDialog, null);
     player.canceled.emit();
@@ -149,6 +150,7 @@ async function main() {
     assert.strictEqual(triggered.filter(event => event.name === 'stopped').length, 2);
     const naturalStop = triggered.filter(event => event.name === 'stopped').at(-1).args[0];
     assert.strictEqual(naturalStop.playNext, undefined, 'natural completion no longer advances the queue');
+    assert.strictEqual(nativeStops, 0, 'natural completion issued a duplicate stop during signal cleanup');
     assert.strictEqual(windowEnds, 2, 'natural completion did not end the window session');
     assert.strictEqual(videoDialog, null, 'natural completion left the media container mounted');
 

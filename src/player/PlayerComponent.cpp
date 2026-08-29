@@ -234,10 +234,27 @@ void PlayerComponent::initializeMpv()
   // Host-critical keys are forced in both backends. In native gpu-next the
   // child window receives keyboard input directly, so QML cannot provide
   // these fallbacks itself.
+  QString hostBindings = QStringLiteral(
+      "F11 cycle fullscreen\n"
+      "Ctrl+j script-binding stats/display-stats-toggle\n"
+      "Ctrl+Shift+j script-binding stats/display-page-2");
+#if defined(Q_OS_MAC)
+  if (m_nativeVideoOutput)
+  {
+    // Cocoa emits CLOSE_WIN when the red title-bar button is clicked. mpv's
+    // default maps it to quit, which destroys the libmpv core owned by the
+    // application. Stop only the current file so the native window closes,
+    // Emby receives a cancellation, and the same core can be reused.
+    hostBindings.prepend(QStringLiteral(
+        "CLOSE_WIN stop\n"
+        "ESC stop\n"
+        "q stop\n"
+        "Q stop\n"));
+  }
+#endif
   m_mpv->command(QStringList()
                  << "define-section" << "tigerest-host"
-                 << "F11 cycle fullscreen\nCtrl+j script-binding stats/display-stats-toggle\nCtrl+Shift+j script-binding stats/display-page-2"
-                 << "force");
+                 << hostBindings << "force");
   m_mpv->command(QStringList() << "enable-section" << "tigerest-host");
 
   if (auto* s = SettingsComponent::Get().getSection(SETTINGS_SECTION_AUDIO))
@@ -343,6 +360,17 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
   }
 
   InputComponent::Get().cancelAutoRepeat();
+
+#if defined(Q_OS_MAC)
+  if (m_nativeVideoOutput)
+  {
+    // The Cocoa window is recreated whenever gpu-next configures a new VO.
+    // Set fullscreen before load so it opens directly on the target Space
+    // without briefly flashing a normal-sized window.
+    m_mpv->setProperty("fullscreen", true);
+    m_mpv->setProperty("force-window", false);
+  }
+#endif
 
   m_mediaFrameRate = metadata["frameRate"].toFloat(); // returns 0 on failure
   m_serverMediaInfo = metadata["media"].toMap();
@@ -508,6 +536,20 @@ bool PlayerComponent::switchDisplayFrameRate()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::onRestoreDisplay()
 {
+#if defined(Q_OS_MAC)
+  if (m_nativeVideoOutput)
+  {
+    // Cocoa closes the native mpv window on the main thread. Querying an mpv
+    // property from the zero-delay END_FILE timer can then wait for VO teardown,
+    // while that teardown is itself waiting for the close action to return.
+    // END_FILE already cleared m_inPlayback, and replace transitions never arm
+    // this timer, so the local state is sufficient on this macOS-only path.
+    if (!m_inPlayback)
+      DisplayComponent::Get().restorePreviousVideoMode();
+    return;
+  }
+#endif
+
   // If the player will in fact start another file (or is playing one), don't restore.
   if (m_mpv->getProperty( "idle-active").toBool())
     DisplayComponent::Get().restorePreviousVideoMode();
@@ -516,6 +558,17 @@ void PlayerComponent::onRestoreDisplay()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::onRefreshRateChange()
 {
+#if defined(Q_OS_MAC)
+  if (m_nativeVideoOutput && !m_inPlayback)
+  {
+    // Restoring the display after a native Cocoa close emits this signal from
+    // the close button's nested run loop. Avoid synchronous mpv_set_property()
+    // calls until that VO teardown has returned. The next load reapplies the
+    // video configuration after its own display-mode decision.
+    return;
+  }
+#endif
+
   // Make sure settings dependent on the display refresh rate are updated properly.
   updateVideoConfiguration();
 }
@@ -998,7 +1051,19 @@ void PlayerComponent::stop()
     return;
   }
   QStringList args("stop");
-  m_mpv->command( args);
+#if defined(Q_OS_MAC)
+  if (m_nativeVideoOutput)
+  {
+    // Native macOS CLOSE_WIN/keyboard stop can synchronously deliver END_FILE.
+    // Web cleanup may request stop again from that signal; queueing the command
+    // prevents Qt's main thread from waiting on mpv while its VO is tearing down.
+    m_mpv->commandAsync(args);
+  }
+  else
+#endif
+  {
+    m_mpv->command(args);
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1437,6 +1502,19 @@ QVariantMap PlayerComponent::mpvDiagnostics()
     result["tscale"] = m_mpv->getProperty("tscale").toString();
     result["interpolation"] = m_mpv->getProperty("interpolation").toBool();
     result["deband"] = m_mpv->getProperty("deband").toBool();
+    result["fullscreen"] = m_mpv->getProperty("fullscreen").toBool();
+
+    QStringList scriptFiles;
+    const QVariant configuredScripts = m_mpv->getProperty("scripts");
+    for (const QVariant& entry : configuredScripts.toList())
+    {
+      const QString file = entry.toString();
+      if (!file.isEmpty()) scriptFiles << file;
+    }
+    if (scriptFiles.isEmpty() && !configuredScripts.toString().isEmpty())
+      scriptFiles << configuredScripts.toString();
+    result["scriptFiles"] = scriptFiles;
+    result["autoScripts"] = m_mpv->getProperty("load-scripts").toBool();
 
     const QVariantMap videoParams = m_mpv->getProperty("video-params").toMap();
     const QVariantMap outputParams = m_mpv->getProperty("video-out-params").toMap();
@@ -1833,8 +1911,10 @@ void PlayerComponent::setMpvPreset()
 {
   if (!m_mpv) return;
 
-  // System mode consumes the user's mpv.conf, profiles, scripts and shader
-  // list without silently replacing them with Tigerest's bundled defaults.
+  // System mode consumes the user's mpv.conf, profiles and shader list without
+  // silently replacing them with Tigerest's bundled defaults. On macOS only,
+  // executable scripts are isolated by the generated companion so a menu
+  // quit cannot destroy the application-owned libmpv core.
   if (MpvConfigManager::usingSystemConfig())
   {
     qInfo() << "Preserving user MPV profile and shaders from"

@@ -25,20 +25,26 @@ def test_settings() -> None:
     settings = json.loads(read("resources/settings/settings_description.json"))
     section = next(item for item in settings if item.get("section") == "mpv")
     values = {item["value"]: item for item in section["values"]}
-    require(values["configMode"]["default"] == "auto", "MPV must auto-detect an existing user config")
+    require(values["configMode"]["default"] == "embedded",
+            "Windows and macOS must default to the bundled MPV configuration")
     modes = {item[0] for item in values["configMode"]["possible_values"]}
     require(modes == {"auto", "embedded", "system"}, "MPV config modes are incomplete")
     require(values["configModeMigrated"]["hidden"] is True,
             "legacy embedded-mode profiles need a one-time migration marker")
+    require(values["embeddedConfigDefaultMigrated"]["hidden"] is True,
+            "legacy automatic-mode profiles need a bundled-default migration marker")
     require(values["renderBackend"]["default"] == "auto",
             "the render backend must retain automatic platform selection")
     backends = {item[0] for item in values["renderBackend"]["possible_values"]}
     require(backends == {"auto", "gpu-next", "libmpv"},
             "MPV render backend choices are incomplete")
-    gpu_next = next(item for item in values["renderBackend"]["possible_values"]
-                    if item[0] == "gpu-next")
-    require(gpu_next[2].get("platforms_excluded") == "osx",
-            "unstable native GPU-Next must not be selectable on macOS")
+    gpu_next = [item for item in values["renderBackend"]["possible_values"]
+                if item[0] == "gpu-next"]
+    require(len(gpu_next) == 2 and
+            any(item[2].get("platforms_excluded") == "osx" for item in gpu_next) and
+            any(item[2].get("platforms") == "osx" and "独立" in item[1]
+                for item in gpu_next),
+            "macOS must expose the separate native GPU-Next window mode")
     require(values["enableUosc"]["default"] is True, "uosc must be enabled by default")
     require(values["enableDanmaku"]["default"] is True, "danmaku must be enabled by default")
     advanced = {
@@ -108,6 +114,13 @@ def test_mpv_bundle() -> None:
     for shader in re.findall(r"glsl-shader=~~/shaders/([^\r\n]+)", config):
         require((ROOT / "resources/mpv/shaders" / shader).is_file(), f"missing shader: {shader}")
 
+    # Both embedded bundles and the native macOS GPU-Next window retain the
+    # user-confirmed full external shader profiles.
+    require(config.count("glsl-shader=~~/shaders/") == 9 and
+            "Anime4K_Restore_CNN_UL.glsl" in config and
+            "KrigBilateral.glsl" in config,
+            "the external GPU-Next shader chain changed unexpectedly")
+
     required = [
         "resources/mpv/plugins/uosc.lua",
         "resources/mpv/plugins/uosc/main.lua",
@@ -138,14 +151,26 @@ def test_mpv_bundle() -> None:
         require(comment in manager, "generated script option lacks a Chinese comment")
     require("mode == \"auto\" || mode == \"system\"" in manager,
             "automatic user MPV config detection is not wired")
+    require('mode == QStringLiteral("auto")' in manager and
+            'mode = QStringLiteral("embedded")' in manager and
+            "embeddedConfigDefaultMigrated" in manager,
+            "legacy automatic mode is not migrated to the bundled default")
     require("writeSystemCompanionConfig" in manager and
             "TIGEREST_MPV_INCLUDE" in manager and
             "tigerest-system-profiles.conf" in manager,
             "system MPV mode does not receive bundled shader profiles")
+    require("TIGEREST_MPV_SAFE_SCRIPTS" in manager and
+            "safeMacScriptPaths" in manager and
+            "macOS host safety" in manager,
+            "macOS system mode can still autoload a user UOSC that destroys libmpv")
     controller = read("external/mpvqt/src/mpvcontroller.cpp")
     require('mpv_set_option_string(d_ptr->m_mpv, "include"' in controller and
             "TIGEREST_MPV_INCLUDE" in controller,
             "libmpv does not parse the system-mode companion profile file")
+    require('mpv_set_option_string(d_ptr->m_mpv, "load-scripts", "no")' in controller and
+            'mpv_set_option_string(d_ptr->m_mpv, "scripts"' in controller and
+            "TIGEREST_MPV_SAFE_SCRIPTS" in controller,
+            "libmpv does not enforce macOS script isolation before initialization")
     player = read("src/player/PlayerComponent.cpp")
     require("MpvConfigManager::usingSystemConfig()" in player and
             "Preserving user MPV profile and shaders" in player,
@@ -154,6 +179,9 @@ def test_mpv_bundle() -> None:
             "runtime shader diagnostics are missing")
     require('getProperty("scale")' in player and 'getProperty("vo-passes")' in player,
             "runtime scaling or full frame-pipeline diagnostics are missing")
+    require('getProperty("scripts")' in player and 'result["scriptFiles"]' in player and
+            'result["autoScripts"]' in player,
+            "runtime script-isolation diagnostics are missing")
 
     renderer = read("external/mpvqt/src/mpvrenderer.cpp")
     require("MPV_RENDER_PARAM_ADVANCED_CONTROL" in renderer and
@@ -241,9 +269,9 @@ def test_native_player_composition() -> None:
             "native GPU-Next window embedding is missing")
     require("bool MpvVideoItem::shouldUseNativeGpuNext" in mpv_item and
             "#elif defined(Q_OS_MAC)" in mpv_item and
-            "return false;" in mpv_item and
-            "Native GPU-Next embedding is disabled on macOS" in mpv_item,
-            "macOS can still enter the unstable native Cocoa window path")
+            'requestedBackend != QStringLiteral("libmpv")' in mpv_item and
+            "separate macOS GPU-Next playback window" in mpv_item,
+            "macOS does not default to the separate native GPU-Next window")
     mpv_item_header = read("src/player/MpvVideoItem.h")
     require("Q_PROPERTY(bool nativeGpuNext" in mpv_item_header,
             "QML cannot distinguish native GPU-Next from the libmpv Render API")
@@ -259,6 +287,10 @@ def test_native_player_composition() -> None:
             'setPropertyBlocking(QStringLiteral("input-cursor"), true)' in mpv_item and
             "requestActivate()" in mpv_item,
             "native gpu-next host cannot receive UOSC pointer/focus input")
+    require('QStringLiteral("gpu-api"), QStringLiteral("vulkan")' in mpv_item and
+            'QStringLiteral("gpu-context"), QStringLiteral("macvk")' in mpv_item and
+            'QStringLiteral("wid"), qlonglong{-1}' in mpv_item,
+            "macOS native playback is not detached onto the macvk GPU-Next window")
     player_component = read("src/player/PlayerComponent.cpp")
     require('m_inPlayback ? QStringLiteral("replace")' in player_component and
             'QStringLiteral("append-play")' in player_component and
@@ -266,6 +298,20 @@ def test_native_player_composition() -> None:
             "single media load does not distinguish active replacement from idle/EOF startup")
     require("Rejected MPV profile attempt to leave the Render API" in player_component,
             "libmpv compatibility-backend protection is missing")
+    require('"CLOSE_WIN stop\\n"' in player_component and
+            '"ESC stop\\n"' in player_component and
+            'm_mpv->setProperty("fullscreen", true)' in player_component and
+            "if (m_nativeVideoOutput)" in player_component and
+            "m_mpv->commandAsync(args);" in player_component and
+            "if (!m_inPlayback)" in player_component and
+            "m_nativeVideoOutput && !m_inPlayback" in player_component,
+            "macOS native close/fullscreen lifecycle protection is missing")
+    window_manager = read("src/ui/WindowManager.cpp")
+    require("updateNativePlaybackWindow" in window_manager and
+            "m_window->hide()" in window_manager and
+            "m_window->setVisibility(restoreVisibility)" in window_manager and
+            "m_window->requestActivate()" in window_manager,
+            "Emby window is not hidden and restored around macOS native playback")
     require("fullscreenRequested" in mpv_item and "Qt::Key_F11" in mpv_item and
             "onFullscreenRequested" in qml,
             "uosc/native fullscreen routing is incomplete")
@@ -294,6 +340,8 @@ def test_native_player_composition() -> None:
     require("player.canceled.connect(()" not in video_player and
             "window.api.player.stop();\n\n            window.api.player.setVideoRectangle" not in video_player,
             "video lifecycle still leaks anonymous signals or issues duplicate stop")
+    require("this._nativeStopRequested = true;" in video_player,
+            "terminal mpv signals do not suppress reentrant native stop")
 
     window_manager = read("src/ui/WindowManager.cpp")
     for marker in (

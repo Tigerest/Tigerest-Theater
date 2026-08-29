@@ -152,8 +152,8 @@ void TestSettings::testNativeGpuNextPlatformPolicy()
   QVERIFY(MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("gpu-next")));
   QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("libmpv")));
 #elif defined(Q_OS_MAC)
-  QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("auto")));
-  QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("gpu-next")));
+  QVERIFY(MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("auto")));
+  QVERIFY(MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("gpu-next")));
   QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("libmpv")));
 #else
   QVERIFY(!MpvVideoItem::shouldUseNativeGpuNext(QStringLiteral("auto")));

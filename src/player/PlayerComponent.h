@@ -137,6 +137,7 @@ public:
       m_mpv = controller;
   }
   void setNativeVideoOutput(bool enabled) { m_nativeVideoOutput = enabled; }
+  bool usingNativeVideoOutput() const { return m_nativeVideoOutput; }
   void initializeMpv();
 
   virtual void setWindow(QQuickWindow* window);

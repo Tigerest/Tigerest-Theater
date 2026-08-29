@@ -41,6 +41,8 @@ WindowManager::WindowManager(QObject* parent)
     m_playbackSessionActive(false),
     m_playbackSessionStartedFullScreen(false),
     m_playbackSessionEnteredFullScreen(false),
+    m_mainWindowHiddenForNativePlayback(false),
+    m_nativePlaybackPreviousVisibility(QWindow::Windowed),
     m_geometrySaveTimer(nullptr),
     m_initialSize(),
     m_initialScreenSize()
@@ -73,6 +75,12 @@ void WindowManager::initializeWindow(QQuickWindow* window)
   PlayerComponent::Get().setWindow(m_window);
   DisplayComponent::Get().setApplicationWindow(m_window);
   TaskbarComponent::Get().setWindow(m_window);
+
+#if defined(Q_OS_MAC)
+  connect(&PlayerComponent::Get(), &PlayerComponent::windowVisible,
+          this, &WindowManager::updateNativePlaybackWindow,
+          Qt::UniqueConnection);
+#endif
 
   // Install event filter to track cursor enter/leave
   m_window->installEventFilter(this);
@@ -289,8 +297,48 @@ void WindowManager::endPlaybackSession()
   if (restorePreviousState)
     setFullScreen(false);
 
+  // windowVisible(false) normally restores the main window first. Keep this
+  // fallback for startup errors and cancellation paths where no VO appeared.
+  updateNativePlaybackWindow(false);
+
   qDebug() << "Playback window session ended; restored previous state="
            << restorePreviousState;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::updateNativePlaybackWindow(bool visible)
+{
+#if defined(Q_OS_MAC)
+  if (!m_window || !PlayerComponent::Get().usingNativeVideoOutput())
+    return;
+
+  if (visible && !m_mainWindowHiddenForNativePlayback)
+  {
+    const QWindow::Visibility current = m_window->visibility();
+    m_nativePlaybackPreviousVisibility = current == QWindow::Hidden
+        ? QWindow::Windowed : current;
+    m_mainWindowHiddenForNativePlayback = true;
+    m_window->hide();
+    qInfo() << "macOS native playback visible; Emby window hidden";
+    return;
+  }
+
+  if (!visible && m_mainWindowHiddenForNativePlayback)
+  {
+    const QWindow::Visibility restoreVisibility = m_nativePlaybackPreviousVisibility;
+    m_mainWindowHiddenForNativePlayback = false;
+    QTimer::singleShot(0, this, [this, restoreVisibility]() {
+      if (!m_window || m_mainWindowHiddenForNativePlayback)
+        return;
+      m_window->setVisibility(restoreVisibility);
+      m_window->raise();
+      m_window->requestActivate();
+      qInfo() << "macOS native playback ended; Emby window restored";
+    });
+  }
+#else
+  Q_UNUSED(visible)
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

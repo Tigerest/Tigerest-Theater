@@ -181,6 +181,22 @@ void MpvController::init()
         qFatal("could not create mpv context");
     }
 
+    // macOS native gpu-next shares this libmpv core with the Emby host. A user
+    // UOSC script can call `quit`, permanently terminating the core while the
+    // web UI remains alive. Apply script isolation at host-option priority,
+    // before configuration parsing and mpv initialization, then load only the
+    // bundled scripts whose exit actions are mapped to `stop`.
+    const QByteArray tigerestSafeScripts = qgetenv("TIGEREST_MPV_SAFE_SCRIPTS");
+    if (!tigerestSafeScripts.isEmpty()) {
+        const int autoScriptResult = mpv_set_option_string(d_ptr->m_mpv, "load-scripts", "no");
+        const int safeScriptResult = mpv_set_option_string(d_ptr->m_mpv, "scripts", tigerestSafeScripts.constData());
+        if (autoScriptResult < 0 || safeScriptResult < 0) {
+            qWarning() << "Unable to isolate Tigerest MPV scripts";
+        } else {
+            qInfo() << "Tigerest MPV user scripts disabled; loading quit-safe bundled scripts";
+        }
+    }
+
     // libmpv does not load configuration when embedded unless the host opts in.
     // Tigerest Theater resolves an isolated built-in root or the user's real mpv
     // root before this controller is constructed.

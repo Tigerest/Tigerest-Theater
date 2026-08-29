@@ -136,6 +136,10 @@
              * @private
              */
             this.onEnded = () => {
+                // MPV has already ended the file. Emby's synchronous stopped
+                // handlers can call stop() again while this signal is being
+                // delivered, which deadlocks a native macOS VO teardown.
+                this._nativeStopRequested = true;
                 if (this.onEndedInternal()) {
                     this.removeMediaDialog();
                 }
@@ -143,6 +147,10 @@
 
             this.onCanceled = () => {
                 console.log('[MPV Signal] canceled');
+                // CLOSE_WIN/Escape/q already issued stop inside mpv. Mark it
+                // before notifying Emby so its cleanup cannot send a second
+                // synchronous stop into the terminating native VO.
+                this._nativeStopRequested = true;
                 const canceledSessionId = this._sessionId;
                 if (this.onEndedInternal({playNext: false, resetPlayQueue: true})) {
                     // Native Escape/UOSC stop bypasses the web player's stop()
