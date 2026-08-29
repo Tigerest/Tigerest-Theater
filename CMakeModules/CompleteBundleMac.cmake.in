@@ -30,6 +30,24 @@ execute_process(
   WORKING_DIRECTORY "@QTROOT@/bin"
 )
 
+# macdeployqt deploys every SQL and positioning plugin it finds, including
+# optional drivers whose third-party libraries are not part of this client.
+# They are never used by Tigerest Theater and leave broken load commands in an
+# otherwise self-contained bundle, so keep SQLite/CoreLocation and remove only
+# the unsupported optional plugins before dependency closure and signing.
+set(unsupported_plugins
+  "${app}/Contents/PlugIns/sqldrivers/libqsqlmimer.dylib"
+  "${app}/Contents/PlugIns/sqldrivers/libqsqlodbc.dylib"
+  "${app}/Contents/PlugIns/sqldrivers/libqsqlpsql.dylib"
+  "${app}/Contents/PlugIns/position/libqtposition_nmea.dylib"
+)
+foreach(plugin ${unsupported_plugins})
+  if(EXISTS "${plugin}")
+    message(STATUS "Removing unused plugin with an unavailable optional dependency: ${plugin}")
+    file(REMOVE "${plugin}")
+  endif()
+endforeach()
+
 #
 # fix_install_names: Fix library paths for bundled dylibs/sos
 #
@@ -47,6 +65,17 @@ function(fix_lib_dependencies lib framework_libs_var)
 
   foreach(line ${otool_lines})
     string(STRIP "${line}" line)
+
+    # macdeployqt has already copied Qt frameworks and preserved their normal
+    # @rpath install names. Validate the deployed target instead of trying to
+    # resolve these references through Homebrew's flat library directories.
+    if(line MATCHES "^@rpath/(Qt[^ ]+\\.framework/[^ ]+)")
+      set(qt_framework_relative "${CMAKE_MATCH_1}")
+      if(NOT EXISTS "${framework_path}/${qt_framework_relative}")
+        message(WARNING "Bundled Qt framework dependency is missing: ${qt_framework_relative}")
+      endif()
+      continue()
+    endif()
 
     # Check if dependency needs fixing
     set(needs_fix FALSE)

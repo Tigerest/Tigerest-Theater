@@ -1449,8 +1449,8 @@ QVariantMap PlayerComponent::mpvDiagnostics()
     // stats.lua page 2. It is populated while video is rendering when the
     // libmpv render context uses advanced control.
     const QVariantMap passes = m_mpv->getProperty("vo-passes").toMap();
-    const int freshPassCount = passes.value("fresh").toList().size();
-    const int redrawPassCount = passes.value("redraw").toList().size();
+    const qsizetype freshPassCount = passes.value("fresh").toList().size();
+    const qsizetype redrawPassCount = passes.value("redraw").toList().size();
     result["voPassesAvailable"] = freshPassCount > 0 || redrawPassCount > 0;
     result["freshPassCount"] = freshPassCount;
     result["redrawPassCount"] = redrawPassCount;

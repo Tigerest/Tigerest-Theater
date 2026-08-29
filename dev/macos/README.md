@@ -12,7 +12,7 @@ dev/macos/run.sh
 dev/macos/bundle.sh
 ```
 
-依赖包括 Xcode Command Line Tools、Homebrew、CMake、Ninja、create-dmg、mpv、aqtinstall 和 Qt 6.9.3（含 WebEngine、WebChannel、Positioning）。所有 CMake 入口均将最低部署目标设为 macOS 15.0。
+依赖包括 Xcode Command Line Tools、Homebrew、CMake、Ninja、create-dmg、Node.js、mpv、aqtinstall 和 Qt 6.9.3（含 WebEngine、WebChannel、Positioning）。所有 CMake 入口均将最低部署目标设为 macOS 15.0。
 
 输出位置：
 

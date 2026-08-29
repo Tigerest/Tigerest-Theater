@@ -45,6 +45,13 @@ target_link_libraries(test_windowmanager jmp_core Qt6::Test)
 target_include_directories(test_windowmanager PRIVATE ${TEST_INCLUDE_DIRS})
 target_compile_definitions(test_windowmanager PRIVATE ${TEST_COMPILE_DEFS})
 add_test(NAME test_windowmanager COMMAND test_windowmanager)
+if(APPLE)
+  # Native macOS maximize/fullscreen transitions are asynchronous and can be
+  # rejected for an inactive test process. Exercise WindowManager's state
+  # transitions deterministically without depending on the desktop session.
+  set_tests_properties(test_windowmanager PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)

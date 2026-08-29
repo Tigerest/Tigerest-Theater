@@ -1,21 +1,28 @@
 # Tigerest Theater 测试报告
 
 生成时间：2026-08-29（Asia/Shanghai）
-最终候选版本：Windows x64 2.0.10-dev
+最终候选版本：macOS arm64 2.0.11-dev；保留 Windows x64 2.0.10-dev 历史结果
 
 ## 结论
 
-2.0.10-dev 已完成 Windows 实际编译、7 项 CTest、安装版和便携版打包，以及便携 ZIP 的全新目录解压一致性检查。本轮根据 2.0.9 运行日志修正了退出后自动续播和双击被执行两次的问题，并把退出按钮移到播放器左上角。
+2.0.11-dev 已在 Apple Silicon Mac 上完成 Release 实际编译、7 项 CTest、完整应用部署、临时签名、DMG 生成与校验，以及 GUI 首屏启动验收。应用窗口和 WebEngine 成功渲染到既有服务器的用户选择页；本轮未进入任何已有账号，也未执行真实播放。
+
+2.0.10-dev 的 Windows 实际编译、7 项 CTest、安装版和便携版打包及便携 ZIP 一致性结果仍保留为历史验证。本轮没有重新执行 Windows 构建。
 
 历史版本已完成登录、浏览、在线播放、字幕、跳转、下载、本地回放、GPU-Next、UOSC、Stats、shader 与覆盖安装验收。2.0.9 的新增自动化覆盖单次会话终止、连续新建播放任务、自然结束、取消、停止、销毁、启动超时契约，以及窗口化、最大化和预先全屏三类窗口恢复状态。
 
-macOS 当前没有 runner，本报告仅确认可复现工程和静态契约，不声称经过 macOS 实机构建、安装或播放验证。
+macOS 本机实测系统为 27.0 arm64。主程序与 Info.plist 目标为 15.0，但当前 Homebrew 媒体依赖中有 41 个 Mach-O 最低版本为 26.0，因此本机 DMG 只可声明在当前机器完成启动验收；macOS 15 兼容包仍需由 macOS 15 runner 构建验证。
 
 ## 自动化、构建与安装
 
 | 检查 | 最终结果 |
 | --- | --- |
-| CTest | 7/7 通过，总耗时 2.49 秒 |
+| Windows 2.0.10 CTest | 7/7 通过，总耗时 2.49 秒 |
+| macOS 2.0.11 CTest | 7/7 通过，总耗时 3.67 秒 |
+| macOS Release 编译 | 通过，arm64 主程序生成成功 |
+| macOS 应用部署与签名 | 通过，断链的 4 个未使用可选插件已剔除，`codesign --verify --deep --strict` 通过 |
+| macOS DMG | 通过，309,996,522 字节，`hdiutil verify` 通过 |
+| macOS GUI 首屏 | 通过，窗口与 WebEngine 用户选择页实际渲染，最新启动日志无 fatal/库加载/插件加载/崩溃标记 |
 | `test_systemcomponent` | 通过（0.12 秒） |
 | `test_log` | 通过（0.12 秒，含冒号请求头与 Bearer 脱敏） |
 | `test_settings` | 通过（0.12 秒） |
@@ -27,6 +34,8 @@ macOS 当前没有 runner，本报告仅确认可复现工程和静态契约，�
 | 便携干净目录检查 | ZIP 解压成功、`portable` 标记存在，主程序 SHA-256 与 `build/output` 一致 |
 
 `windeployqt` 仍提示未使用的 Qt Positioning NMEA 插件缺少可选 `Qt6SerialPort`；主程序、WebEngine、libmpv 与实际播放不受影响。
+
+macOS 的 `macdeployqt` 也会发现同类可选插件；本轮打包逻辑会在依赖闭包和签名前剔除 NMEA、Mimer、ODBC 与 PostgreSQL 插件，最终应用包不再保留这些断链 Mach-O。
 
 ## 2.0.7 MPV / Shader 实测
 
@@ -100,6 +109,8 @@ Windows 图形点击自动化组件本轮仍因本机内核资源路径缺失而
 
 ## macOS 与外部条件
 
-- macOS：无可用 runner；只交付工程、CI 声明和可复现构建脚本。未生成 DMG，未声称实机验证。
+- macOS：已在 macOS 27.0（Build 26A5416b）Apple Silicon 实机完成编译、7/7 CTest、打包、签名、DMG 校验和 GUI 首屏启动；未使用已有账号进行登录或播放。
+- 兼容性：主程序目标为 15.0，但本机 Homebrew bottle 最低版本为 26.0；本机 DMG 不声明支持 macOS 15～25，正式兼容包须在 macOS 15 runner 重建依赖并复测。
+- 分发：本轮为 ad-hoc 签名，未做 Developer ID 签名或 Apple notarization。
 - Emby Connect：未提供独立 Connect 凭据，因此未做真实 Connect 账号绑定；目标服务器直连验收不受影响。
 - Windows 已确认范围没有外部服务器或账号权限阻塞。

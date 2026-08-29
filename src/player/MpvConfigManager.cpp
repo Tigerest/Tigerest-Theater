@@ -145,7 +145,7 @@ bool writeSystemCompanionConfig(const QString& bundleDir, QString& companionPath
   }
 
   const QString templateText = QString::fromUtf8(input.readAll());
-  const int profileStart = templateText.indexOf(QStringLiteral("[tigerest-quality-base]"));
+  const qsizetype profileStart = templateText.indexOf(QStringLiteral("[tigerest-quality-base]"));
   if (profileStart < 0)
   {
     qCritical() << "Bundled MPV profile template has no Tigerest profiles";

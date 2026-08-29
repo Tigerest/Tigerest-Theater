@@ -397,6 +397,15 @@ def test_macos_reproducibility_contract() -> None:
     workflow = read(".github/workflows/build-macos.yml")
     require("macos-15" in workflow and "ctest --test-dir build" in workflow,
             "macOS CI matrix or test step is missing")
+    deploy = read("CMakeModules/CompleteBundleMac.cmake.in")
+    for unsupported_plugin in (
+        "libqsqlmimer.dylib", "libqsqlodbc.dylib", "libqsqlpsql.dylib",
+        "libqtposition_nmea.dylib",
+    ):
+        require(unsupported_plugin in deploy,
+                f"unsupported macOS plugin is not pruned: {unsupported_plugin}")
+    require("Bundled Qt framework dependency is missing" in deploy,
+            "bundled Qt frameworks are not validated before dependency fixup")
 
 
 def test_no_embedded_tokens() -> None:
