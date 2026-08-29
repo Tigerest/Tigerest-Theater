@@ -19,6 +19,7 @@
 #include "settings/SettingsSection.h"
 
 #include "MpvVideoItem.h"
+#include "PlaybackIdentity.h"
 #include "MpvConfigManager.h"
 #include "AlbumArtProvider.h"
 #include "input/InputComponent.h"
@@ -380,42 +381,73 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
   QUrl qurl = sanitizeMediaUrl(url);
   QString host = qurl.host();
 
-  QStringList command;
-  command << "loadfile" << qurl.toString(QUrl::FullyEncoded);
+  QVariantList command;
+  command << QStringLiteral("loadfile") << qurl.toString(QUrl::FullyEncoded);
   command << loadMode;
 
 #if MPV_CLIENT_API_VERSION >= MPV_MAKE_VERSION(2, 3)
-  command << "-1"; // insert_at_idx
+  command << -1; // insert_at_idx
 #endif
 
-  QString extraArgs;
+  QVariantMap fileOptions;
 
   quint64 startMilliseconds = options["startMilliseconds"].toLongLong();
   if (startMilliseconds != 0)
-    extraArgs += "start=+" + QString::number(startMilliseconds / 1000.0) + ",";
+    fileOptions.insert(QStringLiteral("start"),
+                       QStringLiteral("+") + QString::number(startMilliseconds / 1000.0));
 
   // we're going to select these streams later, in the preloaded hook
-  extraArgs += "aid=no,";
-  extraArgs += "sid=no,";
+  fileOptions.insert(QStringLiteral("aid"), QStringLiteral("no"));
+  fileOptions.insert(QStringLiteral("sid"), QStringLiteral("no"));
 
   m_currentSubtitleStream = subtitleStream;
   m_currentAudioStream = audioStream;
 
   if (metadata["type"] == "music")
-    extraArgs += "vid=no,";
+    fileOptions.insert(QStringLiteral("vid"), QStringLiteral("no"));
 
   QString pause = options["autoplay"].toBool() ? "no" : "yes";
-  extraArgs += "pause=" + pause + ",";
+  fileOptions.insert(QStringLiteral("pause"), pause);
 
   QString userAgent = metadata["headers"].toMap()["User-Agent"].toString();
   if (userAgent.size())
-    extraArgs += "user-agent=" + userAgent + ",";
+    fileOptions.insert(QStringLiteral("user-agent"), userAgent);
 
   // Make sure the list of requested codecs is reset.
-  extraArgs += "ad=,";
-  extraArgs += "vd="; // Keep last
+  fileOptions.insert(QStringLiteral("ad"), QString());
+  fileOptions.insert(QStringLiteral("vd"), QString());
 
-  command << extraArgs;
+  const QVariantMap jellyfinMetadata = metadata["metadata"].toMap();
+  const Tigerest::PlaybackIdentity playbackIdentity =
+    Tigerest::makePlaybackIdentity(jellyfinMetadata);
+  if (!playbackIdentity.mediaTitle.isEmpty())
+    fileOptions.insert(QStringLiteral("force-media-title"), playbackIdentity.mediaTitle);
+
+  const auto setIdentityProperty = [this](const QString& name, const QVariant& value) {
+    const int result = m_mpv->setProperty(name, value);
+    if (result < 0)
+      qWarning() << "Unable to publish MPV playback identity property" << name
+                 << mpv_error_string(result);
+    return result >= 0;
+  };
+
+  const QString identityRoot = QStringLiteral("user-data/tigerest/emby/");
+  setIdentityProperty(identityRoot + QStringLiteral("valid"), false);
+  bool identityReady = true;
+  identityReady = setIdentityProperty(identityRoot + QStringLiteral("item-id"),
+                                      playbackIdentity.itemId) && identityReady;
+  identityReady = setIdentityProperty(identityRoot + QStringLiteral("series-name"),
+                                      playbackIdentity.seriesName) && identityReady;
+  identityReady = setIdentityProperty(identityRoot + QStringLiteral("episode-name"),
+                                      playbackIdentity.episodeName) && identityReady;
+  identityReady = setIdentityProperty(identityRoot + QStringLiteral("season-number"),
+                                      playbackIdentity.seasonNumber) && identityReady;
+  identityReady = setIdentityProperty(identityRoot + QStringLiteral("episode-number"),
+                                      playbackIdentity.episodeNumber) && identityReady;
+  if (playbackIdentity.validEpisode && identityReady)
+    setIdentityProperty(identityRoot + QStringLiteral("valid"), true);
+
+  command << fileOptions;
 
   const QVariant commandResult = m_mpv->command(command);
   if (commandResult.metaType() == QMetaType::fromType<ErrorReturn>())
@@ -431,7 +463,6 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
   m_lastPositionUpdate = 0.0;
   m_replacementPending = loadMode == QStringLiteral("replace") && m_inPlayback;
 
-  QVariantMap jellyfinMetadata = metadata["metadata"].toMap();
   QUrl jellyfinBaseUrl = qurl.adjusted(QUrl::RemovePath | QUrl::RemoveQuery);
   emit onMetaData(jellyfinMetadata, jellyfinBaseUrl);
 

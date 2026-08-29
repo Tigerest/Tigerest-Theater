@@ -626,6 +626,16 @@ end
 
 -- 获取播放文件标题信息
 function parse_title()
+    if mp.get_property_bool("user-data/tigerest/emby/valid", false) then
+        local series_name = mp.get_property_native("user-data/tigerest/emby/series-name")
+        local season_number = tonumber(mp.get_property_native("user-data/tigerest/emby/season-number"))
+        local episode_number = tonumber(mp.get_property_native("user-data/tigerest/emby/episode-number"))
+        if series_name and series_name ~= "" and episode_number and episode_number >= 0 then
+            local season = season_number and season_number >= 0 and tostring(math.floor(season_number)) or nil
+            return title_replace(series_name), season, tostring(math.floor(episode_number))
+        end
+    end
+
     local path = mp.get_property("path")
     local filename = mp.get_property("filename/no-ext")
 
@@ -793,6 +803,13 @@ end
 
 function is_async_running()
     return async_running_count > 0
+end
+
+function should_initialize_enabled_stream(enabled, path, comments, async_running)
+    return enabled
+        and comments == nil
+        and not async_running
+        and is_protocol(path)
 end
 
 -- 异步执行命令

@@ -20,6 +20,7 @@
 #define SETTINGS_SECTION_MPRIS "mpris"
 #define SETTINGS_SECTION_OTHER "other"
 #define SETTINGS_SECTION_MPV "mpv"
+#define SETTINGS_SECTION_DANMAKU "danmaku"
 
 #define AUDIO_DEVICE_TYPE_BASIC "basic"
 #define AUDIO_DEVICE_TYPE_SPDIF "spdif"

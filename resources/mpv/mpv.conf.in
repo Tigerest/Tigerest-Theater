@@ -53,8 +53,6 @@ sub-margin-y=30
 profile-desc=Tigerest 公共画质基础（不含外部 shader）
 # 继承 mpv 官方 high-quality 预设，先取得高质量渲染基线。
 profile=high-quality
-# 自动选择 mpv 白名单中的安全硬件解码器，失败时回退到软件解码。
-hwdec=auto-safe
 # 把目标输出色彩空间提示给 D3D11/Vulkan 与系统合成器，帮助正确输出 SDR/HDR。
 target-colorspace-hint=yes
 # 自动读取系统显示器 ICC 配置并生成校色 3D LUT。

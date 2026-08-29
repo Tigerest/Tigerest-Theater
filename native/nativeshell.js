@@ -631,6 +631,10 @@ async function showSettingsModal() {
             title: 'MPV 画质与插件',
             subtitle: '渲染、HDR、缓存、uosc 与弹幕'
         },
+        danmaku: {
+            title: '弹幕样式',
+            subtitle: '内置 uosc_danmaku 的长期默认外观'
+        },
         other: {
             title: '高级',
             subtitle: '直接传入 mpv.conf 选项'
@@ -642,7 +646,14 @@ async function showSettingsModal() {
         'mpv.renderBackend',
         'mpv.systemConfigDir',
         'mpv.enableUosc',
-        'mpv.enableDanmaku'
+        'mpv.enableDanmaku',
+        'danmaku.bold',
+        'danmaku.fontsize',
+        'danmaku.outline',
+        'danmaku.shadow',
+        'danmaku.scrolltime',
+        'danmaku.opacity',
+        'danmaku.displayarea'
     ]);
     const embeddedOnlyMpvSettings = new Set([
         'shaderPreset',

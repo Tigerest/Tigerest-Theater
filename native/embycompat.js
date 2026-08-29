@@ -5,7 +5,8 @@
     const nativePluginIds = [
         'tigerest/mpv-video.js',
         'tigerest/mpv-audio.js',
-        'tigerest/input.js'
+        'tigerest/input.js',
+        'tigerest/session-navigation.js'
     ];
 
     function seedDefaultServer() {
@@ -172,6 +173,22 @@
                     super({
                         inputManager: moduleValue(inputManager),
                         playbackManager: moduleValue(playbackManager)
+                    });
+                }
+            };
+        });
+
+        defineModule('tigerest/session-navigation.js', [
+            'pageJs', 'appRouter', 'connectionManager', 'viewManager'
+        ], function (pageJs, appRouter, connectionManager, viewManager) {
+            const SessionNavigationPlugin = window._sessionNavigationPlugin;
+            return class TigerestSessionNavigationPlugin extends SessionNavigationPlugin {
+                constructor() {
+                    super({
+                        pageJs: moduleValue(pageJs),
+                        appRouter: moduleValue(appRouter),
+                        connectionManager: moduleValue(connectionManager),
+                        viewManager: moduleValue(viewManager)
                     });
                 }
             };

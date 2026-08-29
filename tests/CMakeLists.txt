@@ -14,6 +14,7 @@ set(TEST_INCLUDE_DIRS
 
 set(TEST_COMPILE_DEFS
   PREFIX="${CMAKE_INSTALL_PREFIX}"
+  SOURCE_ROOT="${CMAKE_SOURCE_DIR}"
 )
 
 add_executable(test_systemcomponent test_systemcomponent.cpp)
@@ -53,6 +54,24 @@ if(APPLE)
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
+add_executable(test_playback_identity test_playback_identity.cpp)
+target_link_libraries(test_playback_identity jmp_core Qt6::Test)
+target_include_directories(test_playback_identity PRIVATE ${TEST_INCLUDE_DIRS})
+target_compile_definitions(test_playback_identity PRIVATE ${TEST_COMPILE_DEFS})
+add_test(NAME test_playback_identity COMMAND test_playback_identity)
+
+add_executable(test_danmaku_metadata test_danmaku_metadata.cpp)
+target_link_libraries(test_danmaku_metadata jmp_core Qt6::Test)
+target_include_directories(test_danmaku_metadata PRIVATE ${TEST_INCLUDE_DIRS})
+target_compile_definitions(test_danmaku_metadata PRIVATE ${TEST_COMPILE_DEFS})
+add_test(NAME test_danmaku_metadata COMMAND test_danmaku_metadata)
+
+add_executable(test_danmaku_style_config test_danmaku_style_config.cpp)
+target_link_libraries(test_danmaku_style_config jmp_core Qt6::Test)
+target_include_directories(test_danmaku_style_config PRIVATE ${TEST_INCLUDE_DIRS})
+target_compile_definitions(test_danmaku_style_config PRIVATE ${TEST_COMPILE_DEFS})
+add_test(NAME test_danmaku_style_config COMMAND test_danmaku_style_config)
+
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
   add_test(NAME test_bundle_integrity
@@ -65,4 +84,6 @@ if(Node_EXECUTABLE)
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_player_lifecycle.js)
   add_test(NAME test_stream_quality
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_stream_quality.js)
+  add_test(NAME test_session_navigation
+           COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_session_navigation.js)
 endif()

@@ -699,6 +699,12 @@ mp.register_event("file-loaded", function()
     if options.autoload_for_url and is_protocol(path) then
         ENABLED = true
         load_danmaku_for_url(path)
+        return
+    end
+
+    if should_initialize_enabled_stream(ENABLED, path, COMMENTS, is_async_running()) then
+        init(path)
+        return
     end
 
     if filename == nil or dir == nil then

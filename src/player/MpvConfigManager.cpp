@@ -2,11 +2,13 @@
 
 #include "core/ProfileManager.h"
 #include "settings/SettingsComponent.h"
+#include "settings/SettingsSection.h"
 
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QLocale>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QTextStream>
@@ -180,6 +182,16 @@ bool writeSystemCompanionConfig(const QString& bundleDir, QString& companionPath
   // The controller applies script isolation before mpv initialization. Keep a
   // visible marker in the generated companion for diagnostics and support.
   outputLines << QStringLiteral("# macOS host safety: keep user rendering options, isolate executable scripts.");
+  // macOS system mode loads the bundled, quit-safe danmaku script from the
+  // managed resource tree while keeping the user's mpv.conf authoritative.
+  // Pass the app settings as startup script options so mp.options can see the
+  // same persistent style without writing into the user's config directory.
+  if (auto* section = SettingsComponent::Get().getSection(SETTINGS_SECTION_DANMAKU))
+  {
+    const QStringList danmakuOptions = MpvConfigManager::danmakuStyleMpvOptionsText(
+        section->allValues()).split('\n', Qt::SkipEmptyParts);
+    outputLines.append(danmakuOptions);
+  }
 #endif
   const QStringList profileLines = templateText.mid(profileStart).split('\n');
   for (QString line : profileLines)
@@ -220,6 +232,61 @@ QString MpvConfigManager::profileName(const QString& preset)
   // Map every retired preset to the new user-confirmed default. This keeps
   // upgrades from older settings files valid after removing the old profiles.
   return "tigerest-default";
+}
+
+QString MpvConfigManager::danmakuStyleConfigText(const QVariantMap& values)
+{
+  const auto number = [&values](const QString& key, double fallback) {
+    bool ok = false;
+    const double value = values.value(key, fallback).toDouble(&ok);
+    return QLocale::c().toString(ok ? value : fallback, 'g', 12);
+  };
+
+  QStringList lines;
+  lines << QStringLiteral("bold=%1").arg(values.value(QStringLiteral("bold"), true).toBool()
+                                              ? QStringLiteral("yes")
+                                              : QStringLiteral("no"));
+  lines << QStringLiteral("fontsize=%1").arg(number(QStringLiteral("fontsize"), 50));
+  lines << QStringLiteral("outline=%1").arg(number(QStringLiteral("outline"), 1.0));
+  lines << QStringLiteral("shadow=%1").arg(number(QStringLiteral("shadow"), 0));
+  lines << QStringLiteral("scrolltime=%1").arg(number(QStringLiteral("scrolltime"), 15));
+  lines << QStringLiteral("opacity=%1").arg(number(QStringLiteral("opacity"), 0.7));
+  lines << QStringLiteral("displayarea=%1").arg(number(QStringLiteral("displayarea"), 0.2));
+  return lines.join('\n') + '\n';
+}
+
+QString MpvConfigManager::danmakuStyleMpvOptionsText(const QVariantMap& values)
+{
+  QStringList output;
+  const QStringList options = danmakuStyleConfigText(values).split('\n', Qt::SkipEmptyParts);
+  for (const QString& option : options)
+    output << QStringLiteral("script-opt=uosc_danmaku-%1").arg(option);
+  return output.join('\n') + '\n';
+}
+
+bool MpvConfigManager::writeDanmakuStyleConfig(const QString& configDir,
+                                                const QVariantMap& values,
+                                                QString* errorMessage)
+{
+  const QString scriptOptsDir = QDir(configDir).filePath(QStringLiteral("script-opts"));
+  if (!QDir().mkpath(scriptOptsDir))
+  {
+    if (errorMessage)
+      *errorMessage = QStringLiteral("Unable to create %1").arg(scriptOptsDir);
+    return false;
+  }
+
+  const QString path = QDir(scriptOptsDir).filePath(QStringLiteral("uosc_danmaku.conf"));
+  QSaveFile output(path);
+  const QByteArray data = danmakuStyleConfigText(values).toUtf8();
+  if (!output.open(QIODevice::WriteOnly | QIODevice::Text) ||
+      output.write(data) != data.size() || !output.commit())
+  {
+    if (errorMessage)
+      *errorMessage = QStringLiteral("Unable to write %1: %2").arg(path, output.errorString());
+    return false;
+  }
+  return true;
 }
 
 QString MpvConfigManager::detectSystemConfigDir(const QString& configuredPath)
@@ -285,6 +352,17 @@ bool MpvConfigManager::prepare()
   if (!QDir().mkpath(bundleDir) || !copyResourceTree(":/mpv", bundleDir))
   {
     qCritical() << "Failed to prepare Tigerest MPV resources";
+    return false;
+  }
+
+  auto* danmakuSection = settings.getSection(SETTINGS_SECTION_DANMAKU);
+  QString danmakuConfigError;
+  if (!writeDanmakuStyleConfig(bundleDir,
+                               danmakuSection ? danmakuSection->allValues() : QVariantMap(),
+                               &danmakuConfigError))
+  {
+    qCritical() << "Failed to prepare persistent danmaku style configuration:"
+                << danmakuConfigError;
     return false;
   }
 

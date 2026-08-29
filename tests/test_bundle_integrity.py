@@ -75,12 +75,35 @@ def test_settings() -> None:
         require(values[key]["default"] == expected,
                 f"{key} does not match the requested anime-aa-insane default")
 
+    video = next(item for item in settings if item.get("section") == "video")
+    video_values = {item["value"]: item for item in video["values"]}
+    require(video_values["hardwareDecoding"]["default"] == "copy",
+            "shader-compatible hardware decoding must default to copy-back mode")
+
     subtitles = next(item for item in settings if item.get("section") == "subtitles")
     subtitle_values = {item["value"]: item for item in subtitles["values"]}
     require(subtitle_values["font"]["default"] == "Segoe UI",
             "subtitle font does not match the reference mpv.conf")
     require(subtitle_values["referenceMpvDefaultsMigrated"]["hidden"] is True,
             "legacy sans-serif subtitle default needs a one-time migration")
+
+    danmaku = next((item for item in settings if item.get("section") == "danmaku"), None)
+    require(danmaku is not None, "persistent danmaku style settings section is missing")
+    danmaku_values = {item["value"]: item for item in danmaku["values"]}
+    expected_danmaku_defaults = {
+        "bold": True,
+        "fontsize": 50,
+        "outline": 1.0,
+        "shadow": 0,
+        "scrolltime": 15,
+        "opacity": 0.7,
+        "displayarea": 0.2,
+    }
+    require(set(danmaku_values) == set(expected_danmaku_defaults),
+            "danmaku style settings do not match the bundled plugin options")
+    for key, expected in expected_danmaku_defaults.items():
+        require(danmaku_values[key]["default"] == expected,
+                f"danmaku {key} default does not match the bundled plugin")
 
 
 def test_mpv_bundle() -> None:
@@ -95,6 +118,8 @@ def test_mpv_bundle() -> None:
         "tigerest-quality-base", "tigerest-default",
         "tigerest-liveaction", "tigerest-aggressive-test", "default",
     }, "retired or unexpected MPV profiles remain in the bundle")
+    require(not re.search(r"^hwdec\s*=", config, re.MULTILINE),
+            "shader profiles must not override the application hardware-decoding policy")
     require("safe" not in "\n".join(line for line in config.splitlines()
                                      if line.startswith("[tigerest-")),
             "safe profile must be removed")
@@ -147,6 +172,14 @@ def test_mpv_bundle() -> None:
     require("referenceMpvDefaultsMigrated" in manager and
             'QStringLiteral("Segoe UI")' in manager,
             "legacy subtitle font is not migrated to the requested default")
+    settings_header = read("src/settings/SettingsComponent.h")
+    require('#define SETTINGS_SECTION_DANMAKU "danmaku"' in settings_header and
+            "writeDanmakuStyleConfig(bundleDir" in manager and
+            "SETTINGS_SECTION_DANMAKU" in manager,
+            "persistent danmaku style options are not deployed with the bundled MPV config")
+    danmaku_options = read("resources/mpv/plugins/uosc_danmaku/modules/options.lua")
+    require(re.search(r"^\s*displayarea\s*=\s*0\.2\s*,", danmaku_options, re.MULTILINE),
+            "bundled danmaku display area must default to 0.2")
     for comment in (
         "# 加载 UOSC", "# 将 UOSC 码率选择交回 Emby Web",
         "# 加载大河三档画质菜单", "# 加载 UOSC 弹幕",
@@ -162,6 +195,14 @@ def test_mpv_bundle() -> None:
             "TIGEREST_MPV_INCLUDE" in manager and
             "tigerest-system-profiles.conf" in manager,
             "system MPV mode does not receive bundled shader profiles")
+    companion = manager[
+        manager.index("bool writeSystemCompanionConfig"):
+        manager.index("QString MpvConfigManager::profileName")
+    ]
+    require("#if defined(Q_OS_MAC)" in companion and
+            "danmakuStyleMpvOptionsText" in companion and
+            "SETTINGS_SECTION_DANMAKU" in companion,
+            "macOS system mode does not receive the persistent bundled danmaku style")
     require("TIGEREST_MPV_SAFE_SCRIPTS" in manager and
             "safeMacScriptPaths" in manager and
             "macOS host safety" in manager,
@@ -280,6 +321,7 @@ def test_native_player_composition() -> None:
             "QML cannot distinguish native GPU-Next from the libmpv Render API")
     require("ensureNativeHostWindow" in mpv_item and
             "new QWindow(parentWindow)" in mpv_item and
+            "MpvInputFocusWindow" not in mpv_item and
             "nativeHost->winId()" in mpv_item and
             "m_nativeHostWindow->hide()" in mpv_item and
             "window()->winId()" not in mpv_item,
@@ -445,6 +487,18 @@ def test_settings_ui() -> None:
         "实际缩放", "完整帧流水线",
     ):
         require(marker in shell, f"dedicated settings UI marker missing: {marker}")
+    for marker in (
+        "danmaku: {",
+        "title: '弹幕样式'",
+        "'danmaku.bold'",
+        "'danmaku.fontsize'",
+        "'danmaku.outline'",
+        "'danmaku.shadow'",
+        "'danmaku.scrolltime'",
+        "'danmaku.opacity'",
+        "'danmaku.displayarea'",
+    ):
+        require(marker in shell, f"persistent danmaku settings UI marker missing: {marker}")
     for marker in (
         "installHorizontalShelfDragging", "scrollLeft - dx",
         "tigerest-shelf-dragging", "suppressNextClick",
