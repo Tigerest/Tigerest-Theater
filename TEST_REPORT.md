@@ -11,17 +11,17 @@
 
 历史版本已完成登录、浏览、在线播放、字幕、跳转、下载、本地回放、GPU-Next、UOSC、Stats、shader 与覆盖安装验收。2.0.9 的新增自动化覆盖单次会话终止、连续新建播放任务、自然结束、取消、停止、销毁、启动超时契约，以及窗口化、最大化和预先全屏三类窗口恢复状态。
 
-macOS 本机实测系统为 27.0 arm64。主程序与 Info.plist 目标为 15.0，但当前 Homebrew 媒体依赖中有 41 个 Mach-O 最低版本为 26.0，因此本机 DMG 只可声明在当前机器完成启动验收；macOS 15 兼容包仍需由 macOS 15 runner 构建验证。
+macOS 本机实测系统为 27.0 arm64。工程、主程序 Mach-O、Info.plist 与 CI 现已统一以 macOS 26.0 为最低目标，与当前 Homebrew 媒体依赖的兼容性边界一致。
 
 ## 自动化、构建与安装
 
 | 检查 | 最终结果 |
 | --- | --- |
 | Windows 2.0.10 CTest | 7/7 通过，总耗时 2.49 秒 |
-| macOS 2.0.11 CTest | 7/7 通过，总耗时 3.67 秒 |
+| macOS 2.0.11 CTest | 7/7 通过，总耗时 4.01 秒 |
 | macOS Release 编译 | 通过，arm64 主程序生成成功 |
 | macOS 应用部署与签名 | 通过，断链的 4 个未使用可选插件已剔除，`codesign --verify --deep --strict` 通过 |
-| macOS DMG | 通过，309,996,522 字节，`hdiutil verify` 通过 |
+| macOS DMG | 通过，309,995,783 字节，`hdiutil verify` 通过 |
 | macOS GUI 首屏 | 通过，窗口与 WebEngine 用户选择页实际渲染，最新启动日志无 fatal/库加载/插件加载/崩溃标记 |
 | `test_systemcomponent` | 通过（0.12 秒） |
 | `test_log` | 通过（0.12 秒，含冒号请求头与 Bearer 脱敏） |
@@ -110,7 +110,7 @@ Windows 图形点击自动化组件本轮仍因本机内核资源路径缺失而
 ## macOS 与外部条件
 
 - macOS：已在 macOS 27.0（Build 26A5416b）Apple Silicon 实机完成编译、7/7 CTest、打包、签名、DMG 校验和 GUI 首屏启动；未使用已有账号进行登录或播放。
-- 兼容性：主程序目标为 15.0，但本机 Homebrew bottle 最低版本为 26.0；本机 DMG 不声明支持 macOS 15～25，正式兼容包须在 macOS 15 runner 重建依赖并复测。
+- 兼容性：工程、CI、主程序 Mach-O 和 `Info.plist` 均以 macOS 26.0 为最低目标；发布包支持范围为 macOS 26+，不声明支持 macOS 15～25。
 - 分发：本轮为 ad-hoc 签名，未做 Developer ID 签名或 Apple notarization。
 - Emby Connect：未提供独立 Connect 凭据，因此未做真实 Connect 账号绑定；目标服务器直连验收不受影响。
 - Windows 已确认范围没有外部服务器或账号权限阻塞。

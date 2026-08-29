@@ -2,7 +2,7 @@
 
 ## 产品边界
 
-本项目是面向 Windows 10/11 与 macOS 15+ 的非官方 Emby 桌面客户端。Emby Server Web UI 提供媒体库界面，桌面壳、内嵌 libmpv、UOSC、shader、下载和离线观看由本项目提供。
+本项目是面向 Windows 10/11 与 macOS 26+ 的非官方 Emby 桌面客户端。Emby Server Web UI 提供媒体库界面，桌面壳、内嵌 libmpv、UOSC、shader、下载和离线观看由本项目提供。
 
 测试账号只允许从运行时会话或操作系统凭据存储读取；源码、配置模板、测试快照、日志、构建产物和 Git 历史不得包含用户名、密码或访问令牌。
 

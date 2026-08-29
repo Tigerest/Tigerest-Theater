@@ -388,14 +388,16 @@ def test_offline_download_cleanup() -> None:
 
 
 def test_macos_reproducibility_contract() -> None:
-    require("CMAKE_OSX_DEPLOYMENT_TARGET \"15.0\"" in read("CMakeLists.txt"),
-            "CMake macOS 15 target is missing")
-    require("<string>15.0</string>" in read("bundle/osx/Info.plist.in"),
-            "Info.plist macOS 15 minimum is missing")
-    require("CMAKE_OSX_DEPLOYMENT_TARGET=15.0" in read("dev/macos/build.sh"),
+    require("CMAKE_OSX_DEPLOYMENT_TARGET \"26.0\"" in read("CMakeLists.txt"),
+            "CMake macOS 26 target is missing")
+    require("<string>26.0</string>" in read("bundle/osx/Info.plist.in"),
+            "Info.plist macOS 26 minimum is missing")
+    require("CMAKE_OSX_DEPLOYMENT_TARGET=26.0" in read("dev/macos/build.sh"),
             "local macOS build target is missing")
     workflow = read(".github/workflows/build-macos.yml")
-    require("macos-15" in workflow and "ctest --test-dir build" in workflow,
+    require("macos-26" in workflow and
+            "CMAKE_OSX_DEPLOYMENT_TARGET=26.0" in workflow and
+            "ctest --test-dir build" in workflow,
             "macOS CI matrix or test step is missing")
     deploy = read("CMakeModules/CompleteBundleMac.cmake.in")
     for unsupported_plugin in (

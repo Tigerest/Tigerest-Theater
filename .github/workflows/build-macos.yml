@@ -13,9 +13,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-15
+          - runner: macos-26
             artifact: macos-arm64
-          - runner: macos-15-intel
+          - runner: macos-26-intel
             artifact: macos-x86_64
     runs-on: ${{ matrix.runner }}
     steps:
@@ -41,7 +41,7 @@ jobs:
           -DQTROOT=$QT_ROOT_DIR \
           -DCMAKE_PREFIX_PATH=$QT_ROOT_DIR \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
           -DCMAKE_INSTALL_PREFIX=build/output \
           -DCHECK_FOR_UPDATES=OFF \
           -DUSE_STATIC_MPVQT=ON

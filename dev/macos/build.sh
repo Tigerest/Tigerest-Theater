@@ -29,7 +29,7 @@ cd "${BUILD_DIR}"
 echo "Configuring..."
 cmake -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
     -DCMAKE_INSTALL_PREFIX=output \
     -DQTROOT="${QTROOT}" \
     -DCMAKE_PREFIX_PATH="${QTROOT}" \

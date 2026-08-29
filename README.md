@@ -1,6 +1,6 @@
 # Tigerest Theater / EMBY 大河版
 
-面向 Windows 10/11 与 macOS 15+ 的非官方 Emby 桌面客户端。媒体库界面来自当前 Emby Server Web UI，播放由内嵌 libmpv 接管。
+面向 Windows 10/11 与 macOS 26+ 的非官方 Emby 桌面客户端。媒体库界面来自当前 Emby Server Web UI，播放由内嵌 libmpv 接管。
 
 ## 第一版能力
 
@@ -22,7 +22,7 @@ Windows 打包目标：
 cmake --build build --target windows_all
 ```
 
-macOS 15+ 打包：
+macOS 26+ 打包：
 
 ```sh
 dev/macos/setup.sh

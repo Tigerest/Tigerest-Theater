@@ -7,7 +7,7 @@
 
 2.0.11-dev 已在 Apple Silicon Mac 上完成 Release 实际编译、7 项 CTest、Qt/libmpv 依赖部署、临时签名、DMG 生成、镜像校验和 GUI 首屏启动验收。应用成功连接既有服务器并渲染用户选择页；为避免触碰本机已有账号，本轮没有登录或播放媒体。
 
-最终 DMG 为 `build/TigerestTheater-2.0.11-dev-arm64.dmg`，SHA-256 为 `c4ede750476e14a66939cb4a4317409264f54a70ed20a454ff82362aeaee0642`。
+最终 DMG 为 `build/TigerestTheater-2.0.11-dev-arm64.dmg`，SHA-256 为 `3ad7bf3e7b2d4c9c6ae7db47b6183d9bb49d00a16eb894bba309836b3ac9e727`。
 
 ## macOS 构建环境
 
@@ -23,7 +23,7 @@
 | Node / Python | Node 26.7.0 / Python 3.14.0 |
 | pkg-config / create-dmg | pkgconf 3.0.6 / create-dmg 1.3.0 |
 | 构建类型 | Release |
-| 工程部署目标 | macOS 15.0 |
+| 工程部署目标 | macOS 26.0 |
 
 依赖位于 Homebrew 与 `dev/macos/deps/qt/6.9.3/macos`；Qt 目录和构建目录均被 Git 忽略，未提交二进制依赖。
 
@@ -31,14 +31,14 @@
 
 | 测试 | 结果 |
 | --- | --- |
-| `test_systemcomponent` | 通过，0.11 秒 |
-| `test_log` | 通过，0.09 秒 |
-| `test_settings` | 通过，0.10 秒 |
-| `test_displaymanager` | 通过，0.09 秒 |
-| `test_windowmanager` | 通过，0.10 秒；macOS 使用 Qt offscreen 后端隔离原生窗口管理器异步行为 |
-| `test_bundle_integrity` | 通过，3.09 秒，9 项完整性与凭据检查 |
-| `test_player_lifecycle` | 通过，0.09 秒；Node 现为 macOS setup 的显式依赖 |
-| CTest 总计 | 7/7 通过，3.67 秒 |
+| `test_systemcomponent` | 通过，0.20 秒 |
+| `test_log` | 通过，0.13 秒 |
+| `test_settings` | 通过，0.14 秒 |
+| `test_displaymanager` | 通过，0.14 秒 |
+| `test_windowmanager` | 通过，0.15 秒；macOS 使用 Qt offscreen 后端隔离原生窗口管理器异步行为 |
+| `test_bundle_integrity` | 通过，3.11 秒，9 项完整性与凭据检查 |
+| `test_player_lifecycle` | 通过，0.13 秒；Node 现为 macOS setup 的显式依赖 |
+| CTest 总计 | 7/7 通过，4.01 秒 |
 
 ## 打包与运行验收
 
@@ -56,8 +56,8 @@
 
 | 产物 | 大小（字节） | SHA-256 |
 | --- | ---: | --- |
-| `build/TigerestTheater-2.0.11-dev-arm64.dmg` | 309,996,522 | `c4ede750476e14a66939cb4a4317409264f54a70ed20a454ff82362aeaee0642` |
-| `build/output/Tigerest Theater.app/Contents/MacOS/Tigerest Theater` | 69,826,672 | `81f415447bdc6ba8323d93845d128d12accbc3278d2e24de83e9209cbae0700b` |
+| `build/TigerestTheater-2.0.11-dev-arm64.dmg` | 309,995,783 | `3ad7bf3e7b2d4c9c6ae7db47b6183d9bb49d00a16eb894bba309836b3ac9e727` |
+| `build/output/Tigerest Theater.app/Contents/MacOS/Tigerest Theater` | 69,826,800 | `c69b8d674d618fa547a27641787ac08116d96ef1aa21af999f3cd375df8d326d` |
 
 DMG 使用 ad-hoc 签名，适合本机和开发测试；公开分发仍需 Apple Developer ID 签名与 notarization。
 
@@ -71,9 +71,7 @@ DMG 使用 ad-hoc 签名，适合本机和开发测试；公开分发仍需 Appl
 
 ## 兼容性边界
 
-主程序的 Mach-O 最低版本和 `Info.plist` 均为 macOS 15.0，但这台 macOS 27 主机上当前 Homebrew bottle 中有 41 个媒体依赖的最低版本为 macOS 26.0。因此，本轮本机 DMG 只实测并应视为 macOS 26+ 产物，不能据此声明可在 macOS 15～25 运行。
-
-面向 macOS 15 的正式产物必须在 macOS 15 runner 上重新安装/构建依赖并执行相同的编译、CTest、签名和依赖最低版本检查。工程与 CI 的目标版本仍保持 15.0。
+工程、本地构建脚本、GitHub Actions、主程序 Mach-O 与 `Info.plist` 现已统一声明最低 macOS 26.0。本轮 DMG 在 macOS 27 Apple Silicon 实机构建和启动验收，发布范围为 macOS 26+，不再声明或维护 macOS 15～25 兼容性。
 
 ## Windows 历史结果
 
