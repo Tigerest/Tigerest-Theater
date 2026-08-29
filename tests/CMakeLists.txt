@@ -63,4 +63,6 @@ find_program(Node_EXECUTABLE node)
 if(Node_EXECUTABLE)
   add_test(NAME test_player_lifecycle
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_player_lifecycle.js)
+  add_test(NAME test_stream_quality
+           COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_stream_quality.js)
 endif()

@@ -102,6 +102,8 @@ bool writeEmbeddedConfig(const QString& configDir)
   {
     scripts << "# 加载 UOSC，接管播放时的控制栏、菜单、音轨与全屏界面。";
     scripts << "script=~~/plugins/uosc.lua";
+    scripts << "# 将 UOSC 码率选择交回 Emby Web，保留进度、音轨、字幕与播放会话。";
+    scripts << "script=~~/plugins/emby_quality.lua";
     scripts << "# 加载大河三档画质菜单，并在每次切换后核验实际 shader 数量。";
     scripts << "script=~~/plugins/profile_menu.lua";
   }
@@ -143,6 +145,7 @@ QStringList safeMacScriptPaths(const QString& bundleDir)
   if (SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "enableUosc").toBool())
   {
     scripts << QDir(pluginRoot).filePath(QStringLiteral("uosc.lua"));
+    scripts << QDir(pluginRoot).filePath(QStringLiteral("emby_quality.lua"));
     scripts << QDir(pluginRoot).filePath(QStringLiteral("profile_menu.lua"));
   }
   if (SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "enableDanmaku").toBool())

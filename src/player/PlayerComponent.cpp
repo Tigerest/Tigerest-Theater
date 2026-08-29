@@ -850,6 +850,24 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
     case MPV_EVENT_CLIENT_MESSAGE:
     {
       auto *msg = static_cast<mpv_event_client_message*>(event->data);
+      if (msg->num_args >= 2 && strcmp(msg->args[0], "tigerest-stream-quality") == 0)
+      {
+        bool valid = false;
+        const qint64 bitrate = QString::fromUtf8(msg->args[1]).toLongLong(&valid);
+        // Emby accepts bits per second. Zero requests its automatic bandwidth
+        // detector; the upper bound keeps malformed script messages harmless.
+        if (valid && bitrate >= 0 && bitrate <= 1000000000LL)
+        {
+          qInfo() << "UOSC requested Emby streaming bitrate:" << bitrate;
+          emit streamingBitrateRequested(bitrate);
+        }
+        else
+        {
+          qWarning() << "Rejected invalid UOSC streaming bitrate:" << msg->args[1];
+          notifyStreamingBitrateResult(0, false, QStringLiteral("无效的码率档位"));
+        }
+        break;
+      }
       if (msg->num_args < 3 || strcmp(msg->args[0], "hook_run") != 0)
         break;
       QString resumeId = QString::fromUtf8(msg->args[2]);
@@ -1041,6 +1059,21 @@ void PlayerComponent::notifyMetadata(const QVariantMap& metadata)
 void PlayerComponent::notifyVolumeChange(double volume)
 {
   emit volumeChanged(volume);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::notifyStreamingBitrateResult(qint64 bitrate, bool success, const QString& message)
+{
+  if (!m_mpv)
+    return;
+
+  const QStringList args = {QStringLiteral("script-message-to"),
+                            QStringLiteral("emby_quality"),
+                            QStringLiteral("tigerest-stream-quality-result"),
+                            QString::number(bitrate),
+                            success ? QStringLiteral("yes") : QStringLiteral("no"),
+                            message};
+  m_mpv->commandAsync(args);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

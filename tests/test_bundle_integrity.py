@@ -129,6 +129,7 @@ def test_mpv_bundle() -> None:
         "resources/mpv/plugins/uosc_danmaku.lua",
         "resources/mpv/plugins/uosc_danmaku/main.lua",
         "resources/mpv/plugins/uosc_danmaku/apis/dandanplay.lua",
+        "resources/mpv/plugins/emby_quality.lua",
         "resources/mpv/plugins/profile_menu.lua",
         "resources/mpv/fonts/Source Han Serif SC-Bold.ttf",
     ]
@@ -137,6 +138,7 @@ def test_mpv_bundle() -> None:
 
     manager = read("src/player/MpvConfigManager.cpp")
     require("plugins/uosc.lua" in manager, "uosc named loader is not wired")
+    require("plugins/emby_quality.lua" in manager, "Emby quality bridge is not wired")
     require("plugins/uosc_danmaku.lua" in manager, "danmaku named loader is not wired")
     require("input-ipc-server=mpvpipe" in manager and "#ifdef Q_OS_WIN" in manager,
             "Windows SVP named pipe is not generated before libmpv startup")
@@ -146,7 +148,8 @@ def test_mpv_bundle() -> None:
             'QStringLiteral("Segoe UI")' in manager,
             "legacy subtitle font is not migrated to the requested default")
     for comment in (
-        "# 加载 UOSC", "# 加载大河三档画质菜单", "# 加载 UOSC 弹幕",
+        "# 加载 UOSC", "# 将 UOSC 码率选择交回 Emby Web",
+        "# 加载大河三档画质菜单", "# 加载 UOSC 弹幕",
     ):
         require(comment in manager, "generated script option lacks a Chinese comment")
     require("mode == \"auto\" || mode == \"system\"" in manager,
@@ -358,14 +361,13 @@ def test_native_player_composition() -> None:
     exit_button = read("resources/mpv/plugins/uosc/elements/TigerestExit.lua")
     require("top_bar_controls=" in uosc and "button:tigerest-exit" not in uosc and
             "tigerest_exit = require('elements/TigerestExit')" in uosc_main and
-            "self.idle_timer = mp.add_timeout(3" in exit_button and
-            "self.last_cursor_x == cursor.x" in exit_button and
-            "cursor:on('move', function()" in exit_button and
-            "self:register_mp_event('file-loaded', reveal)" in exit_button and
-            "function TigerestExit:get_visibility()" in exit_button and
+            "icon = 'close'" in exit_button and
+            "anchor_id = 'controls'" in exit_button and
+            "self.idle_timer" not in exit_button and
+            "cursor:on('move'" not in exit_button and
             "self:set_coordinates(margin, margin" in exit_button and
             "mp.command('stop')" in exit_button,
-            "mouse-aware UOSC upper-left exit button is missing")
+            "controls-anchored UOSC upper-left exit button is missing")
     require("{title = t('Quit'), value = 'stop'}" in uosc_main and
             "mp.command('quit')" not in uosc_main and
             "mp.command('quit')" not in read("resources/mpv/plugins/uosc/elements/TopBar.lua") and
@@ -376,6 +378,32 @@ def test_native_player_composition() -> None:
             "unexpected mpv quit is not reported as user cancellation")
     require("playNext: false" in video_player and "resetPlayQueue: true" in video_player,
             "explicit playback cancellation can still auto-advance the Emby queue")
+
+    quality = read("resources/mpv/plugins/emby_quality.lua")
+    input_plugin = read("native/inputPlugin.js")
+    player_header = read("src/player/PlayerComponent.h")
+    require("<stream>button:stream-quality" in uosc and
+            "script-binding emby_quality/open" in uosc_main and
+            "tigerest-stream-quality" in quality and
+            "mp.commandv('playlist-play-index'" not in quality and
+            "mp.set_property('ytdl-format'" not in quality,
+            "UOSC still reloads the current Emby URL for quality changes")
+    require("streamingBitrateRequested" in player_header and
+            'strcmp(msg->args[0], "tigerest-stream-quality")' in player_component and
+            "notifyStreamingBitrateResult" in player_component and
+            "playbackManager.setMaxStreamingBitrate" in input_plugin and
+            "enableAutomaticBitrateDetection: bitrate === 0" in input_plugin,
+            "Emby Web managed streaming quality bridge is incomplete")
+    require("this._currentTime = time;" in video_player and
+            "this._duration = duration;" in video_player and
+            "window.api.player.seekTo(val)" in video_player and
+            "ticks / 10000" not in input_plugin,
+            "native and Emby player milliseconds do not share one contract")
+    audio_player = read("native/mpvAudioPlayer.js")
+    require("self._currentTime = time;" in audio_player and
+            "self._duration = duration;" in audio_player and
+            "window.api.player.seekTo(val)" in audio_player,
+            "native audio and Emby player milliseconds do not share one contract")
 
 
 def test_brand_assets() -> None:

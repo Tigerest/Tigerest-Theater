@@ -54,9 +54,12 @@ async function main() {
     let nativeStops = 0;
     let loads = 0;
     let nextLoadResult = true;
+    let lastSeekMilliseconds = null;
     Object.assign(player, {
         load(...args) { loads += 1; args.at(-1)(nextLoadResult); },
         stop() { nativeStops += 1; },
+        seekTo(milliseconds) { lastSeekMilliseconds = milliseconds; },
+        getPosition() { return Promise.resolve(23456); },
         setVideoRectangle() {},
         setVolume() {},
         setPlaybackRate() {},
@@ -128,6 +131,16 @@ async function main() {
 
     instance.onPlaying();
     assert.strictEqual(timers.size, 0, 'startup watchdog was not cleared by playing');
+    player.positionUpdate.emit(12345);
+    player.updateDuration.emit(90000);
+    assert.strictEqual(instance.currentTime(), 12345, 'Emby player position must remain in milliseconds');
+    assert.strictEqual(instance.duration(), 90000, 'Emby player duration must remain in milliseconds');
+    assert.strictEqual(instance.currentTime() * 10000, 123450000,
+        'Emby milliseconds were not convertible to server ticks');
+    instance.currentTime(7500);
+    assert.strictEqual(lastSeekMilliseconds, 7500, 'Emby seek milliseconds were changed at the native boundary');
+    assert.strictEqual(await instance.currentTimeAsync(), 23456,
+        'async Emby player position must remain in milliseconds');
 
     player.canceled.emit();
     assert.strictEqual(triggered.filter(event => event.name === 'stopped').length, 1);

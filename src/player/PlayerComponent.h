@@ -76,6 +76,9 @@ public:
   Q_INVOKABLE void notifySeek(qint64 positionMs);
   Q_INVOKABLE void notifyMetadata(const QVariantMap& metadata);
   Q_INVOKABLE void notifyVolumeChange(double volume);
+  // Report an Emby Web managed quality change back to the originating mpv
+  // script so UOSC can update its selected state.
+  Q_INVOKABLE void notifyStreamingBitrateResult(qint64 bitrate, bool success, const QString& message);
 
   // 0-100 volume 0=mute and 100=normal
   // Ignored if no audio output active (e.g. when no file is playing).
@@ -197,6 +200,9 @@ Q_SIGNALS:
   // false if nothing is loaded, playback is paused, during seeking, or media is being loaded
   void videoPlaybackActive(bool active);
   void windowVisible(bool visible);
+  // Raised by the bundled UOSC quality menu. JavaScript deliberately performs
+  // the switch through Emby Web so position, track choices and session survive.
+  void streamingBitrateRequested(qint64 bitrate);
   // emitted as soon as the duration of the current file is known
   void updateDuration(qint64 milliseconds);
   void playbackRateChanged(double rate);

@@ -22,9 +22,60 @@ class inputPlugin {
         this.durationCheckInterval = null;
         this.positionUpdateInterval = null;
         this.attachedPlayer = null;
+        this.streamingBitrateSignal = null;
+        this.onStreamingBitrateRequested = null;
+        this.streamingBitratePending = false;
 
         (async () => {
             const api = await window.apiPromise;
+
+            // UOSC owns only the quality picker. Emby Web owns the stream
+            // change so it can re-run PlaybackInfo with the current position,
+            // media source, audio/subtitle tracks and play session.
+            this.streamingBitrateSignal = api.player.streamingBitrateRequested;
+            this.onStreamingBitrateRequested = (requestedBitrate) => {
+                const bitrate = Number(requestedBitrate);
+                const report = (success, message = '') => {
+                    this.streamingBitratePending = false;
+                    api.player.notifyStreamingBitrateResult(bitrate, success, message);
+                };
+
+                if (this.streamingBitratePending) {
+                    api.player.notifyStreamingBitrateResult(bitrate, false, '上一次品质切换尚未完成');
+                    return;
+                }
+                if (!Number.isSafeInteger(bitrate) || bitrate < 0) {
+                    report(false, '无效的码率档位');
+                    return;
+                }
+
+                const currentPlayer = playbackManager._currentPlayer;
+                if (!currentPlayer || typeof playbackManager.setMaxStreamingBitrate !== 'function') {
+                    report(false, '当前没有可切换的 Emby 播放流');
+                    return;
+                }
+
+                this.streamingBitratePending = true;
+                let switchPromise;
+                try {
+                    switchPromise = playbackManager.setMaxStreamingBitrate({
+                        enableAutomaticBitrateDetection: bitrate === 0,
+                        maxBitrate: bitrate,
+                    }, currentPlayer);
+                } catch (error) {
+                    console.error('PlayerMedia: streaming bitrate switch failed:', error);
+                    report(false, error?.message || '无法发起品质切换');
+                    return;
+                }
+
+                Promise.resolve(switchPromise).then(() => {
+                    report(true);
+                }).catch(error => {
+                    console.error('PlayerMedia: streaming bitrate switch failed:', error);
+                    report(false, error?.message || 'Emby 服务器拒绝了品质切换');
+                });
+            };
+            this.streamingBitrateSignal.connect(this.onStreamingBitrateRequested);
 
             api.input.hostInput.connect((actions) => {
                 actions.forEach(action => {
@@ -323,6 +374,12 @@ class inputPlugin {
     }
 
     destroy() {
+        if (this.streamingBitrateSignal && this.onStreamingBitrateRequested) {
+            this.streamingBitrateSignal.disconnect(this.onStreamingBitrateRequested);
+            this.streamingBitrateSignal = null;
+            this.onStreamingBitrateRequested = null;
+        }
+
         if (this.durationCheckInterval) {
             clearInterval(this.durationCheckInterval);
             this.durationCheckInterval = null;

@@ -304,7 +304,9 @@ function create_default_menu_items()
 	return {
 		{title = t('Subtitles'), value = 'script-binding uosc/subtitles'},
 		{title = t('Audio tracks'), value = 'script-binding uosc/audio'},
-		{title = t('Stream quality'), value = 'script-binding uosc/stream-quality'},
+		-- Emby streams need a fresh PlaybackInfo request, not UOSC's generic
+		-- ytdl-format reload of the current URL.
+		{title = t('Stream quality'), value = 'script-binding emby_quality/open'},
 		-- 这一行在 uosc 主菜单里加入一个“滤镜”入口，点开后会调出我单独写的 profile 菜单脚本。
 		{title = '滤镜', value = 'script-binding profile_menu/open'},
 		{title = t('Playlist'), value = 'script-binding uosc/items'},
