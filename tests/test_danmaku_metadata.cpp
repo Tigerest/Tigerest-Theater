@@ -6,6 +6,8 @@
 #include <QFileInfo>
 #include <QStringList>
 
+#include <clocale>
+
 namespace
 {
 
@@ -14,6 +16,10 @@ class MpvProbe
 public:
   explicit MpvProbe(const QString& scriptPath)
   {
+    // libmpv requires the C numeric locale. QtTest can select the host locale
+    // before test cases run (notably on macOS), which makes mpv_initialize()
+    // reject an otherwise valid headless probe.
+    std::setlocale(LC_NUMERIC, "C");
     m_handle = mpv_create();
     if (!m_handle)
       return;
