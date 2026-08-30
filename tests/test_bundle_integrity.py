@@ -301,6 +301,9 @@ def test_native_player_composition() -> None:
     mpv_item = read("src/player/MpvVideoItem.cpp")
     for marker in ("MOUSE_ENTER", "MOUSE_LEAVE", "WHEEL_UP", "keydown", "keyup", "mouseDoubleClickEvent"):
         require(marker in mpv_item, f"libmpv input bridge is missing: {marker}")
+    require('commandAsync({QStringLiteral("script-binding"),\n'
+            '                      QStringLiteral("uosc/flash-volume")})' in mpv_item,
+            "vertical mouse-wheel input does not reveal UOSC's existing volume UI")
     require('commandAsync({QStringLiteral("cycle"), QStringLiteral("pause")})' in mpv_item and
             "m_leftDoubleClickHandledLocally" in mpv_item,
             "left double-click does not perform one local pause toggle")

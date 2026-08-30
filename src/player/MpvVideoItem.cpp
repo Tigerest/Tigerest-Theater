@@ -418,9 +418,10 @@ void MpvVideoItem::wheelEvent(QWheelEvent* event)
 {
     sendMousePosition(event->position());
     const QPoint delta = event->angleDelta();
+    const bool isVerticalWheel = qAbs(delta.y()) >= qAbs(delta.x());
     QString wheel;
     int amount = 0;
-    if (qAbs(delta.y()) >= qAbs(delta.x())) {
+    if (isVerticalWheel) {
         wheel = delta.y() >= 0 ? QStringLiteral("WHEEL_UP") : QStringLiteral("WHEEL_DOWN");
         amount = qAbs(delta.y());
     } else {
@@ -429,6 +430,10 @@ void MpvVideoItem::wheelEvent(QWheelEvent* event)
     }
     const double scale = qMax(1.0, amount / 120.0);
     commandAsync({QStringLiteral("keypress"), wheel, QString::number(scale, 'f', 3)});
+    if (isVerticalWheel) {
+        commandAsync({QStringLiteral("script-binding"),
+                      QStringLiteral("uosc/flash-volume")});
+    }
     event->accept();
 }
 

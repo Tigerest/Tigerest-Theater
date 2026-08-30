@@ -957,6 +957,7 @@ QString SystemComponent::getNativeShellScript()
     ":/web-client/extension/sessionNavigationPlugin.js",
     ":/web-client/extension/updatePlugin.js",
     ":/web-client/extension/connectivityHelper.js",
+    ":/web-client/extension/webAppearance.js",
     ":/web-client/extension/nativeshell.js",
     ":/web-client/extension/offline.js",
     ":/web-client/extension/embycompat.js"
