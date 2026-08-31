@@ -1,19 +1,44 @@
 #include <QtTest/QtTest>
+#include <MpvAbstractItem>
+#include <QGuiApplication>
 #include <QQuickWindow>
+#include "../src/player/PlayerComponent.h"
 
 #define private public
 #include "../src/ui/WindowManager.h"
+#include "../src/player/MpvVideoItem.h"
 #undef private
+
+namespace
+{
+void clearOverrideCursor()
+{
+  while (QGuiApplication::overrideCursor())
+    QGuiApplication::restoreOverrideCursor();
+}
+}
 
 class TestWindowManager : public QObject
 {
   Q_OBJECT
 
 private slots:
+  void cleanup();
   void testFullscreenStateIsIndependentFromRestoreVisibility();
   void testPlaybackSessionRestoresMaximizedWindow();
   void testPlaybackSessionPreservesPreexistingFullscreen();
+  void testNativePlaybackLeavesCursorAutohideToMpv();
+  void testEndingNativePlaybackRestoresWebCursorControl();
+#if defined(Q_OS_WIN)
+  void testNativeHostTracksMainWindowLifecycle();
+#endif
 };
+
+void TestWindowManager::cleanup()
+{
+  PlayerComponent::Get().setNativeVideoOutput(false);
+  clearOverrideCursor();
+}
 
 void TestWindowManager::testFullscreenStateIsIndependentFromRestoreVisibility()
 {
@@ -84,6 +109,128 @@ void TestWindowManager::testPlaybackSessionPreservesPreexistingFullscreen()
   QCOMPARE(window.visibility(), QWindow::FullScreen);
   window.hide();
 }
+
+void TestWindowManager::testNativePlaybackLeavesCursorAutohideToMpv()
+{
+  WindowManager manager;
+  QQuickWindow window;
+  manager.m_window = &window;
+  PlayerComponent::Get().setNativeVideoOutput(true);
+
+  manager.beginPlaybackSession();
+  manager.setCursorVisibility(false);
+
+  QVERIFY2(!QGuiApplication::overrideCursor(),
+           "web mouse-idle installed a global blank cursor during native playback");
+}
+
+void TestWindowManager::testEndingNativePlaybackRestoresWebCursorControl()
+{
+  WindowManager manager;
+  QQuickWindow window;
+  manager.m_window = &window;
+  PlayerComponent::Get().setNativeVideoOutput(true);
+
+  manager.setCursorVisibility(false);
+  const QCursor* hiddenCursor = QGuiApplication::overrideCursor();
+  QVERIFY(hiddenCursor);
+  QCOMPARE(hiddenCursor->shape(), Qt::BlankCursor);
+
+  manager.beginPlaybackSession();
+  QVERIFY2(!QGuiApplication::overrideCursor(),
+           "native playback did not release the web page's global blank cursor");
+
+  manager.setCursorVisibility(false);
+  QVERIFY(!QGuiApplication::overrideCursor());
+  manager.endPlaybackSession();
+  QVERIFY(!QGuiApplication::overrideCursor());
+  QVERIFY(manager.m_cursorVisible);
+
+  manager.setCursorVisibility(false);
+  hiddenCursor = QGuiApplication::overrideCursor();
+  QVERIFY2(hiddenCursor, "web cursor control was not restored after native playback");
+  QCOMPARE(hiddenCursor->shape(), Qt::BlankCursor);
+  manager.setCursorVisibility(true);
+  QVERIFY(!QGuiApplication::overrideCursor());
+}
+
+#if defined(Q_OS_WIN)
+void TestWindowManager::testNativeHostTracksMainWindowLifecycle()
+{
+  QQuickWindow firstWindow;
+  QQuickWindow secondWindow;
+  firstWindow.setGeometry(100, 100, 640, 360);
+  secondWindow.setGeometry(200, 200, 800, 450);
+
+  QWindow* nativeHost = new QWindow(&firstWindow);
+  MpvVideoItem item(firstWindow.contentItem());
+  item.m_nativeHostWindow = nativeHost;
+  item.setPosition(QPointF(11, 19));
+  item.setSize(QSizeF(300, 170));
+  QTRY_COMPARE(nativeHost->geometry(), QRect(11, 19, 300, 170));
+  QCOMPARE(nativeHost->parent(), static_cast<QWindow*>(&firstWindow));
+  QVERIFY2(!nativeHost->isVisible(),
+           "native video host became visible while the main window was hidden");
+
+  firstWindow.show();
+  QTRY_VERIFY(firstWindow.isVisible());
+  QTRY_VERIFY(nativeHost->isVisible());
+  const WId nativeHostId = nativeHost->winId();
+  QVERIFY(nativeHostId != 0);
+
+  firstWindow.showMinimized();
+  QTRY_COMPARE(firstWindow.visibility(), QWindow::Minimized);
+  QTRY_VERIFY(firstWindow.windowStates().testFlag(Qt::WindowMinimized));
+  QTRY_VERIFY2(!nativeHost->isVisible(),
+               "native video host remained visible while the main window was minimized");
+
+  firstWindow.showNormal();
+  QTRY_COMPARE(firstWindow.visibility(), QWindow::Windowed);
+  QTRY_VERIFY(!firstWindow.windowStates().testFlag(Qt::WindowMinimized));
+  QTRY_VERIFY(nativeHost->isVisible());
+
+  const QRect staleGeometry(1, 2, 3, 4);
+  nativeHost->setGeometry(staleGeometry);
+  firstWindow.resize(700, 400);
+  QCOMPARE(nativeHost->geometry(), staleGeometry);
+  QTRY_COMPARE(nativeHost->geometry(), QRect(11, 19, 300, 170));
+
+  const QRect staleAfterScreenChange(2, 3, 4, 5);
+  nativeHost->setGeometry(staleAfterScreenChange);
+  QVERIFY(QMetaObject::invokeMethod(&firstWindow, "screenChanged", Qt::DirectConnection,
+                                    Q_ARG(QScreen*, firstWindow.screen())));
+  QCOMPARE(nativeHost->geometry(), staleAfterScreenChange);
+  QTRY_COMPARE(nativeHost->geometry(), QRect(11, 19, 300, 170));
+  QCOMPARE(nativeHost->screen(), firstWindow.screen());
+
+  QScreen* screen = firstWindow.screen();
+  QVERIFY(screen);
+  const QRect staleAfterDpiChange(6, 7, 8, 9);
+  nativeHost->setGeometry(staleAfterDpiChange);
+  QVERIFY(QMetaObject::invokeMethod(screen, "logicalDotsPerInchChanged", Qt::DirectConnection,
+                                    Q_ARG(qreal, screen->logicalDotsPerInch())));
+  QCOMPARE(nativeHost->geometry(), staleAfterDpiChange);
+  QTRY_COMPARE(nativeHost->geometry(), QRect(11, 19, 300, 170));
+
+  firstWindow.hide();
+  QTRY_VERIFY(!nativeHost->isVisible());
+
+  item.setVisible(false);
+  item.setParentItem(secondWindow.contentItem());
+  QTRY_COMPARE(item.window(), &secondWindow);
+  QTRY_COMPARE(nativeHost->parent(), static_cast<QWindow*>(&secondWindow));
+  QCOMPARE(nativeHost->screen(), secondWindow.screen());
+  QCOMPARE(nativeHost->winId(), nativeHostId);
+
+  secondWindow.show();
+  QTRY_VERIFY(secondWindow.isVisible());
+  QVERIFY(!nativeHost->isVisible());
+  item.setVisible(true);
+  QTRY_VERIFY(nativeHost->isVisible());
+  secondWindow.hide();
+  QTRY_VERIFY(!nativeHost->isVisible());
+}
+#endif
 
 QTEST_MAIN(TestWindowManager)
 #include "test_windowmanager.moc"

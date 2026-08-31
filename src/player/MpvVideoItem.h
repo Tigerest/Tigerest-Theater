@@ -3,6 +3,7 @@
 
 #include <MpvAbstractItem>
 #include <QPointF>
+#include <QPointer>
 #include <QString>
 #include <Qt>
 
@@ -11,6 +12,8 @@ class QHoverEvent;
 class QKeyEvent;
 class QMouseEvent;
 class QEvent;
+class QQuickWindow;
+class QScreen;
 class QWindow;
 class QWheelEvent;
 
@@ -47,6 +50,9 @@ protected:
 private:
     void initializeController();
     QWindow* ensureNativeHostWindow();
+    void trackWindow(QQuickWindow* window);
+    void trackScreen(QScreen* screen);
+    void scheduleNativeHostWindowUpdate();
     void updateNativeHostWindow();
     void sendMousePosition(const QPointF& position);
     QString mouseButtonName(Qt::MouseButton button) const;
@@ -60,7 +66,10 @@ private:
     bool m_statsHandledLocally = false;
     bool m_profileHandledLocally = false;
     bool m_nativeGpuNext = false;
+    bool m_nativeHostUpdatePending = false;
     QWindow* m_nativeHostWindow = nullptr;
+    QPointer<QQuickWindow> m_trackedWindow;
+    QPointer<QScreen> m_trackedScreen;
     MpvController* m_initializedController = nullptr;
 };
 

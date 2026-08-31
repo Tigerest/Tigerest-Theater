@@ -9,6 +9,8 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QQuickWindow>
+#include <QScreen>
+#include <QTimer>
 #include <QWindow>
 #include <QWheelEvent>
 
@@ -38,9 +40,8 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
     connect(this, &QQuickItem::yChanged, this, &MpvVideoItem::updateNativeHostWindow);
     connect(this, &QQuickItem::widthChanged, this, &MpvVideoItem::updateNativeHostWindow);
     connect(this, &QQuickItem::heightChanged, this, &MpvVideoItem::updateNativeHostWindow);
-    connect(this, &QQuickItem::windowChanged, this, [this](QQuickWindow*) {
-        updateNativeHostWindow();
-    });
+    connect(this, &QQuickItem::windowChanged, this, &MpvVideoItem::trackWindow);
+    trackWindow(window());
 
     const QString backend = SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "renderBackend").toString();
     m_nativeGpuNext = shouldUseNativeGpuNext(backend);
@@ -129,6 +130,71 @@ QWindow* MpvVideoItem::ensureNativeHostWindow()
     return m_nativeHostWindow;
 }
 
+void MpvVideoItem::trackWindow(QQuickWindow* newWindow)
+{
+    if (m_trackedWindow != newWindow) {
+        if (m_trackedWindow)
+            disconnect(m_trackedWindow.data(), nullptr, this, nullptr);
+
+        m_trackedWindow = newWindow;
+        if (newWindow) {
+            connect(newWindow, &QWindow::xChanged,
+                    this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+            connect(newWindow, &QWindow::yChanged,
+                    this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+            connect(newWindow, &QWindow::widthChanged,
+                    this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+            connect(newWindow, &QWindow::heightChanged,
+                    this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+            connect(newWindow, &QWindow::visibilityChanged,
+                    this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+            connect(newWindow, &QWindow::windowStateChanged,
+                    this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+            connect(newWindow, &QWindow::screenChanged, this, [this](QScreen* screen) {
+                trackScreen(screen);
+                scheduleNativeHostWindowUpdate();
+            });
+        }
+    }
+
+    trackScreen(newWindow ? newWindow->screen() : nullptr);
+    scheduleNativeHostWindowUpdate();
+}
+
+void MpvVideoItem::trackScreen(QScreen* newScreen)
+{
+    if (m_trackedScreen == newScreen)
+        return;
+
+    if (m_trackedScreen)
+        disconnect(m_trackedScreen.data(), nullptr, this, nullptr);
+
+    m_trackedScreen = newScreen;
+    if (!newScreen)
+        return;
+
+    connect(newScreen, &QScreen::geometryChanged,
+            this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+    connect(newScreen, &QScreen::availableGeometryChanged,
+            this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+    connect(newScreen, &QScreen::logicalDotsPerInchChanged,
+            this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+    connect(newScreen, &QScreen::physicalDotsPerInchChanged,
+            this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+}
+
+void MpvVideoItem::scheduleNativeHostWindowUpdate()
+{
+    if (m_nativeHostUpdatePending)
+        return;
+
+    m_nativeHostUpdatePending = true;
+    QTimer::singleShot(0, this, [this]() {
+        m_nativeHostUpdatePending = false;
+        updateNativeHostWindow();
+    });
+}
+
 bool MpvVideoItem::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched != m_nativeHostWindow)
@@ -179,13 +245,29 @@ void MpvVideoItem::updateNativeHostWindow()
     if (!m_nativeHostWindow)
         return;
 
+    QQuickWindow* parentWindow = window();
+    if (!parentWindow) {
+        m_nativeHostWindow->hide();
+        return;
+    }
+
+    // A child QWindow inherits its screen from its parent. Reparenting keeps
+    // that inheritance intact without calling setScreen(), which only applies
+    // to top-level windows and can recreate their native platform handle.
+    if (m_nativeHostWindow->parent() != parentWindow)
+        m_nativeHostWindow->setParent(parentWindow);
+
     const QPointF scenePosition = mapToScene(QPointF(0.0, 0.0));
     const QRect geometry(qRound(scenePosition.x()), qRound(scenePosition.y()),
                          qMax(1, qRound(width())), qMax(1, qRound(height())));
     if (m_nativeHostWindow->geometry() != geometry)
         m_nativeHostWindow->setGeometry(geometry);
 
-    const bool shouldShow = isVisible() && width() > 0.0 && height() > 0.0;
+    const QWindow::Visibility parentVisibility = parentWindow->visibility();
+    const bool parentCanShowNativeHost = parentVisibility != QWindow::Hidden &&
+                                         parentVisibility != QWindow::Minimized;
+    const bool shouldShow = parentCanShowNativeHost && parentWindow->isVisible() && isVisible() &&
+                            width() > 0.0 && height() > 0.0;
     if (shouldShow) {
         m_nativeHostWindow->show();
         m_nativeHostWindow->raise();

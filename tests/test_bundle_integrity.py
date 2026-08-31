@@ -4,8 +4,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -19,6 +23,153 @@ def require(condition: bool, message: str) -> None:
 
 def read(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
+
+
+def cmake_command_arguments(source: str, command: str) -> list[list[str]]:
+    """Return tokenized arguments for complete, top-level CMake command calls."""
+    calls: list[list[str]] = []
+    command_start = re.compile(rf"(?im)^\s*{re.escape(command)}\s*\(")
+    token_pattern = re.compile(r'"(?:\\.|[^"\\])*"|[^\s()]+')
+
+    for match in command_start.finditer(source):
+        depth = 1
+        index = match.end()
+        quoted = False
+        escaped = False
+        while index < len(source) and depth:
+            character = source[index]
+            if escaped:
+                escaped = False
+            elif character == "\\" and quoted:
+                escaped = True
+            elif character == '"':
+                quoted = not quoted
+            elif not quoted and character == "(":
+                depth += 1
+            elif not quoted and character == ")":
+                depth -= 1
+            index += 1
+        require(depth == 0, f"unterminated {command}() command")
+
+        body = source[match.end():index - 1]
+        body = re.sub(r"(?m)#.*$", "", body)
+        tokens = token_pattern.findall(body)
+        calls.append([
+            token[1:-1] if token.startswith('"') and token.endswith('"') else token
+            for token in tokens
+        ])
+    return calls
+
+
+def inno_section_entries(source: str, section: str) -> list[dict[str, str]]:
+    """Parse key/value entries from one Inno Setup section."""
+    entries: list[dict[str, str]] = []
+    active_section = ""
+    for raw_line in source.splitlines():
+        line = raw_line.strip()
+        section_match = re.fullmatch(r"\[([^]]+)]", line)
+        if section_match:
+            active_section = section_match.group(1)
+            continue
+        if active_section != section or not line or line.startswith(";"):
+            continue
+
+        fields: dict[str, str] = {}
+        for field in line.split(";"):
+            key, separator, value = field.partition(":")
+            require(bool(separator), f"invalid [{section}] entry: {line}")
+            value = value.strip()
+            if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
+                value = value[1:-1]
+            fields[key.strip()] = value
+        entries.append(fields)
+    return entries
+
+
+def find_cmake_command() -> str:
+    candidates: list[Path] = []
+    if configured := os.environ.get("CMAKE_COMMAND"):
+        candidates.append(Path(configured))
+    if discovered := shutil.which("cmake"):
+        candidates.append(Path(discovered))
+
+    checkout_roots = [ROOT]
+    if ROOT.parent.name == ".worktrees":
+        checkout_roots.append(ROOT.parent.parent)
+    for checkout_root in checkout_roots:
+        candidates.extend((
+            checkout_root / "dev/windows/deps/tools-venv/Scripts/cmake.exe",
+            checkout_root / "dev/windows/deps/tools-venv/Lib/site-packages/cmake/data/bin/cmake.exe",
+        ))
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    raise AssertionError("cmake is required to execute the portable bundle contract test")
+
+
+def run_portable_bundle_script(
+        runtime_files: dict[str, bytes] | None,
+) -> tuple[subprocess.CompletedProcess[str], dict[str, bytes]]:
+    with tempfile.TemporaryDirectory(prefix="tigerest-portable-test-") as temporary:
+        sandbox = Path(temporary)
+        source_dir = sandbox / "installed"
+        binary_dir = sandbox / "build"
+        runtime_dir = sandbox / "runtime"
+        source_dir.mkdir()
+        binary_dir.mkdir()
+        (source_dir / "app.exe").write_bytes(b"application")
+        if runtime_files is not None:
+            runtime_dir.mkdir()
+            for filename, contents in runtime_files.items():
+                (runtime_dir / filename).write_bytes(contents)
+
+        configured_script = sandbox / "PreparePortableZip.cmake"
+        configure_driver = sandbox / "ConfigurePortableZip.cmake"
+        template = ROOT / "CMakeModules/PreparePortableZip.cmake.in"
+        configure_driver.write_text(
+            "\n".join((
+                f"set(CMAKE_INSTALL_PREFIX [==[{source_dir.as_posix()}]==])",
+                f"set(CMAKE_CURRENT_BINARY_DIR [==[{binary_dir.as_posix()}]==])",
+                f"set(PROJECT_SOURCE_DIR [==[{ROOT.as_posix()}]==])",
+                f"set(VCRUNTIME_DIR [==[{runtime_dir.as_posix()}]==])",
+                f"configure_file([==[{template.as_posix()}]==] "
+                f"[==[{configured_script.as_posix()}]==] @ONLY)",
+                "",
+            )),
+            encoding="utf-8",
+        )
+
+        cmake = find_cmake_command()
+        configured = subprocess.run(
+            [cmake, "-P", str(configure_driver)],
+            cwd=sandbox,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        require(configured.returncode == 0,
+                "failed to configure portable bundle script: " +
+                configured.stdout + configured.stderr)
+
+        result = subprocess.run(
+            [cmake, "-P", str(configured_script)],
+            cwd=sandbox,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        zip_dir = binary_dir / "portable"
+        copied_files = {
+            path.relative_to(zip_dir).as_posix(): path.read_bytes()
+            for path in zip_dir.rglob("*")
+            if path.is_file()
+        } if zip_dir.is_dir() else {}
+        return result, copied_files
 
 
 def test_settings() -> None:
@@ -535,6 +686,80 @@ def test_offline_download_cleanup() -> None:
             "reopened offline library does not receive download updates")
 
 
+def test_windows_delay_load_targets_final_executable() -> None:
+    cmake = read("src/CMakeLists.txt")
+    delay_library_calls = [
+        arguments for arguments in cmake_command_arguments(cmake, "target_link_libraries")
+        if "delayimp.lib" in arguments
+    ]
+    delay_option_calls = [
+        arguments for arguments in cmake_command_arguments(cmake, "target_link_options")
+        if "/DELAYLOAD:libmpv-2.dll" in arguments
+    ]
+
+    problems: list[str] = []
+    library_targets = [arguments[0] for arguments in delay_library_calls if arguments]
+    option_targets = [arguments[0] for arguments in delay_option_calls if arguments]
+    if library_targets != ["${MAIN_TARGET}"]:
+        problems.append(
+            f"delayimp.lib must link only to the final executable, got {library_targets}"
+        )
+    if option_targets != ["${MAIN_TARGET}"]:
+        problems.append(
+            f"/DELAYLOAD:libmpv-2.dll must apply only to the final executable, got {option_targets}"
+        )
+    if any(len(arguments) < 2 or arguments[1] != "PRIVATE"
+           for arguments in delay_library_calls + delay_option_calls):
+        problems.append("Windows delay-load dependencies must use the PRIVATE target signature")
+    require(not problems, "; ".join(problems))
+
+
+def test_windows_packages_bundle_runtime_locally() -> None:
+    installer = read("bundle/win/JellyfinDesktop.iss.in")
+    file_entries = inno_section_entries(installer, "Files")
+    runtime_entries = [
+        entry for entry in file_entries
+        if entry.get("Source") == "{#DeployPath}/redist/*.dll"
+    ]
+    require(len(runtime_entries) == 1,
+            "installer must have exactly one app-local VC runtime file entry")
+    runtime_entry = runtime_entries[0]
+    require(runtime_entry.get("DestDir") == "{app}",
+            "installer VC runtime DLLs must be copied beside the executable")
+    require("Check" not in runtime_entry,
+            "installer app-local VC runtime DLLs must not depend on system detection")
+
+
+def test_windows_portable_runtime_bundle_contract() -> None:
+    problems: list[str] = []
+    failure_scenarios = (
+        ("missing runtime directory", None, "VC runtime directory does not exist"),
+        ("runtime directory without DLLs", {}, "No VC runtime DLLs found"),
+    )
+    for scenario, runtime_files, expected_error in failure_scenarios:
+        result, _ = run_portable_bundle_script(runtime_files)
+        output = result.stdout + result.stderr
+        if result.returncode == 0:
+            problems.append(f"portable bundle succeeded with {scenario}")
+        elif expected_error not in output:
+            problems.append(f"portable bundle reported the wrong error for {scenario}: {output}")
+
+    result, copied_files = run_portable_bundle_script({
+        "vcruntime140.dll": b"runtime",
+    })
+    if result.returncode != 0:
+        problems.append("portable bundle rejected a valid runtime directory: " +
+                        result.stdout + result.stderr)
+    expected_files = {
+        "app.exe": b"application",
+        "portable": b"",
+        "vcruntime140.dll": b"runtime",
+    }
+    if copied_files != expected_files:
+        problems.append(f"portable bundle contents differ: {sorted(copied_files)}")
+    require(not problems, "; ".join(problems))
+
+
 def test_macos_reproducibility_contract() -> None:
     require("CMAKE_OSX_DEPLOYMENT_TARGET \"26.0\"" in read("CMakeLists.txt"),
             "CMake macOS 26 target is missing")
@@ -628,6 +853,9 @@ def main() -> int:
         test_brand_assets,
         test_settings_ui,
         test_offline_download_cleanup,
+        test_windows_delay_load_targets_final_executable,
+        test_windows_packages_bundle_runtime_locally,
+        test_windows_portable_runtime_bundle_contract,
         test_macos_reproducibility_contract,
         test_no_embedded_tokens,
     ]

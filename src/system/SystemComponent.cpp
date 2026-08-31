@@ -886,6 +886,24 @@ void SystemComponent::hello(const QString& version)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
+QString SystemComponent::getWebAppearanceScript()
+{
+  static QString cachedScript;
+  if (!cachedScript.isEmpty()) {
+    return cachedScript;
+  }
+
+  QFile file(":/web-client/extension/webAppearance.js");
+  if (!file.open(QIODevice::ReadOnly)) {
+    qCritical() << "Failed to load web appearance script from qrc";
+    return "";
+  }
+
+  cachedScript = ";(function () {\n" + QTextStream(&file).readAll() + "\n}).call(window);\n";
+  return cachedScript;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
 QString SystemComponent::getNativeShellScript()
 {
   static QString cachedScript;
@@ -957,7 +975,6 @@ QString SystemComponent::getNativeShellScript()
     ":/web-client/extension/sessionNavigationPlugin.js",
     ":/web-client/extension/updatePlugin.js",
     ":/web-client/extension/connectivityHelper.js",
-    ":/web-client/extension/webAppearance.js",
     ":/web-client/extension/nativeshell.js",
     ":/web-client/extension/offline.js",
     ":/web-client/extension/embycompat.js"

@@ -36,6 +36,7 @@ WindowManager::WindowManager(QObject* parent)
     m_ignoreFullscreenSettingsChange(0),
     m_cursorVisible(true),
     m_cursorInsideWindow(true),
+    m_cursorOverrideActive(false),
     m_previousVisibility(QWindow::Windowed),
     m_isFullScreen(false),
     m_playbackSessionActive(false),
@@ -278,6 +279,11 @@ void WindowManager::beginPlaybackSession()
   m_playbackSessionActive = true;
   m_playbackSessionStartedFullScreen = isFullScreen();
   m_playbackSessionEnteredFullScreen = false;
+  if (nativePlaybackOwnsCursor())
+  {
+    releaseCursorOverrideForNativePlayback();
+    m_cursorVisible = true;
+  }
   qDebug() << "Playback window session started; initially fullscreen="
            << m_playbackSessionStartedFullScreen;
 }
@@ -288,6 +294,7 @@ void WindowManager::endPlaybackSession()
   if (!m_playbackSessionActive)
     return;
 
+  const bool nativeCursorWasOwned = nativePlaybackOwnsCursor();
   const bool restorePreviousState = !m_playbackSessionStartedFullScreen &&
                                     (m_playbackSessionEnteredFullScreen || isFullScreen());
   m_playbackSessionActive = false;
@@ -296,6 +303,12 @@ void WindowManager::endPlaybackSession()
 
   if (restorePreviousState)
     setFullScreen(false);
+
+  if (nativeCursorWasOwned)
+  {
+    releaseCursorOverrideForNativePlayback();
+    m_cursorVisible = true;
+  }
 
   // windowVisible(false) normally restores the main window first. Keep this
   // fallback for startup errors and cancellation paths where no VO appeared.
@@ -350,20 +363,57 @@ void WindowManager::toggleFullscreen()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void WindowManager::setCursorVisibility(bool visible)
 {
+  if (nativePlaybackOwnsCursor())
+  {
+    m_cursorVisible = visible;
+    releaseCursorOverrideForNativePlayback();
+    return;
+  }
+
   if (visible == m_cursorVisible)
     return;
 
   m_cursorVisible = visible;
 
   if (visible)
-    qApp->restoreOverrideCursor();
+  {
+    if (m_cursorOverrideActive)
+    {
+      qApp->restoreOverrideCursor();
+      m_cursorOverrideActive = false;
+    }
+  }
   else
+  {
     qApp->setOverrideCursor(QCursor(Qt::BlankCursor));
+    m_cursorOverrideActive = true;
+  }
 
 #ifdef Q_OS_MAC
   // Only apply macOS global cursor hiding when cursor is inside window
   if (m_cursorInsideWindow)
     OSXUtils::SetCursorVisible(visible);
+#endif
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+bool WindowManager::nativePlaybackOwnsCursor() const
+{
+  return m_playbackSessionActive && PlayerComponent::Get().usingNativeVideoOutput();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::releaseCursorOverrideForNativePlayback()
+{
+  if (m_cursorOverrideActive)
+  {
+    qApp->restoreOverrideCursor();
+    m_cursorOverrideActive = false;
+  }
+
+#ifdef Q_OS_MAC
+  if (m_cursorInsideWindow)
+    OSXUtils::SetCursorVisible(true);
 #endif
 }
 
@@ -377,7 +427,7 @@ bool WindowManager::eventFilter(QObject* watched, QEvent* event)
       m_cursorInsideWindow = true;
 #ifdef Q_OS_MAC
       // Re-hide cursor if it should be hidden
-      if (!m_cursorVisible)
+      if (!m_cursorVisible && !nativePlaybackOwnsCursor())
         OSXUtils::SetCursorVisible(false);
 #endif
     }

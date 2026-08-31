@@ -22,6 +22,8 @@ class FakeElement {
         this.listeners = new Map();
         this.children = [];
         this.parentElement = null;
+        this.appendCount = 0;
+        this.attributes = new Map();
         this.computedBackgroundImage = 'none';
         const properties = new Map();
         this.style = {
@@ -34,6 +36,29 @@ class FakeElement {
 
     set className(value) {
         this.classList = new FakeClassList(...String(value).split(/\s+/).filter(Boolean));
+    }
+
+    setAttribute(name, value) {
+        const stringValue = String(value);
+        this.attributes.set(name, stringValue);
+        if (name === 'id') this.id = stringValue;
+        if (name === 'class') this.className = stringValue;
+    }
+
+    getAttribute(name) {
+        if (name === 'id') return this.id || null;
+        if (name === 'class') return this.className || null;
+        return this.attributes.has(name) ? this.attributes.get(name) : null;
+    }
+
+    hasAttribute(name) {
+        return this.getAttribute(name) !== null;
+    }
+
+    removeAttribute(name) {
+        this.attributes.delete(name);
+        if (name === 'id') this.id = '';
+        if (name === 'class') this.className = '';
     }
 
     addEventListener(type, listener, options = {}) {
@@ -57,8 +82,21 @@ class FakeElement {
 
     matches(selector) {
         return selector.split(',').some(part => {
-            const className = part.trim().replace(/^\./, '');
-            return this.classList.contains(className);
+            const candidate = part.trim();
+            const attributeMatch = candidate.match(
+                /^(?:([a-z][\w-]*))?\[([\w-]+)(?:=["']([^"']*)["'])?\]$/i,
+            );
+            if (attributeMatch) {
+                const [, tagName, attribute, expected] = attributeMatch;
+                if (tagName && this.tagName !== tagName.toUpperCase()) return false;
+                if (!this.hasAttribute(attribute)) return false;
+                return expected === undefined || this.getAttribute(attribute) === expected;
+            }
+            if (candidate.startsWith('.')) {
+                return candidate.slice(1).split('.').every(name => this.classList.contains(name));
+            }
+            if (candidate.startsWith('#')) return this.id === candidate.slice(1);
+            return this.tagName === candidate.toUpperCase();
         });
     }
 
@@ -72,12 +110,30 @@ class FakeElement {
     }
 
     append(...children) {
-        for (const child of children) {
-            child.parentElement = this;
-            child.isConnected = this.isConnected;
-            this.children.push(child);
-        }
+        for (const child of children) this.appendChild(child);
     }
+
+    appendChild(child) {
+        if (child.parentElement) child.parentElement.removeChild(child);
+        child.parentElement = this;
+        child.isConnected = this.isConnected;
+        this.children.push(child);
+        this.appendCount++;
+        return child;
+    }
+
+    removeChild(child) {
+        const index = this.children.indexOf(child);
+        if (index === -1) throw new Error('child not found');
+        this.children.splice(index, 1);
+        child.parentElement = null;
+        child.isConnected = false;
+        return child;
+    }
+
+    remove() { this.parentElement?.removeChild(this); }
+
+    get lastElementChild() { return this.children[this.children.length - 1] || null; }
 
     querySelectorAll(selector) {
         const matches = [];
@@ -94,19 +150,20 @@ class FakeElement {
 }
 
 function makeDocument({headReady = true} = {}) {
-    const elementsById = new Map();
     const listeners = new Map();
+    const descendants = root => root ? [root, ...root.children.flatMap(descendants)] : [];
     const document = {
         head: null,
         body: new FakeElement('body'),
         documentElement: new FakeElement('html'),
         createElement(tagName) { return new FakeElement(tagName); },
-        getElementById(id) { return elementsById.get(id) || null; },
+        getElementById(id) {
+            return [...descendants(document.head), ...descendants(document.body)]
+                .find(element => element.id === id) || null;
+        },
         querySelectorAll(selector) {
-            const matches = [];
-            if (document.body.matches(selector)) matches.push(document.body);
-            matches.push(...document.body.querySelectorAll(selector));
-            return matches;
+            return [...descendants(document.head), ...descendants(document.body)]
+                .filter(element => element.matches(selector));
         },
         querySelector(selector) { return document.querySelectorAll(selector)[0] || null; },
         addEventListener(type, listener) {
@@ -121,13 +178,7 @@ function makeDocument({headReady = true} = {}) {
 
     document.mountHead = () => {
         const head = new FakeElement('head');
-        head.children = [];
-        head.appendChild = element => {
-            element.isConnected = true;
-            head.children.push(element);
-            if (element.id) elementsById.set(element.id, element);
-            return element;
-        };
+        head.isConnected = true;
         document.head = head;
         return head;
     };
@@ -139,20 +190,24 @@ function makeDocument({headReady = true} = {}) {
     return document;
 }
 
-function runAppearance({reducedMotion = false, headReady = true} = {}) {
+function runAppearance({reducedMotion = false, headReady = true, prepareDocument} = {}) {
     const scriptPath = path.join(__dirname, '..', 'native', 'webAppearance.js');
     if (!fs.existsSync(scriptPath)) {
         assert.fail('webAppearance.js has not been implemented');
     }
 
     const document = makeDocument({headReady});
+    prepareDocument?.(document);
     const mutationObservers = [];
     class FakeMutationObserver {
         constructor(callback) {
             this.callback = callback;
             mutationObservers.push(this);
         }
-        observe() {}
+        observe(target, options) {
+            this.target = target;
+            this.options = options;
+        }
     }
 
     const timers = new Map();
@@ -208,6 +263,189 @@ function runAppearance({reducedMotion = false, headReady = true} = {}) {
     };
 }
 
+function ownedAppearanceStyles(document) {
+    return document.head.children.filter(element => (
+        element.tagName === 'STYLE'
+        && element.getAttribute('data-tigerest-owned') === 'web-appearance'
+    ));
+}
+
+function appearanceMutationObserver(document, mutationObservers) {
+    return mutationObservers.find(observer => observer.target === document.documentElement);
+}
+
+function runNativeShell() {
+    const document = makeDocument();
+    const storage = new Map();
+    const jmpInfo = {
+        deviceName: 'Test Device',
+        version: '0.0.0-test',
+        mode: 'desktop',
+        scriptPath: 'file:///test',
+        sections: [],
+        settingsDescriptions: {},
+        settings: {
+            main: {enableMPV: false, fullscreen: false},
+            video: {},
+            audio: {},
+        },
+    };
+    const window = {
+        document,
+        jmpInfo,
+        qt: {webChannelTransport: {}},
+        sessionStorage: {
+            getItem(key) { return storage.has(key) ? storage.get(key) : null; },
+            setItem(key, value) { storage.set(key, String(value)); },
+        },
+    };
+    window.window = window;
+    const context = {
+        console,
+        document,
+        window,
+        jmpInfo,
+        MutationObserver: class {
+            constructor(callback) { this.callback = callback; }
+            observe() {}
+        },
+        QWebChannel: class {},
+        setTimeout() { return 1; },
+        clearTimeout() {},
+    };
+    vm.createContext(context);
+    vm.runInContext(
+        fs.readFileSync(path.join(__dirname, '..', 'native', 'nativeshell.js'), 'utf8'),
+        context,
+        {filename: 'nativeshell.js'},
+    );
+    return window.NativeShell;
+}
+
+// Parse the plain-object WebEngineScript wiring inside Component.onCompleted.
+// This protects our QML connection contract; Qt's build remains responsible
+// for instantiating the component and validating the framework's enum types.
+function extractBalancedSection(source, openingIndex) {
+    const closingFor = {'{': '}', '[': ']', '(': ')'};
+    const opening = source[openingIndex];
+    const closing = closingFor[opening];
+    assert.ok(closing, `unsupported opening delimiter ${opening}`);
+
+    let depth = 0;
+    let quote = '';
+    let escaped = false;
+    let lineComment = false;
+    let blockComment = false;
+    for (let index = openingIndex; index < source.length; index++) {
+        const character = source[index];
+        const next = source[index + 1];
+        if (lineComment) {
+            if (character === '\n') lineComment = false;
+            continue;
+        }
+        if (blockComment) {
+            if (character === '*' && next === '/') {
+                blockComment = false;
+                index++;
+            }
+            continue;
+        }
+        if (quote) {
+            if (escaped) {
+                escaped = false;
+            } else if (character === '\\') {
+                escaped = true;
+            } else if (character === quote) {
+                quote = '';
+            }
+            continue;
+        }
+        if (character === '/' && next === '/') {
+            lineComment = true;
+            index++;
+            continue;
+        }
+        if (character === '/' && next === '*') {
+            blockComment = true;
+            index++;
+            continue;
+        }
+        if (character === '"' || character === '\'' || character === '`') {
+            quote = character;
+            continue;
+        }
+        if (character === opening) depth++;
+        if (character !== closing) continue;
+        depth--;
+        if (depth === 0) {
+            return {
+                body: source.slice(openingIndex + 1, index),
+                end: index,
+            };
+        }
+    }
+    assert.fail(`unterminated ${opening}${closing} section`);
+}
+
+function parseWebEngineScriptWiring(qmlSource) {
+    const completedBlocks = [];
+    const completedPattern = /\bComponent\.onCompleted\s*:/g;
+    for (let match = completedPattern.exec(qmlSource); match; match = completedPattern.exec(qmlSource)) {
+        const openingIndex = qmlSource.indexOf('{', match.index + match[0].length);
+        assert.notStrictEqual(openingIndex, -1, 'Component.onCompleted has no body');
+        const section = extractBalancedSection(qmlSource, openingIndex);
+        if (/\bweb\s*\.\s*userScripts\s*\.\s*collection\s*=/.test(section.body)) {
+            completedBlocks.push(section.body);
+        }
+        completedPattern.lastIndex = section.end + 1;
+    }
+    assert.strictEqual(completedBlocks.length, 1,
+        'expected exactly one Component.onCompleted block to configure web.userScripts');
+    const block = completedBlocks[0];
+
+    const scriptsByVariable = new Map();
+    const declarationPattern = /\bvar\s+([A-Za-z_$][\w$]*)\s*=\s*\{/g;
+    for (let match = declarationPattern.exec(block); match; match = declarationPattern.exec(block)) {
+        const openingIndex = block.indexOf('{', match.index + match[0].length - 1);
+        const section = extractBalancedSection(block, openingIndex);
+        const property = name => {
+            const propertyMatch = new RegExp(`(?:^|\\n)\\s*${name}\\s*:\\s*([^,\\r\\n}]+)`, 'm')
+                .exec(section.body);
+            return propertyMatch?.[1].replace(/\s+/g, '') || '';
+        };
+        const sourceCall = /^components\.system\.([A-Za-z_$][\w$]*)\(\)$/.exec(property('sourceCode'));
+        const injectionPoint = /^WebEngineScript\.([A-Za-z_$][\w$]*)$/.exec(property('injectionPoint'));
+        const worldId = /^WebEngineScript\.([A-Za-z_$][\w$]*)$/.exec(property('worldId'));
+        scriptsByVariable.set(match[1], {
+            sourceGetter: sourceCall?.[1] || '',
+            injectionPoint: injectionPoint?.[1] || '',
+            worldId: worldId?.[1] || '',
+        });
+        declarationPattern.lastIndex = section.end + 1;
+    }
+
+    const collectionPattern = /\bweb\s*\.\s*userScripts\s*\.\s*collection\s*=\s*\[/g;
+    const collectionAssignments = [...block.matchAll(collectionPattern)];
+    assert.strictEqual(collectionAssignments.length, 1,
+        'web.userScripts.collection must be assigned exactly once');
+    const collectionOpening = block.indexOf('[', collectionAssignments[0].index);
+    const collection = extractBalancedSection(block, collectionOpening).body
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean)
+        .map(variable => {
+            assert.match(variable, /^[A-Za-z_$][\w$]*$/, `invalid script collection entry ${variable}`);
+            assert.ok(scriptsByVariable.has(variable), `script collection references unknown variable ${variable}`);
+            return {variable, ...scriptsByVariable.get(variable)};
+        });
+    return collection;
+}
+
+function webViewScriptWiring() {
+    const qmlPath = path.join(__dirname, '..', 'src', 'ui', 'webview.qml');
+    return parseWebEngineScriptWiring(fs.readFileSync(qmlPath, 'utf8'));
+}
+
 function testMountsAfterDocumentCreation() {
     const {document} = runAppearance({headReady: false});
     assert.strictEqual(document.getElementById('tigerest-appearance-style'), null);
@@ -219,6 +457,107 @@ function testMountsAfterDocumentCreation() {
     assert.ok(style, 'appearance styles were not mounted when the document became ready');
     assert.ok(style.textContent.length > 500, 'appearance stylesheet was unexpectedly empty');
     assert.ok(document.body.classList.contains('tigerest-appearance-ready'));
+}
+
+function testUsesOwnedStyleWithoutTakingOverAConflictingServerStyle() {
+    let serverStyle;
+    const {document} = runAppearance({
+        prepareDocument(currentDocument) {
+            serverStyle = currentDocument.createElement('style');
+            serverStyle.id = 'tigerest-appearance-style';
+            serverStyle.textContent = '.server-owned { color: red; }';
+            currentDocument.head.appendChild(serverStyle);
+        },
+    });
+
+    const [appearanceStyle] = ownedAppearanceStyles(document);
+    assert.ok(appearanceStyle, 'appearance stylesheet has no unique ownership marker');
+    assert.notStrictEqual(appearanceStyle, serverStyle,
+        'a server-owned style with a colliding id was mistaken for the native appearance style');
+    assert.ok(document.head.children.includes(serverStyle), 'the colliding server style was removed');
+    assert.strictEqual(serverStyle.textContent, '.server-owned { color: red; }');
+}
+
+function testRestoresDeletedOwnedStyleWithoutRemovingAnonymousServerStyles() {
+    const {document, mutationObservers} = runAppearance();
+    const observer = appearanceMutationObserver(document, mutationObservers);
+    const [originalStyle] = ownedAppearanceStyles(document);
+    const anonymousServerStyle = document.createElement('style');
+    anonymousServerStyle.textContent = '.server-theme { color: teal; }';
+    document.head.appendChild(anonymousServerStyle);
+
+    document.head.removeChild(originalStyle);
+    observer.callback([{
+        type: 'childList',
+        target: document.head,
+        addedNodes: [],
+        removedNodes: [originalStyle],
+    }]);
+
+    const [replacementStyle] = ownedAppearanceStyles(document);
+    assert.ok(replacementStyle, 'deleted appearance stylesheet was not restored');
+    assert.notStrictEqual(replacementStyle, originalStyle, 'the detached stylesheet was reused');
+    assert.ok(replacementStyle.textContent.length > 500, 'restored appearance stylesheet is empty');
+    assert.ok(document.head.children.includes(anonymousServerStyle),
+        'self-healing removed an anonymous server or core stylesheet');
+}
+
+function testKeepsOwnedStyleLastAfterServerAddsAStylesheetWithoutObserverLoop() {
+    const {document, mutationObservers} = runAppearance();
+    const observer = appearanceMutationObserver(document, mutationObservers);
+    const [appearanceStyle] = ownedAppearanceStyles(document);
+    const laterServerStyle = document.createElement('style');
+    laterServerStyle.textContent = '.late-server-theme { color: rebeccapurple; }';
+    document.head.appendChild(laterServerStyle);
+
+    observer.callback([{
+        type: 'childList',
+        target: document.head,
+        addedNodes: [laterServerStyle],
+        removedNodes: [],
+    }]);
+
+    assert.strictEqual(document.head.lastElementChild, appearanceStyle,
+        'a later server stylesheet gained equal-specificity cascade priority');
+    assert.ok(document.head.children.includes(laterServerStyle), 'the later server stylesheet was deleted');
+    assert.strictEqual(ownedAppearanceStyles(document).length, 1, 'appearance stylesheet was duplicated');
+
+    const appendCountAfterReorder = document.head.appendCount;
+    observer.callback([{
+        type: 'childList',
+        target: document.head,
+        addedNodes: [appearanceStyle],
+        removedNodes: [appearanceStyle],
+    }]);
+    assert.strictEqual(document.head.appendCount, appendCountAfterReorder,
+        'the observer re-appended an already-last style and can trigger itself forever');
+}
+
+function testNativeShellStillAdvertisesMultiserverSupport() {
+    const nativeShell = runNativeShell();
+
+    assert.strictEqual(nativeShell.AppHost.supports('multiserver'), true,
+        'standard server custom CSS disabling no longer receives the multiserver capability');
+    assert.strictEqual(nativeShell.AppHost.supports('MULTISERVER'), true,
+        'multiserver capability lookup stopped being case-insensitive');
+}
+
+function testWebViewInjectsAppearanceOnceAtDocumentCreationInApplicationWorld() {
+    const appearances = webViewScriptWiring()
+        .filter(script => script.sourceGetter === 'getWebAppearanceScript');
+
+    assert.strictEqual(appearances.length, 1, 'web appearance is not injected exactly once');
+    assert.strictEqual(appearances[0].injectionPoint, 'DocumentCreation');
+    assert.strictEqual(appearances[0].worldId, 'ApplicationWorld');
+}
+
+function testWebViewKeepsNativeShellOnceAtDocumentCreationInMainWorld() {
+    const nativeShells = webViewScriptWiring()
+        .filter(script => script.sourceGetter === 'getNativeShellScript');
+
+    assert.strictEqual(nativeShells.length, 1, 'native shell is not injected exactly once');
+    assert.strictEqual(nativeShells[0].injectionPoint, 'DocumentCreation');
+    assert.strictEqual(nativeShells[0].worldId, 'MainWorld');
 }
 
 function testAnimatesVisiblePagesOnce() {
@@ -591,6 +930,12 @@ function testRespectsReducedMotion() {
 }
 
 testMountsAfterDocumentCreation();
+testNativeShellStillAdvertisesMultiserverSupport();
+testWebViewInjectsAppearanceOnceAtDocumentCreationInApplicationWorld();
+testWebViewKeepsNativeShellOnceAtDocumentCreationInMainWorld();
+testUsesOwnedStyleWithoutTakingOverAConflictingServerStyle();
+testRestoresDeletedOwnedStyleWithoutRemovingAnonymousServerStyles();
+testKeepsOwnedStyleLastAfterServerAddsAStylesheetWithoutObserverLoop();
 testAnimatesVisiblePagesOnce();
 testDoesNotAnimateWhenCardsLoadInsideCurrentPage();
 testOnlyAnimatesPageVisibilityChanges();

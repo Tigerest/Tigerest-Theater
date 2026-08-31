@@ -316,7 +316,14 @@ Window
         worldId: WebEngineScript.MainWorld
       }
 
-      web.userScripts.collection = [ nativeshell ];
+      var webAppearance =
+      {
+        sourceCode: components.system.getWebAppearanceScript(),
+        injectionPoint: WebEngineScript.DocumentCreation,
+        worldId: WebEngineScript.ApplicationWorld
+      }
+
+      web.userScripts.collection = [ webAppearance, nativeshell ];
     }
 
     onLoadingChanged: function(loadingInfo)

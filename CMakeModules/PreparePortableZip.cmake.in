@@ -4,6 +4,16 @@
 set(SOURCE_DIR "@CMAKE_INSTALL_PREFIX@")
 set(ZIP_DIR "@CMAKE_CURRENT_BINARY_DIR@/portable")
 set(PROJECT_SOURCE_DIR "@PROJECT_SOURCE_DIR@")
+set(VCRUNTIME_DIR "@VCRUNTIME_DIR@")
+
+if(NOT IS_DIRECTORY "${VCRUNTIME_DIR}")
+  message(FATAL_ERROR "VC runtime directory does not exist: ${VCRUNTIME_DIR}")
+endif()
+
+file(GLOB RUNTIME_DLLS "${VCRUNTIME_DIR}/*.dll")
+if(NOT RUNTIME_DLLS)
+  message(FATAL_ERROR "No VC runtime DLLs found in: ${VCRUNTIME_DIR}")
+endif()
 
 # Clean and create ZIP staging directory
 file(REMOVE_RECURSE "${ZIP_DIR}")
@@ -25,14 +35,10 @@ foreach(f ${ALL_FILES})
 endforeach()
 
 # Copy runtime DLLs to root (for portable use)
-set(VCRUNTIME_DIR "@VCRUNTIME_DIR@")
-if(EXISTS "${VCRUNTIME_DIR}")
-  file(GLOB RUNTIME_DLLS "${VCRUNTIME_DIR}/*.dll")
-  foreach(dll ${RUNTIME_DLLS})
-    file(COPY "${dll}" DESTINATION "${ZIP_DIR}")
-  endforeach()
-  message(STATUS "Bundled VC runtime DLLs for portable package")
-endif()
+foreach(dll ${RUNTIME_DLLS})
+  file(COPY "${dll}" DESTINATION "${ZIP_DIR}")
+endforeach()
+message(STATUS "Bundled VC runtime DLLs for portable package")
 
 # Create portable marker file
 file(WRITE "${ZIP_DIR}/portable" "")

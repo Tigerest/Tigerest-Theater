@@ -58,8 +58,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 ; Main application files (exclude redist folder - handled separately)
 Source: "{#DeployPath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "redist,redist/*,vc_redist.x64.exe"
-; Bundled VC runtime DLLs - only copied if needed (see Code section)
-Source: "{#DeployPath}/redist/*.dll"; DestDir: "{app}"; Flags: ignoreversion; Check: NeedsBundledRuntime
+; Always install the bundled VC runtime DLLs beside the application
+Source: "{#DeployPath}/redist/*.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; Bundled VCRedist installer - extracted to temp for potential system-wide install
 Source: "{#DeployPath}/vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall; Check: ShouldExtractVCRedist
 
@@ -68,7 +68,7 @@ Name: "{autoprograms}\Tigerest Theater"; Filename: "{app}\{#MyAppExeName}"; Comm
 Name: "{autodesktop}\Tigerest Theater"; Filename: "{app}\{#MyAppExeName}"; Comment: "Unofficial Emby desktop client"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-; Install VCRedist if downloaded
+; Install VCRedist if selected for optional system-wide installation
 Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /passive /norestart"; StatusMsg: "Installing Visual C++ Redistributable..."; Flags: waituntilterminated; Check: ShouldInstallVCRedist
 ; Launch app after install
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch Tigerest Theater"; Flags: nowait postinstall skipifsilent
@@ -78,17 +78,10 @@ var
   RemoveUserData: Boolean;
   VCRedistNeeded: Boolean;
   InstallVCRedist: Boolean;
-  UseBundledRuntime: Boolean;
 
 function HasSystemVCRuntime: Boolean;
 begin
   Result := FileExists(ExpandConstant('{sys}\vcruntime140.dll'));
-end;
-
-function NeedsBundledRuntime: Boolean;
-begin
-  // Use bundled DLLs if: system doesn't have VCRedist AND (user install OR user declined VCRedist install)
-  Result := UseBundledRuntime;
 end;
 
 function ShouldExtractVCRedist: Boolean;
@@ -108,7 +101,6 @@ begin
   Result := True;
   VCRedistNeeded := not HasSystemVCRuntime;
   InstallVCRedist := False;
-  UseBundledRuntime := False;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -118,7 +110,7 @@ begin
 
   if not VCRedistNeeded then
   begin
-    Log('VCRedist already installed on system');
+    Log('System VC runtime detected; skipping optional system-wide installation');
     Exit;
   end;
 
@@ -126,10 +118,10 @@ begin
   if IsAdmin then
   begin
     // Offer to install VCRedist system-wide
-    if MsgBox('Visual C++ Redistributable is not installed.' + #13#10 + #13#10 +
+    if MsgBox('A system-wide Visual C++ Redistributable was not detected.' + #13#10 + #13#10 +
               'Would you like to install it system-wide?' + #13#10 +
               '(Recommended - receives security updates via Windows Update)' + #13#10 + #13#10 +
-              'If you choose No, bundled runtime libraries will be used instead.',
+              'The app-local runtime remains available either way.',
               mbConfirmation, MB_YESNO) = IDYES then
     begin
       InstallVCRedist := True;
@@ -137,16 +129,12 @@ begin
     end
     else
     begin
-      // User declined, use bundled
-      Log('User declined VCRedist install, using bundled runtime');
-      UseBundledRuntime := True;
+      Log('User declined VCRedist install; app-local runtime remains available');
     end;
   end
   else
   begin
-    // Non-admin install, use bundled
-    Log('Non-admin install, using bundled runtime');
-    UseBundledRuntime := True;
+    Log('Non-admin install; using the app-local runtime');
   end;
 end;
 

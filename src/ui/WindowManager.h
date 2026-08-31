@@ -77,6 +77,8 @@ private slots:
 
 private:
   void updateNativePlaybackWindow(bool visible);
+  bool nativePlaybackOwnsCursor() const;
+  void releaseCursorOverrideForNativePlayback();
   // Geometry (separate size/position)
   void loadGeometry();
   QRect loadGeometryRect();
@@ -114,6 +116,7 @@ private:
   int m_ignoreFullscreenSettingsChange;
   bool m_cursorVisible;
   bool m_cursorInsideWindow;
+  bool m_cursorOverrideActive;
 
   // Window state
   QWindow::Visibility m_previousVisibility;  // State before fullscreen

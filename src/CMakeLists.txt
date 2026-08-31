@@ -225,8 +225,8 @@ endif()
 
 # Delay-load libmpv on Windows for runtime AVX2 fallback
 if(WIN32)
-  target_link_libraries(jmp_core delayimp.lib)
-  target_link_options(jmp_core PRIVATE /DELAYLOAD:libmpv-2.dll)
+  target_link_libraries(${MAIN_TARGET} PRIVATE delayimp.lib)
+  target_link_options(${MAIN_TARGET} PRIVATE /DELAYLOAD:libmpv-2.dll)
 endif()
 
 target_link_libraries(${MAIN_TARGET} PRIVATE jmp_core)

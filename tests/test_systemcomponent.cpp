@@ -1,5 +1,9 @@
 #include <QtTest/QtTest>
+#include <initializer_list>
 #include "../src/system/SystemComponent.h"
+#include "../src/settings/SettingsComponent.h"
+#include "../src/settings/SettingsSection.h"
+#include "../src/settings/SettingsValue.h"
 
 class TestSystemComponent : public QObject
 {
@@ -8,6 +12,7 @@ class TestSystemComponent : public QObject
 private slots:
   void testExtractBaseUrl_data();
   void testExtractBaseUrl();
+  void testWebAppearanceScriptIsSeparatedFromNativeShellBundle();
 };
 
 void TestSystemComponent::testExtractBaseUrl_data()
@@ -146,5 +151,40 @@ void TestSystemComponent::testExtractBaseUrl()
   QCOMPARE(result, expected);
 }
 
-QTEST_APPLESS_MAIN(TestSystemComponent)
+void TestSystemComponent::testWebAppearanceScriptIsSeparatedFromNativeShellBundle()
+{
+  SettingsComponent& settings = SettingsComponent::Get();
+  auto registerSection = [&settings](const QString& name,
+                                     std::initializer_list<SettingsValue*> values) {
+    auto* section = new SettingsSection(name, PLATFORM_ANY, 0, &settings);
+    for (SettingsValue* value : values)
+      section->registerSetting(value);
+    settings.registerSection(section);
+  };
+  registerSection(SETTINGS_SECTION_PATH,
+                  {new SettingsValue(QStringLiteral("startupurl_extension"),
+                                     QStringLiteral("bundled"))});
+  registerSection(SETTINGS_SECTION_SYSTEM,
+                  {new SettingsValue(QStringLiteral("systemname"),
+                                     QStringLiteral("Test Device"))});
+  registerSection(SETTINGS_SECTION_MAIN,
+                  {new SettingsValue(QStringLiteral("layout"),
+                                     QStringLiteral("desktop"))});
+  registerSection(SETTINGS_SECTION_AUDIO, {});
+
+  SystemComponent& system = SystemComponent::Get();
+  const QString nativeShell = system.getNativeShellScript();
+  const QString webAppearance = system.getWebAppearanceScript();
+  const QString ownershipMarker = QStringLiteral("data-tigerest-owned");
+
+  QVERIFY2(nativeShell.contains(QStringLiteral("window.NativeShell")),
+           "native shell getter did not return the assembled native bundle");
+  QCOMPARE(nativeShell.count(ownershipMarker), 0);
+
+  QVERIFY2(webAppearance.contains(QStringLiteral("web-appearance")),
+           "standalone appearance getter did not return the owned appearance script");
+  QCOMPARE(webAppearance.count(ownershipMarker), 1);
+}
+
+QTEST_GUILESS_MAIN(TestSystemComponent)
 #include "test_systemcomponent.moc"

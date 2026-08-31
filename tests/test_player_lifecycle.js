@@ -71,9 +71,15 @@ async function main() {
 
     let windowBegins = 0;
     let windowEnds = 0;
+    const fullscreenRequests = [];
+    const windowActions = [];
     const windowApi = {
-        beginPlaybackSession() { windowBegins += 1; },
-        endPlaybackSession() { windowEnds += 1; },
+        beginPlaybackSession() { windowBegins += 1; windowActions.push('begin'); },
+        endPlaybackSession() { windowEnds += 1; windowActions.push('end'); },
+        setFullScreen(enable) {
+            fullscreenRequests.push(enable);
+            windowActions.push(`fullscreen:${enable}`);
+        },
     };
     const triggered = [];
     const loading = {showCount: 0, hideCount: 0, show() { this.showCount += 1; }, hide() { this.hideCount += 1; }};
@@ -125,6 +131,10 @@ async function main() {
     await instance.play(options);
     assert.strictEqual(loads, 1);
     assert.strictEqual(windowBegins, 1);
+    assert.deepStrictEqual(windowActions.slice(0, 2), ['begin', 'fullscreen:true'],
+        'fullscreen playback must snapshot the window session before entering native fullscreen');
+    assert.deepStrictEqual(fullscreenRequests, [true],
+        'an explicit fullscreen playback request did not enter system fullscreen');
     assert.strictEqual(timers.size, 1, 'startup watchdog was not armed');
     for (const name of signalNames)
         assert.strictEqual(player[name].handlers.size, 1, `${name} was not connected exactly once`);
@@ -214,6 +224,32 @@ async function main() {
     assert.strictEqual(windowEnds, 16);
     for (const name of signalNames)
         assert.strictEqual(player[name].handlers.size, 0, `${name} was not disconnected`);
+
+    assert.strictEqual(fullscreenRequests.length, 16,
+        'each explicit fullscreen playback session must request native fullscreen');
+    assert.ok(fullscreenRequests.every(value => value === true),
+        'native fullscreen was requested with a value other than true');
+
+    const nonFullscreenInstance = new Player({
+        events: {trigger(target, name, args) { triggered.push({target, name, args}); }},
+        loading,
+        appRouter: {showVideoOsd() {}},
+        globalize: {translate(value) { return value; }},
+        appHost: {},
+        appSettings: {get() { return 1; }, set() {}},
+        confirm: async () => { throw new Error('declined'); },
+        dashboard: {default: {setBackdropTransparency() {}}},
+    });
+    const fullscreenCountBeforeWindowedPlayback = fullscreenRequests.length;
+    await nonFullscreenInstance.play({...options, fullscreen: false});
+    assert.strictEqual(fullscreenRequests.length, fullscreenCountBeforeWindowedPlayback,
+        'fullscreen=false unexpectedly requested system fullscreen');
+    await nonFullscreenInstance.stop(false);
+
+    await nonFullscreenInstance.play({...options, fullscreen: 'true'});
+    assert.strictEqual(fullscreenRequests.length, fullscreenCountBeforeWindowedPlayback,
+        'a truthy non-boolean fullscreen value unexpectedly requested system fullscreen');
+    await nonFullscreenInstance.stop(true);
 
     console.log('player lifecycle: all checks passed');
 }

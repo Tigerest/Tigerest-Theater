@@ -1,4 +1,6 @@
 const TIGEREST_APPEARANCE_STYLE_ID = 'tigerest-appearance-style';
+const TIGEREST_APPEARANCE_OWNER_ATTRIBUTE = 'data-tigerest-owned';
+const TIGEREST_APPEARANCE_OWNER = 'web-appearance';
 const TIGEREST_PAGE_SELECTOR = '.mainAnimatedPage, .page';
 const TIGEREST_PAGE_ENTER_CLASS = 'tigerest-page-enter';
 const TIGEREST_PAGE_PENDING_CLASS = 'tigerest-page-pending';
@@ -19,9 +21,13 @@ const tigerestTabAnimationStates = new WeakMap();
 function mountTigerestAppearanceStyles() {
     if (!document.head) return false;
 
-    if (!document.getElementById(TIGEREST_APPEARANCE_STYLE_ID)) {
-        const style = document.createElement('style');
+    let style = document.head.querySelector(
+        `style[${TIGEREST_APPEARANCE_OWNER_ATTRIBUTE}="${TIGEREST_APPEARANCE_OWNER}"]`,
+    );
+    if (!style) {
+        style = document.createElement('style');
         style.id = TIGEREST_APPEARANCE_STYLE_ID;
+        style.setAttribute(TIGEREST_APPEARANCE_OWNER_ATTRIBUTE, TIGEREST_APPEARANCE_OWNER);
         style.textContent = `
             :root {
                 --tgs-accent: #ffbe38;
@@ -544,8 +550,9 @@ function mountTigerestAppearanceStyles() {
                 }
             }
         `;
-        document.head.appendChild(style);
     }
+
+    if (document.head.lastElementChild !== style) document.head.appendChild(style);
 
     document.body?.classList.add('tigerest-appearance-ready');
     return true;
@@ -773,7 +780,11 @@ function observeTigerestPages() {
     if (!document.documentElement) return;
 
     const observer = new MutationObserver(records => {
+        let appearanceHeadChanged = false;
         for (const record of records) {
+            if (record.type === 'childList' && record.target === document.head) {
+                appearanceHeadChanged = true;
+            }
             if (record.type === 'attributes') {
                 if (!record.target.matches?.(TIGEREST_PAGE_SELECTOR)) continue;
                 const currentClasses = record.target.classList;
@@ -800,6 +811,7 @@ function observeTigerestPages() {
                 }
             }
         }
+        if (appearanceHeadChanged) mountTigerestAppearanceStyles();
     });
     observer.observe(document.documentElement, {
         attributes: true,

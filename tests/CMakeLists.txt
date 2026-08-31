@@ -21,6 +21,14 @@ add_executable(test_systemcomponent test_systemcomponent.cpp)
 target_link_libraries(test_systemcomponent jmp_core Qt6::Test)
 target_include_directories(test_systemcomponent PRIVATE ${TEST_INCLUDE_DIRS})
 target_compile_definitions(test_systemcomponent PRIVATE ${TEST_COMPILE_DEFS})
+file(GLOB TEST_SYSTEMCOMPONENT_NATIVE_SCRIPTS CONFIGURE_DEPENDS
+  "${CMAKE_SOURCE_DIR}/native/*.js"
+)
+qt_add_resources(test_systemcomponent "test_systemcomponent_native_scripts"
+  PREFIX "/web-client/extension"
+  BASE "${CMAKE_SOURCE_DIR}/native"
+  FILES ${TEST_SYSTEMCOMPONENT_NATIVE_SCRIPTS}
+)
 add_test(NAME test_systemcomponent COMMAND test_systemcomponent)
 
 add_executable(test_log test_log.cpp)
