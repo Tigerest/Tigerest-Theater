@@ -675,24 +675,36 @@ function init(path)
     end
 end
 
-mp.register_event("file-loaded", function()
+local autoload_pending = false
+local autoload_manual = false
+local autoload_timer
+local autoload_attempts = 0
+
+local function try_autoload()
+    if not autoload_pending or not ENABLED then return end
     local path = mp.get_property("path")
+    if not path then return end
     local dir = get_parent_directory(path)
     local filename = mp.get_property('filename/no-ext')
     local video = mp.get_property_native("current-tracks/video")
-    local fps = mp.get_property_number("container-fps", 0)
     local duration = mp.get_property_number("duration", 0)
-    if not video or video["image"] or video["albumart"] or fps < 23 or duration < 60 then
+    -- Track/duration metadata may arrive after file-loaded for network streams.
+    -- container-fps is optional and is not a reliable video eligibility check.
+    if not video or duration <= 0 then
+        autoload_attempts = autoload_attempts + 1
+        if autoload_attempts <= 40 and not autoload_timer:is_enabled() then
+            autoload_timer:resume()
+        end
         return
     end
-
-    read_danmaku_source_record(path)
-
-    -- 弹幕开关是播放器级偏好：恢复上一次关闭播放器时保存的状态，
-    -- 而不是每次 file-loaded 都回到关闭。真正的启停仍由后续分支完成。
-    ENABLED = get_danmaku_visibility()
-    toggle_danmaku_switch(ENABLED and "on" or "off")
-    if not ENABLED then
+    autoload_pending = false
+    autoload_timer:kill()
+    if video["image"] or video["albumart"] or duration < 60 then
+        return
+    end
+    if COMMENTS ~= nil or is_async_running() then return end
+    if autoload_manual then
+        init(path)
         return
     end
 
@@ -729,6 +741,26 @@ mp.register_event("file-loaded", function()
     if ENABLED and COMMENTS == nil and not is_async_running() then
         init(path)
     end
+end
+
+autoload_timer = mp.add_timeout(0.25, try_autoload, true)
+mp.register_event("file-loaded", function()
+    local path = mp.get_property("path")
+    if path then read_danmaku_source_record(path) end
+    -- Restore the preference even when the first media properties are incomplete.
+    ENABLED = get_danmaku_visibility()
+    toggle_danmaku_switch(ENABLED and "on" or "off")
+    autoload_pending = ENABLED
+    autoload_manual = false
+    autoload_attempts = 0
+    try_autoload()
+end)
+mp.register_event("playback-restart", try_autoload)
+mp.observe_property("current-tracks/video", "native", try_autoload)
+mp.observe_property("duration", "number", try_autoload)
+mp.add_hook("on_unload", 50, function()
+    autoload_pending = false
+    autoload_timer:kill()
 end)
 
 -------------- 键位绑定 --------------
@@ -757,6 +789,8 @@ mp.register_script_message("danmaku-delay", function(...)
 end)
 
 mp.register_script_message("show_danmaku_keyboard", function()
+    autoload_pending = false
+    autoload_timer:kill()
     ENABLED = not ENABLED
     if ENABLED then
         toggle_danmaku_switch("on")
@@ -764,8 +798,10 @@ mp.register_script_message("show_danmaku_keyboard", function()
         if COMMENTS == nil then
             show_message("加载弹幕初始化...", 3)
             set_danmaku_visibility(true)
-            local path = mp.get_property("path")
-            init(path)
+            autoload_pending = true
+            autoload_manual = true
+            autoload_attempts = 0
+            try_autoload()
         else
             show_loaded()
             show_danmaku_func()

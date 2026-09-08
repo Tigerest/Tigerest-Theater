@@ -790,6 +790,16 @@ end
 
 -- 内部的异步运行计数
 local async_running_count = 0
+local async_generation = 0
+local async_commands = {}
+
+mp.add_hook("on_unload", 40, function()
+    async_generation = async_generation + 1
+    async_running_count = 0
+    local previous = async_commands
+    async_commands = {}
+    for id in pairs(previous) do mp.abort_async_command(id) end
+end)
 
 function mark_async_start()
     async_running_count = async_running_count + 1
@@ -815,16 +825,20 @@ end
 -- 异步执行命令
 -- 同时返回 abort 函数，用于取消异步命令
 function call_cmd_async(args, callback)
+    local generation = async_generation
     -- 标记异步开始
     mark_async_start()
 
-    local abort_signal = mp.command_native_async({
+    local abort_signal
+    abort_signal = mp.command_native_async({
         name = 'subprocess',
         capture_stderr = true,
         capture_stdout = true,
         playback_only = true,
         args = args,
     }, function(success, result, error)
+        if generation ~= async_generation then return end
+        async_commands[abort_signal] = nil
         -- 标记异步结束
         mark_async_end()
 
@@ -840,6 +854,7 @@ function call_cmd_async(args, callback)
         local json = result and type(result.stdout) == 'string' and result.stdout or ''
         return callback(nil, json)
     end)
+    async_commands[abort_signal] = true
 
     return function()
         mp.abort_async_command(abort_signal)
@@ -848,17 +863,19 @@ end
 
 local function yield_once()
     local co = coroutine.running()
+    local generation = async_generation
     mp.add_timeout(0, function()
-        coroutine.resume(co)
+        if generation == async_generation then coroutine.resume(co) end
     end)
     coroutine.yield()
 end
 
 local function make_safe_resume(co, timer_ref)
     local resumed = false
+    local generation = async_generation
 
     return function(...)
-        if resumed then return end
+        if resumed or generation ~= async_generation then return end
         resumed = true
 
         if timer_ref.timer then
@@ -904,6 +921,7 @@ end
 -- final_cb() 可选
 -- opts: { concurrency=3, per_request_timeout=10 }
 function parallel_requests(servers, build_args_fn, per_response_cb, final_cb, opts)
+    local generation = async_generation
     if type(final_cb) == 'table' and opts == nil then
         opts = final_cb
         final_cb = nil
@@ -975,7 +993,7 @@ function parallel_requests(servers, build_args_fn, per_response_cb, final_cb, op
 
     -- monitor（完成检测）
     monitor = mp.add_periodic_timer(0.05, function()
-        if aborted then
+        if aborted or generation ~= async_generation then
             monitor:kill()
             return
         end

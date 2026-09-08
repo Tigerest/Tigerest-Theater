@@ -5,6 +5,12 @@ local unpack = unpack or table.unpack
 
 local osd_width, osd_height, pause = 0, 0, true
 local time_pos_observer_active = false
+local shown = false
+local buffering, seeking = false, false
+local anchor_pos, anchor_time
+local speed, speed_correction = 1, 1
+local clock_correction = 1
+local render_timer
 local overlay_low = mp.create_osd_overlay('ass-events')
 local overlay_high = mp.create_osd_overlay('ass-events')
 
@@ -126,13 +132,69 @@ function render(pos_arg)
     overlay_high:update()
 end
 
+local function clock_position(now)
+    if not anchor_pos then return nil end
+    local elapsed = math.min(math.max(now - anchor_time, 0), 0.25)
+    return anchor_pos + elapsed * speed * speed_correction * clock_correction
+end
+
 local function time_pos_callback(_, time_pos)
+    local now = mp.get_time()
+    local predicted = clock_position(now)
+    if time_pos and predicted and not pause and not buffering and not seeking
+        and math.abs(time_pos - predicted) < 0.25 then
+        -- Slew small timing errors instead of snapping to quantized/delayed
+        -- video timestamps, which can otherwise move scrolling text backwards.
+        clock_correction = math.max(0.9, math.min(1.1, 1 + (time_pos - predicted) * 2))
+        anchor_pos = predicted
+    else
+        anchor_pos, clock_correction = time_pos, 1
+    end
+    anchor_time = now
     if time_pos then
-        render(time_pos)
+        if pause or buffering or seeking then render(time_pos) end
     else
         overlay_low:remove()
         overlay_high:remove()
     end
+end
+
+local function reset_clock()
+    anchor_pos = mp.get_property_number('time-pos')
+    anchor_time = mp.get_time()
+    clock_correction = 1
+end
+
+local function animate()
+    if not shown or not ENABLED or COMMENTS == nil then return end
+    if anchor_pos then
+        -- Extrapolate only between player timestamps, with a stall bound so a
+        -- delayed cache/seek notification cannot let comments drift away.
+        render(clock_position(mp.get_time()))
+    end
+end
+
+render_timer = mp.add_periodic_timer(1 / 60, animate)
+render_timer:kill()
+
+local function update_animation()
+    render_timer:kill()
+    reset_clock()
+    if shown and ENABLED and COMMENTS ~= nil and not pause and not buffering and not seeking then
+        render_timer:resume()
+    end
+end
+
+local function update_display_fps()
+    local fps = mp.get_property_number('display-fps')
+    if not fps or fps <= 0 then fps = mp.get_property_number('estimated-display-fps', 60) end
+    if not fps or fps <= 0 or fps ~= fps or fps == math.huge then fps = 60 end
+    local interval = 1 / fps
+    if math.abs(interval - render_timer.timeout) < 0.0001 then return end
+    local running = render_timer:is_enabled()
+    render_timer:kill()
+    render_timer.timeout = interval
+    if running then render_timer:resume() end
 end
 
 local function start_time_observer()
@@ -174,12 +236,12 @@ local function filter_state(label, name)
 end
 
 function show_danmaku_func()
+    shown = true
     mp.set_property_bool(HAS_DANMAKU, true)
     set_danmaku_visibility(true)
     render()
-    if not pause then
-        start_time_observer()
-    end
+    start_time_observer()
+    update_animation()
     if options.vf_fps then
         local display_fps = mp.get_property_number('display-fps')
         local video_fps = mp.get_property_number('estimated-vf-fps')
@@ -193,6 +255,9 @@ function show_danmaku_func()
 end
 
 function hide_danmaku_func()
+    shown = false
+    render_timer:kill()
+    anchor_pos = nil
     stop_time_observer()
     mp.set_property_bool(HAS_DANMAKU, false)
     set_danmaku_visibility(false)
@@ -232,25 +297,43 @@ mp.observe_property('pause', 'bool', function(_, value)
     if value ~= nil then
         pause = value
     end
-    if ENABLED then
-        if pause then
-            stop_time_observer()
-        elseif COMMENTS ~= nil then
-            start_time_observer()
-        end
-    end
+    update_animation()
+    if shown and COMMENTS ~= nil then render() end
+end)
+
+mp.observe_property('display-fps', 'number', update_display_fps)
+mp.observe_property('estimated-display-fps', 'number', update_display_fps)
+mp.observe_property('speed', 'number', function(_, value)
+    speed = value or 1
+    update_animation()
+end)
+mp.observe_property('video-speed-correction', 'number', function(_, value)
+    speed_correction = value or 1
+end)
+mp.observe_property('paused-for-cache', 'bool', function(_, value)
+    buffering = value or false
+    update_animation()
+end)
+mp.observe_property('seeking', 'bool', function(_, value)
+    seeking = value or false
+    update_animation()
 end)
 
 mp.register_event('playback-restart', function(event)
     if event.error then
         return msg.error(event.error)
     end
-    if ENABLED and COMMENTS ~= nil then
+    if shown and ENABLED and COMMENTS ~= nil then
+        update_animation()
         render()
     end
 end)
 
 mp.add_hook("on_unload", 50, function()
+    shown = false
+    render_timer:kill()
+    anchor_pos = nil
+    mp.set_property_bool(HAS_DANMAKU, false)
     COMMENTS, DELAY = nil, 0
     stop_time_observer()
     overlay_low:remove()

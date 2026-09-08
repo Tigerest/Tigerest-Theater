@@ -122,6 +122,7 @@ class TestDanmakuMetadata : public QObject
 private slots:
   void structuredEmbyMetadataTakesPriority();
   void enabledStreamRequiresInitializationWithoutLocalDirectory();
+  void loadingAndDisplayAnimationLifecycle();
 };
 
 void TestDanmakuMetadata::structuredEmbyMetadataTakesPriority()
@@ -155,6 +156,15 @@ void TestDanmakuMetadata::enabledStreamRequiresInitializationWithoutLocalDirecto
   QVERIFY2(probe.probe("tigerest-danmaku-autoload-probe"),
            "Lua stream autoload probe did not answer");
   QVERIFY(probe.getFlag("user-data/tigerest-test/should-init-stream"));
+}
+
+void TestDanmakuMetadata::loadingAndDisplayAnimationLifecycle()
+{
+  MpvProbe probe(QStringLiteral(SOURCE_ROOT) + QStringLiteral("/tests/fixtures/tigerest_danmaku_runtime_probe.lua"));
+  QVERIFY(probe.isValid());
+  QVERIFY(probe.probe("tigerest-danmaku-runtime-probe"));
+  const QString error = probe.getString("user-data/tigerest-test/error");
+  QVERIFY2(error.isEmpty(), qPrintable(error));
 }
 
 QTEST_GUILESS_MAIN(TestDanmakuMetadata)
