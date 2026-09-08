@@ -225,6 +225,9 @@ endif()
 
 # Delay-load libmpv on Windows for runtime AVX2 fallback
 if(WIN32)
+  # Qt 6 exposes the Windows fullscreen composition flag via its native
+  # interface. Keep this paired with the pinned Qt version in our builds.
+  target_link_libraries(jmp_core Qt6::GuiPrivate)
   target_link_libraries(${MAIN_TARGET} PRIVATE delayimp.lib)
   target_link_options(${MAIN_TARGET} PRIVATE /DELAYLOAD:libmpv-2.dll)
 endif()

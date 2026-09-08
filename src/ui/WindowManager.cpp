@@ -18,6 +18,9 @@
 
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
+#if defined(Q_OS_WIN)
+#include <qpa/qplatformwindow_p.h>
+#endif
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -232,6 +235,9 @@ void WindowManager::setFullScreen(bool enable)
   if (!m_window)
     return;
 
+  if (enable)
+    prepareFullscreenComposition();
+
   if (enable == isFullScreen())
     return;
 
@@ -262,6 +268,31 @@ void WindowManager::setFullScreen(bool enable)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::prepareFullscreenComposition()
+{
+#if defined(Q_OS_WIN)
+  if (!m_window || !PlayerComponent::Get().usingNativeVideoOutput() ||
+      QGuiApplication::platformName() != QStringLiteral("windows"))
+    return;
+
+  // The Qt/Emby surface uses OpenGL while embedded mpv uses its own native
+  // swapchain. Borderless OpenGL fullscreen can bypass DWM and present the
+  // browser over the video after an NVIDIA display-mode transition. Qt's
+  // Windows workaround keeps WS_BORDER (one physical pixel) in fullscreen.
+  // Set Qt's own flag before entering fullscreen so it also accounts for the
+  // border in geometry/state detection and restores normal styles on exit.
+  // https://doc.qt.io/qt-6/windows-issues.html#fullscreen-opengl-based-windows
+  m_window->setProperty("_q_has_border_in_fullscreen", true);
+  if (auto* nativeWindow = m_window->nativeInterface<QNativeInterface::Private::QWindowsWindow>()) {
+    if (!nativeWindow->hasBorderInFullScreen()) {
+      nativeWindow->setHasBorderInFullScreen(true);
+      qInfo() << "Enabled Windows composed fullscreen for native playback";
+    }
+  }
+#endif
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 bool WindowManager::isFullScreen() const
 {
   if (!m_window)
@@ -288,6 +319,8 @@ void WindowManager::beginPlaybackSession()
 {
   if (!m_window || m_playbackSessionActive)
     return;
+
+  prepareFullscreenComposition();
 
   m_playbackSessionActive = true;
   m_playbackSessionStartedFullScreen = isFullScreen();
@@ -481,6 +514,8 @@ void WindowManager::onVisibilityChanged(QWindow::Visibility visibility)
            << "m_previousVisibility=" << m_previousVisibility;
 
   bool isFS = (visibility == QWindow::FullScreen);
+  if (isFS)
+    prepareFullscreenComposition();
   bool wasFS = m_isFullScreen;
   m_isFullScreen = isFS;
 

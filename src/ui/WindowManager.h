@@ -77,6 +77,7 @@ private slots:
   void updateOpenGLInfo();
 
 private:
+  void prepareFullscreenComposition();
   void updateNativePlaybackWindow(bool visible);
   bool nativePlaybackOwnsCursor() const;
   void releaseCursorOverrideForNativePlayback();

@@ -2,6 +2,9 @@
 #include <MpvAbstractItem>
 #include <QGuiApplication>
 #include <QQuickWindow>
+#if defined(Q_OS_WIN)
+#include <qt_windows.h>
+#endif
 #include "../src/player/PlayerComponent.h"
 
 #define private public
@@ -33,6 +36,8 @@ private slots:
   void testEndingNativePlaybackRestoresWebCursorControl();
 #if defined(Q_OS_WIN)
   void testNativeHostTracksMainWindowLifecycle();
+  void testNativeFullscreenKeepsWindowsComposition_data();
+  void testNativeFullscreenKeepsWindowsComposition();
 #endif
 };
 
@@ -201,6 +206,45 @@ void TestWindowManager::testEndingNativePlaybackRestoresWebCursorControl()
 }
 
 #if defined(Q_OS_WIN)
+void TestWindowManager::testNativeFullscreenKeepsWindowsComposition_data()
+{
+  testPlaybackFullscreenTargetsVideoWindow_data();
+}
+
+void TestWindowManager::testNativeFullscreenKeepsWindowsComposition()
+{
+  if (QGuiApplication::platformName() != QStringLiteral("windows"))
+    QSKIP("Requires a real Windows HWND to verify DWM fullscreen styles");
+  QFETCH(bool, nativeVideo);
+  QFETCH(int, initialVisibility);
+  const auto initial = QWindow::Visibility(initialVisibility);
+  WindowManager manager;
+  QQuickWindow window;
+  window.resize(640, 360);
+  window.setVisibility(initial);
+  QTRY_COMPARE(window.visibility(), initial);
+  manager.m_window = &window;
+  manager.m_previousVisibility = initial;
+  connect(&window, SIGNAL(visibilityChanged(QWindow::Visibility)),
+          &manager, SLOT(onVisibilityChanged(QWindow::Visibility)));
+  PlayerComponent::Get().setNativeVideoOutput(nativeVideo);
+  const HWND hwnd = reinterpret_cast<HWND>(window.winId());
+  const LONG_PTR frameMask = WS_BORDER | WS_CAPTION | WS_THICKFRAME;
+  const LONG_PTR normalFrame = GetWindowLongPtr(hwnd, GWL_STYLE) & frameMask;
+
+  for (int cycle = 0; cycle < 3; ++cycle) {
+    manager.beginPlaybackSession();
+    manager.setFullScreen(true);
+    QTRY_COMPARE(window.visibility(), QWindow::FullScreen);
+    QCOMPARE(bool(GetWindowLongPtr(hwnd, GWL_STYLE) & WS_BORDER), nativeVideo);
+    QCOMPARE(window.winId(), reinterpret_cast<WId>(hwnd));
+    manager.endPlaybackSession();
+    QTRY_COMPARE(window.visibility(), initial);
+    QCOMPARE(GetWindowLongPtr(hwnd, GWL_STYLE) & frameMask, normalFrame);
+  }
+  window.hide();
+}
+
 void TestWindowManager::testNativeHostTracksMainWindowLifecycle()
 {
   QQuickWindow firstWindow;
