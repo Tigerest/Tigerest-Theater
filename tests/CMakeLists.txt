@@ -81,6 +81,18 @@ target_compile_definitions(test_danmaku_style_config PRIVATE ${TEST_COMPILE_DEFS
 add_test(NAME test_danmaku_style_config COMMAND test_danmaku_style_config)
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
+if(APPLE)
+  add_executable(test_macos_pause test_macos_pause.mm)
+  target_link_libraries(test_macos_pause jmp_core Qt6::Test "-framework AppKit")
+  target_include_directories(test_macos_pause PRIVATE ${TEST_INCLUDE_DIRS})
+  target_compile_definitions(test_macos_pause PRIVATE ${TEST_COMPILE_DEFS})
+  option(ENABLE_MACOS_NATIVE_INPUT_TEST "Run input smoke test using a real macvk window and desktop" OFF)
+  if(ENABLE_MACOS_NATIVE_INPUT_TEST)
+    add_test(NAME test_macos_pause COMMAND test_macos_pause)
+    set_tests_properties(test_macos_pause PROPERTIES TIMEOUT 45 RUN_SERIAL TRUE LABELS "macos-native")
+  endif()
+endif()
+
 if(Python3_Interpreter_FOUND)
   add_test(NAME test_bundle_integrity
            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_bundle_integrity.py)

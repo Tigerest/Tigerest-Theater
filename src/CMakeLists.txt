@@ -53,6 +53,9 @@ foreach(sfile in ${ALL_SRCS})
 endforeach(sfile in ${ALL_SRCS})
 
 # Build core sources as static library for reuse by tests
+if(APPLE)
+  set_source_files_properties(player/MpvVideoItemMac.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+endif()
 add_library(jmp_core STATIC ${ALL_SRCS})
 
 file(GLOB_RECURSE RESOURCE_FILES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/resources/*)

@@ -25,6 +25,7 @@ class MpvVideoItem : public MpvAbstractItem
 
 public:
     explicit MpvVideoItem(QQuickItem *parent = nullptr);
+    ~MpvVideoItem() override;
     void setPlayerComponent(PlayerComponent* player);
     bool usingNativeGpuNext() const { return m_nativeGpuNext; }
     static bool shouldUseNativeGpuNext(const QString& requestedBackend);
@@ -48,6 +49,11 @@ protected:
     void keyReleaseEvent(QKeyEvent* event) override;
 
 private:
+#if defined(Q_OS_MAC)
+    void installMacInputMonitor();
+    void removeMacInputMonitor();
+    void* m_macInputMonitor = nullptr;
+#endif
     void initializeController();
     QWindow* ensureNativeHostWindow();
     void trackWindow(QQuickWindow* window);

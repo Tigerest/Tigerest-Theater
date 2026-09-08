@@ -46,8 +46,10 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
     const QString backend = SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "renderBackend").toString();
     m_nativeGpuNext = shouldUseNativeGpuNext(backend);
 #if defined(Q_OS_MAC)
-    if (m_nativeGpuNext)
+    if (m_nativeGpuNext) {
         qInfo() << "Using a separate macOS GPU-Next playback window";
+        installMacInputMonitor();
+    }
 #endif
     setNativeVideoOutput(m_nativeGpuNext);
 
@@ -60,6 +62,13 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
         Q_EMIT setProperty("opengl-es", "no");
 #endif
     }
+}
+
+MpvVideoItem::~MpvVideoItem()
+{
+#if defined(Q_OS_MAC)
+    removeMacInputMonitor();
+#endif
 }
 
 bool MpvVideoItem::shouldUseNativeGpuNext(const QString& requestedBackend)

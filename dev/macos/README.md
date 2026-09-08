@@ -31,3 +31,11 @@ codesign --verify --deep --strict "build/output/Tigerest Theater.app"
 日志位于 `~/Library/Logs/Tigerest Theater/profiles/<profile-id>/`。开发构建若遇到图形兼容问题，可运行 `dev/macos/run.sh --software-rendering`。
 
 没有 macOS runner 时，只能对脚本、CMake、Info.plist、依赖闭包和 CI 定义做静态可复现性检查，不能据此声称已经在 macOS 实机编译或运行。
+
+空格与双击暂停的实机回归测试会打开真实 macvk 播放窗口，分别检查启用和关闭 UOSC 时的暂停、恢复、按键重复和媒体库窗口隔离。它需要可用的图形桌面和 Vulkan/Metal，默认不加入无界面的 CI 测试；在 Mac 本机启用并运行：
+
+```sh
+cmake -S . -B build -DENABLE_MACOS_NATIVE_INPUT_TEST=ON
+cmake --build build --target test_macos_pause
+dev/macos/test.sh -R test_macos_pause
+```
