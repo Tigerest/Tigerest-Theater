@@ -76,9 +76,12 @@ async function main() {
     const windowApi = {
         beginPlaybackSession() { windowBegins += 1; windowActions.push('begin'); },
         endPlaybackSession() { windowEnds += 1; windowActions.push('end'); },
-        setFullScreen(enable) {
-            fullscreenRequests.push(enable);
-            windowActions.push(`fullscreen:${enable}`);
+        requestPlaybackFullScreen() {
+            fullscreenRequests.push(true);
+            windowActions.push('playback-fullscreen');
+        },
+        setFullScreen() {
+            assert.fail('playback must route fullscreen through the native playback window owner');
         },
     };
     const triggered = [];
@@ -131,7 +134,7 @@ async function main() {
     await instance.play(options);
     assert.strictEqual(loads, 1);
     assert.strictEqual(windowBegins, 1);
-    assert.deepStrictEqual(windowActions.slice(0, 2), ['begin', 'fullscreen:true'],
+    assert.deepStrictEqual(windowActions.slice(0, 2), ['begin', 'playback-fullscreen'],
         'fullscreen playback must snapshot the window session before entering native fullscreen');
     assert.deepStrictEqual(fullscreenRequests, [true],
         'an explicit fullscreen playback request did not enter system fullscreen');

@@ -271,6 +271,19 @@ bool WindowManager::isFullScreen() const
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::requestPlaybackFullScreen()
+{
+#if defined(Q_OS_MAC)
+  // Native mpv owns a separate Cocoa window and enters fullscreen on load.
+  // Fullscreening the browser here creates an extra Space and overwrites the
+  // visibility saved before the browser is hidden for native playback.
+  if (PlayerComponent::Get().usingNativeVideoOutput())
+    return;
+#endif
+  setFullScreen(true);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 void WindowManager::beginPlaybackSession()
 {
   if (!m_window || m_playbackSessionActive)

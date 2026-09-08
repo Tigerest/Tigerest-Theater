@@ -27,6 +27,8 @@ private slots:
   void testFullscreenStateIsIndependentFromRestoreVisibility();
   void testPlaybackSessionRestoresMaximizedWindow();
   void testPlaybackSessionPreservesPreexistingFullscreen();
+  void testPlaybackFullscreenTargetsVideoWindow_data();
+  void testPlaybackFullscreenTargetsVideoWindow();
   void testNativePlaybackLeavesCursorAutohideToMpv();
   void testEndingNativePlaybackRestoresWebCursorControl();
 #if defined(Q_OS_WIN)
@@ -107,6 +109,50 @@ void TestWindowManager::testPlaybackSessionPreservesPreexistingFullscreen()
 
   manager.endPlaybackSession();
   QCOMPARE(window.visibility(), QWindow::FullScreen);
+  window.hide();
+}
+
+void TestWindowManager::testPlaybackFullscreenTargetsVideoWindow_data()
+{
+  QTest::addColumn<bool>("nativeVideo");
+  QTest::addColumn<int>("initialVisibility");
+  QTest::newRow("render-api-windowed") << false << int(QWindow::Windowed);
+  QTest::newRow("render-api-maximized") << false << int(QWindow::Maximized);
+  QTest::newRow("native-windowed") << true << int(QWindow::Windowed);
+  QTest::newRow("native-maximized") << true << int(QWindow::Maximized);
+}
+
+void TestWindowManager::testPlaybackFullscreenTargetsVideoWindow()
+{
+  QFETCH(bool, nativeVideo);
+  QFETCH(int, initialVisibility);
+  const auto initial = QWindow::Visibility(initialVisibility);
+  WindowManager manager;
+  QQuickWindow window;
+  window.resize(640, 360);
+  window.setVisibility(initial);
+  QTRY_COMPARE(window.visibility(), initial);
+  manager.m_window = &window;
+  manager.m_previousVisibility = initial;
+  connect(&window, SIGNAL(visibilityChanged(QWindow::Visibility)),
+          &manager, SLOT(onVisibilityChanged(QWindow::Visibility)));
+  PlayerComponent::Get().setNativeVideoOutput(nativeVideo);
+
+  manager.beginPlaybackSession();
+  QVERIFY(QMetaObject::invokeMethod(&manager, "requestPlaybackFullScreen", Qt::DirectConnection));
+#if defined(Q_OS_MAC)
+  // A separate mpv window owns fullscreen. The browser must retain its state
+  // before it is hidden, including when cancellation restores it asynchronously.
+  QTRY_COMPARE(window.visibility(), nativeVideo ? initial : QWindow::FullScreen);
+  if (nativeVideo) {
+    manager.updateNativePlaybackWindow(true);
+    QCOMPARE(window.visibility(), QWindow::Hidden);
+  }
+#else
+  QTRY_COMPARE(window.visibility(), QWindow::FullScreen);
+#endif
+  manager.endPlaybackSession();
+  QTRY_COMPARE(window.visibility(), initial);
   window.hide();
 }
 

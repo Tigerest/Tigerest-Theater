@@ -304,7 +304,7 @@
                 window.api.window.beginPlaybackSession();
             }
             if (options.fullscreen === true && window.api.window) {
-                window.api.window.setFullScreen(true);
+                window.api.window.requestPlaybackFullScreen();
             }
 
             this.resetSubtitleOffset();

@@ -43,6 +43,7 @@ public:
   // Fullscreen
   Q_INVOKABLE void setFullScreen(bool enable);
   Q_INVOKABLE bool isFullScreen() const;
+  Q_INVOKABLE void requestPlaybackFullScreen();
   Q_INVOKABLE void beginPlaybackSession();
   Q_INVOKABLE void endPlaybackSession();
 
