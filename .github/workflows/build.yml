@@ -13,6 +13,8 @@ jobs:
     uses: ./.github/workflows/build-macos.yml
 
   windows:
+    permissions:
+      contents: write
     uses: ./.github/workflows/build-windows.yml
 
   linux:

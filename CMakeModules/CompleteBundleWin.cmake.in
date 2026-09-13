@@ -16,6 +16,55 @@ endif()
 # windeployqt may miss Qt6Xml.dll - copy explicitly
 file(INSTALL "${QTROOT}/bin/Qt6Xml.dll" DESTINATION "${CMAKE_INSTALL_PREFIX}")
 
+# Apply after windeployqt so it cannot restore the upstream compositor DLL.
+set(TIGEREST_WEBENGINE_RUNTIME "@TIGEREST_WEBENGINE_RUNTIME@")
+if(TIGEREST_WEBENGINE_RUNTIME)
+  if(CMAKE_VERSION VERSION_LESS 3.19)
+    message(FATAL_ERROR "Deploying patched WebEngine requires CMake 3.19 or newer")
+  endif()
+  if(NOT EXISTS "${TIGEREST_WEBENGINE_RUNTIME}/tigerest-webengine.json")
+    message(FATAL_ERROR "Patched WebEngine build manifest is missing")
+  endif()
+  file(READ "${TIGEREST_WEBENGINE_RUNTIME}/tigerest-webengine.json" runtime_manifest)
+  string(JSON runtime_version GET "${runtime_manifest}" qtVersion)
+  string(JSON expected_patch_hash GET "${runtime_manifest}" patchSha256)
+  string(JSON expected_core_hash GET "${runtime_manifest}" coreSha256)
+  if(NOT runtime_version STREQUAL "@Qt6Core_VERSION@")
+    message(FATAL_ERROR "WebEngine runtime ${runtime_version} does not match Qt @Qt6Core_VERSION@")
+  endif()
+  file(SHA256 "@PROJECT_SOURCE_DIR@/dev/windows/qtwebengine/qtwebengine-6.9.3-d3d11-producer-sync.patch" patch_hash)
+  file(SHA256 "${TIGEREST_WEBENGINE_RUNTIME}/bin/Qt6WebEngineCore.dll" core_hash)
+  string(TOLOWER "${expected_patch_hash}" expected_patch_hash)
+  string(TOLOWER "${expected_core_hash}" expected_core_hash)
+  if(NOT patch_hash STREQUAL expected_patch_hash OR NOT core_hash STREQUAL expected_core_hash)
+    message(FATAL_ERROR "Patched WebEngine DLL or source patch does not match its build manifest")
+  endif()
+  foreach(name Qt6WebEngineCore.dll Qt6WebEngineQuick.dll
+               Qt6WebEngineQuickDelegatesQml.dll QtWebEngineProcess.exe)
+    if(NOT EXISTS "${TIGEREST_WEBENGINE_RUNTIME}/bin/${name}")
+      message(FATAL_ERROR "Incomplete patched WebEngine runtime: ${name}")
+    endif()
+    file(INSTALL "${TIGEREST_WEBENGINE_RUNTIME}/bin/${name}"
+         DESTINATION "${CMAKE_INSTALL_PREFIX}")
+  endforeach()
+  file(SHA256 "${CMAKE_INSTALL_PREFIX}/Qt6WebEngineCore.dll" deployed_core_hash)
+  if(NOT deployed_core_hash STREQUAL expected_core_hash)
+    message(FATAL_ERROR "Patched WebEngine DLL was not deployed correctly")
+  endif()
+  foreach(dir resources translations qml)
+    if(NOT IS_DIRECTORY "${TIGEREST_WEBENGINE_RUNTIME}/${dir}")
+      message(FATAL_ERROR "Incomplete patched WebEngine runtime: ${dir}")
+    endif()
+    file(COPY "${TIGEREST_WEBENGINE_RUNTIME}/${dir}/"
+         DESTINATION "${CMAKE_INSTALL_PREFIX}/${dir}")
+  endforeach()
+  message(STATUS "Deployed patched WebEngine from ${TIGEREST_WEBENGINE_RUNTIME}")
+  file(INSTALL "@PROJECT_SOURCE_DIR@/dev/windows/qtwebengine/README.md"
+               "@PROJECT_SOURCE_DIR@/dev/windows/qtwebengine/qtwebengine-6.9.3-d3d11-producer-sync.patch"
+               "${TIGEREST_WEBENGINE_RUNTIME}/tigerest-webengine.json"
+       DESTINATION "${CMAKE_INSTALL_PREFIX}/licenses/qtwebengine-tigerest")
+endif()
+
 # on windows windeployqt doesnt install non qt libraries, let cmake do that
 # include(BundleUtilities)
 

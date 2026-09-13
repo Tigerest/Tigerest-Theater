@@ -702,6 +702,7 @@ end
 -- Adapted from `stats.lua`
 function get_keybinds_items()
 	local items = {}
+	local command_label = require('lib/tigerest_keybind_labels')
 	-- uosc and mpv-menu-plugin binds with no keys
 	local no_key_menu_binds = itable_filter(
 		get_all_user_bindings(),
@@ -715,7 +716,7 @@ function get_keybinds_items()
 		local id = bind.key .. '<>' .. bind.cmd
 		if not ids[id] then
 			ids[id] = true
-			items[#items + 1] = {title = bind.cmd, hint = keybind_to_human(bind.key) or bind.key, value = bind.cmd}
+			items[#items + 1] = {title = command_label(bind.cmd), hint = keybind_to_human(bind.key) or bind.key, value = bind.cmd}
 		end
 	end
 

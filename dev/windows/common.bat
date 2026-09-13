@@ -49,4 +49,15 @@ if not exist "%BUILD_DIR%" (
 )
 set "PATH=%DEPS_DIR%\mpv;%PATH%"
 set "PATH=%DEPS_DIR%\qt\%QT_VERSION%\msvc2022_64\bin;%PATH%"
+if defined TIGEREST_WEBENGINE_RUNTIME (
+    if not exist "%TIGEREST_WEBENGINE_RUNTIME%\bin\Qt6WebEngineCore.dll" (
+        echo ERROR: Patched WebEngine runtime is incomplete
+        exit /b 1
+    )
+    set "PATH=%TIGEREST_WEBENGINE_RUNTIME%\bin;%PATH%"
+    set "QML_IMPORT_PATH=%TIGEREST_WEBENGINE_RUNTIME%\qml"
+    set "QTWEBENGINEPROCESS_PATH=%TIGEREST_WEBENGINE_RUNTIME%\bin\QtWebEngineProcess.exe"
+    set "QTWEBENGINE_RESOURCES_PATH=%TIGEREST_WEBENGINE_RUNTIME%\resources"
+    set "QTWEBENGINE_LOCALES_PATH=%TIGEREST_WEBENGINE_RUNTIME%\translations\qtwebengine_locales"
+)
 goto :eof

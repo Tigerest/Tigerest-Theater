@@ -314,6 +314,9 @@ QString MpvConfigManager::detectSystemConfigDir(const QString& configuredPath)
 bool MpvConfigManager::prepare()
 {
   auto& settings = SettingsComponent::Get();
+  // The controller applies this selection after parsing either config mode.
+  qputenv("TIGEREST_MPV_CONSOLE",
+          settings.value(SETTINGS_SECTION_MPV, "enableConsole").toBool() ? "yes" : "no");
   QString mode = settings.value(SETTINGS_SECTION_MPV, "configMode").toString();
 
   // Existing 2.0.x profiles stored the old sans-serif default explicitly,

@@ -1,0 +1,107 @@
+--- a/src/core/compositor/native_skia_output_device_direct3d11.cpp
++++ b/src/core/compositor/native_skia_output_device_direct3d11.cpp
+@@ -7,6 +7,12 @@
+ #include <QtCore/private/qsystemerror_p.h>
+ #include <QtQuick/qquickwindow.h>
+ #include <QtQuick/qsgtexture.h>
++#include <QtCore/qelapsedtimer.h>
++#include <QtCore/qthread.h>
++
++#include "ui/gl/gl_angle_util_win.h"
++#include "ui/gl/gl_bindings.h"
++#include "ui/gl/gl_context.h"
+ 
+ #include <d3d11_1.h>
+ 
+@@ -32,6 +38,79 @@
+ }
+ 
+ NativeSkiaOutputDeviceDirect3D11::~NativeSkiaOutputDeviceDirect3D11() { }
++
++void NativeSkiaOutputDeviceDirect3D11::Present(const std::optional<gfx::Rect> &update_rect,
++                                             BufferPresentedCallback feedback,
++                                             viz::OutputSurfaceFrame frame)
++{
++    static const bool waitForProducer =
++            qEnvironmentVariable("TIGEREST_D3D11_PRODUCER_WAIT") != QStringLiteral("0");
++    if (waitForProducer && m_contextState->gr_context_type() == gpu::GrContextType::kGL) {
++        // Qt samples this shared resource on a different D3D11 device. Finish
++        // producer writes before publishing it, without holding the buffer mutex.
++        auto device = gl::QueryD3D11DeviceObjectFromANGLE();
++        Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
++        Microsoft::WRL::ComPtr<ID3D11Query> query;
++        const D3D11_QUERY_DESC desc{ D3D11_QUERY_EVENT, 0 };
++        HRESULT hr = device ? device->CreateQuery(&desc, &query) : E_NOINTERFACE;
++        bool completed = false;
++        const char *failure = nullptr;
++        QElapsedTimer timer;
++        timer.start();
++        if (SUCCEEDED(hr)) {
++            device->GetImmediateContext(&context);
++            glFlush();
++            context->End(query.Get());
++            context->Flush();
++            static unsigned int presents = 0;
++            const bool injectTimeout =
++                    qEnvironmentVariableIntValue("TIGEREST_DIAG_PRODUCER_FAIL_ONCE") == 1
++                    && ++presents == 8;
++            do {
++                BOOL ready = FALSE;
++                hr = context->GetData(query.Get(), &ready, sizeof(ready),
++                                      D3D11_ASYNC_GETDATA_DONOTFLUSH);
++                if (FAILED(hr)) {
++                    failure = "query failed";
++                    break;
++                }
++                if (!injectTimeout && hr == S_OK && ready) {
++                    hr = device->GetDeviceRemovedReason();
++                    completed = SUCCEEDED(hr)
++                            && !m_contextState->context()->CheckStickyGraphicsResetStatus();
++                    if (!completed)
++                        failure = "device or context lost";
++                    break;
++                }
++                if (timer.elapsed() >= 250) {
++                    failure = injectTimeout ? "injected timeout" : "timeout";
++                    break;
++                }
++                QThread::yieldCurrentThread();
++            } while (true);
++        } else {
++            failure = "query unavailable";
++        }
++        if (!completed) {
++            qWarning("Tigerest D3D11 producer wait failed: %s (0x%08lx, %lld us)",
++                     failure, static_cast<unsigned long>(hr), timer.nsecsElapsed() / 1000);
++            // Preserve swap acknowledgement and use Chromium's existing device
++            // recovery. Do not publish an unfinished texture on the failure path.
++            const gfx::Size frameSize = frame.size;
++            StartSwapBuffers(std::move(feedback));
++            FinishSwapBuffers(gfx::SwapCompletionResult(gfx::SwapResult::SWAP_FAILED),
++                              frameSize, std::move(frame));
++            return;
++        }
++        static bool reported = false;
++        if (!reported) {
++            qInfo("Tigerest D3D11 producer wait: completed=1, reset=0, %lld us",
++                  timer.nsecsElapsed() / 1000);
++            reported = true;
++        }
++    }
++    NativeSkiaOutputDevice::Present(update_rect, std::move(feedback), std::move(frame));
++}
+ 
+ QSGTexture *NativeSkiaOutputDeviceDirect3D11::texture(QQuickWindow *win, uint32_t textureOptions)
+ {
+--- a/src/core/compositor/native_skia_output_device_direct3d11.h
++++ b/src/core/compositor/native_skia_output_device_direct3d11.h
+@@ -20,6 +20,9 @@
+             DidSwapBufferCompleteCallback didSwapBufferCompleteCallback);
+     ~NativeSkiaOutputDeviceDirect3D11() override;
+ 
++    void Present(const std::optional<gfx::Rect> &update_rect,
++                 BufferPresentedCallback feedback, viz::OutputSurfaceFrame frame) override;
++
+     // Overridden from Compositor:
+     QSGTexture *texture(QQuickWindow *win, uint32_t textureOptions) override;
+ };

@@ -678,6 +678,12 @@
         "default": true
       },
       {
+        "value": "enableConsole",
+        "display_name": "启用 MPV 控制台",
+        "help": "默认关闭，避免误触弹出命令输入界面。需要调试时可开启；修改后重启客户端生效。",
+        "default": false
+      },
+      {
         "value": "enableDanmaku",
         "display_name": "启用 uosc_danmaku 弹幕插件",
         "help": "提供弹幕搜索、匹配、开关与菜单。修改后需要重启客户端。",

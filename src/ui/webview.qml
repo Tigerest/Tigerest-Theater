@@ -74,11 +74,6 @@ Window
     mainWindow.requestActivate()
   }
 
-  onVisibilityChanged: function(visibility) {
-    if (mainWindow.nativeVideoVisible)
-      video.setPropertyAsync("fullscreen", visibility === Window.FullScreen)
-  }
-
   function runWebAction(action)
   {
     if (mainWindow.webDesktopMode)

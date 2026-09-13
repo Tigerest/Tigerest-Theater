@@ -2,6 +2,9 @@ if(APPLE)
   set(SCRIPT CompleteBundleMac)
 elseif(WIN32)
   set(SCRIPT CompleteBundleWin)
+  set(TIGEREST_WEBENGINE_RUNTIME "$ENV{TIGEREST_WEBENGINE_RUNTIME}" CACHE PATH
+      "Patched QtWebEngine runtime to deploy with the matching Qt version")
+  file(TO_CMAKE_PATH "${TIGEREST_WEBENGINE_RUNTIME}" TIGEREST_WEBENGINE_RUNTIME)
 endif(APPLE)
 
 option(CODE_SIGN "code sign the app" OFF)

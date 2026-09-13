@@ -18,6 +18,7 @@
 #include "Paths.h"
 #include "core/ProfileManager.h"
 #include "player/PlayerComponent.h"
+#include "player/MpvVideoItem.h"
 #include "player/OpenGLDetect.h"
 #include "display/DisplayComponent.h"
 #include "Version.h"
@@ -228,7 +229,6 @@ int main(int argc, char *argv[])
     }
 
     detectOpenGLEarly();
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
     if (parser.isSet("help"))
@@ -381,6 +381,18 @@ int main(int argc, char *argv[])
 
     ProfileManager::Get().setActiveProfile(*activeProfile);
 
+    // Only the libmpv Render API needs a shared OpenGL scene. Windows GPU-Next
+    // renders in its own native child, so use Qt's D3D11 scene graph instead
+    // of importing Chromium's D3D textures through the OpenGL/driver bridge.
+    auto graphicsApi = QSGRendererInterface::OpenGL;
+#ifdef Q_OS_WIN
+    const QString renderBackend = SettingsComponent::readPreinitValue(
+        SETTINGS_SECTION_MPV, "renderBackend").toString();
+    if (MpvVideoItem::shouldUseNativeGpuNext(renderBackend))
+      graphicsApi = QSGRendererInterface::Direct3D11;
+#endif
+    QQuickWindow::setGraphicsApi(graphicsApi);
+
     // Now everything else - all paths are profile-specific from here on
     QString logLevel = parser.value("log-level");
     if (parser.isSet("log-level") && (logLevel.isEmpty() || Log::ParseLogLevel(logLevel) == -1))
@@ -432,8 +444,19 @@ int main(int argc, char *argv[])
     if (parser.isSet("ignore-certificate-errors"))
       chromiumFlags << "--ignore-certificate-errors";
 
+    // Qt 6 only consumes Chromium arguments after --webEngineArgs, or from
+    // this environment variable. Merely accepting --disable-gpu in our own
+    // parser does not disable WebEngine's GPU compositor.
+    if (parser.isSet("disable-gpu"))
+      chromiumFlags << "--disable-gpu";
+
     if (!chromiumFlags.isEmpty())
-      qputenv("QTWEBENGINE_CHROMIUM_FLAGS", chromiumFlags.join(" ").toUtf8());
+    {
+      const QByteArray inheritedFlags = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
+      const QByteArray separator = inheritedFlags.isEmpty() ? QByteArray() : QByteArray(" ");
+      qputenv("QTWEBENGINE_CHROMIUM_FLAGS",
+              inheritedFlags + separator + chromiumFlags.join(" ").toUtf8());
+    }
 
     if (parser.isSet("remote-debugging-port"))
       qputenv("QTWEBENGINE_REMOTE_DEBUGGING", parser.value("remote-debugging-port").toUtf8());

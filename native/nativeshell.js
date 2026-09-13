@@ -646,6 +646,7 @@ async function showSettingsModal() {
         'mpv.renderBackend',
         'mpv.systemConfigDir',
         'mpv.enableUosc',
+        'mpv.enableConsole',
         'mpv.enableDanmaku',
         'danmaku.bold',
         'danmaku.fontsize',

@@ -220,6 +220,22 @@ void MpvController::init()
     if (mpv_initialize(d_ptr->m_mpv) < 0) {
         qFatal("could not initialize mpv context");
     }
+    // Initialization reads mpv.conf after pre-init options. Apply the saved
+    // selection after that read, before exposing the controller to the UI.
+    const QByteArray tigerestConsole = qgetenv("TIGEREST_MPV_CONSOLE");
+    if (tigerestConsole == "yes" || tigerestConsole == "no") {
+        // New mpv separates command entry from the shared mp.input service.
+        // Keep that service available for subtitle/danmaku selection dialogs.
+        int result = mpv_set_property_string(d_ptr->m_mpv, "load-commands", tigerestConsole.constData());
+        if (result == MPV_ERROR_PROPERTY_NOT_FOUND) {
+            // Older mpv combines command entry and input in the console script.
+            result = mpv_set_property_string(d_ptr->m_mpv, "load-osd-console", tigerestConsole.constData());
+        } else if (result >= 0 && tigerestConsole == "yes") {
+            result = mpv_set_property_string(d_ptr->m_mpv, "load-console", "yes");
+        }
+        if (result < 0)
+            qWarning() << "Unable to configure Tigerest MPV console:" << mpv_error_string(result);
+    }
     mpv_set_wakeup_callback(d_ptr->m_mpv, MpvController::mpvEvents, this);
 
     // otherwise mpv opens a separate window

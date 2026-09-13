@@ -35,6 +35,9 @@ private slots:
   void testNativePlaybackLeavesCursorAutohideToMpv();
   void testEndingNativePlaybackRestoresWebCursorControl();
 #if defined(Q_OS_WIN)
+  void testPlaybackInheritsHostFullscreen_data();
+  void testPlaybackInheritsHostFullscreen();
+  void testNativeVideoAnchorDoesNotPaintOverScene();
   void testNativeHostTracksMainWindowLifecycle();
   void testNativeFullscreenKeepsWindowsComposition_data();
   void testNativeFullscreenKeepsWindowsComposition();
@@ -206,6 +209,77 @@ void TestWindowManager::testEndingNativePlaybackRestoresWebCursorControl()
 }
 
 #if defined(Q_OS_WIN)
+void TestWindowManager::testNativeVideoAnchorDoesNotPaintOverScene()
+{
+  if (QGuiApplication::platformName() != QStringLiteral("windows"))
+    QSKIP("Requires a real graphics surface");
+  QQuickWindow window;
+  window.resize(320, 180);
+  const QColor background(37, 59, 83);
+  window.setColor(background);
+  class ObservedNativeItem : public MpvVideoItem {
+  public:
+    using MpvVideoItem::MpvVideoItem;
+    mutable int renderersCreated = 0;
+    QQuickFramebufferObject::Renderer* createRenderer() const override {
+      ++renderersCreated;
+      return MpvVideoItem::createRenderer();
+    }
+  };
+  ObservedNativeItem item(window.contentItem());
+  QVERIFY(item.usingNativeGpuNext());
+  item.setSize(QSizeF(320, 180));
+  window.show();
+  QTRY_VERIFY(window.isExposed());
+  const QImage rendered = window.grabWindow();
+  QVERIFY(!rendered.isNull());
+  QCOMPARE(item.renderersCreated, 0);
+  QCOMPARE(rendered.pixelColor(rendered.width() / 2, rendered.height() / 2), background);
+  item.setVisible(false);
+  window.hide();
+}
+
+void TestWindowManager::testPlaybackInheritsHostFullscreen_data()
+{
+  QTest::addColumn<bool>("fullscreen");
+  QTest::newRow("library-already-fullscreen") << true;
+  QTest::newRow("library-windowed-after-previous-fullscreen-playback") << false;
+}
+
+void TestWindowManager::testPlaybackInheritsHostFullscreen()
+{
+  QFETCH(bool, fullscreen);
+  QQuickWindow window;
+  window.resize(640, 360);
+  MpvVideoItem item(window.contentItem());
+  item.setVisible(false);
+  item.setPropertyBlocking("fullscreen", !fullscreen);
+  window.setVisibility(fullscreen ? QWindow::FullScreen : QWindow::Windowed);
+  QTRY_COMPARE(window.visibility(), fullscreen ? QWindow::FullScreen : QWindow::Windowed);
+
+  // Starting playback must publish the existing host state, without needing
+  // another window visibility transition to update uosc's fullscreen button.
+  item.setVisible(true);
+  QTRY_COMPARE(item.getProperty("fullscreen").toBool(), fullscreen);
+
+  // uosc's first click cycles the actual mpv property, so it must immediately
+  // request the opposite of the host's state.
+  item.commandBlocking(QStringList{"cycle", "fullscreen"});
+  QCOMPARE(item.getProperty("fullscreen").toBool(), !fullscreen);
+
+  window.setVisibility(fullscreen ? QWindow::Windowed : QWindow::FullScreen);
+  QTRY_COMPARE(item.getProperty("fullscreen").toBool(), !fullscreen);
+  if (!fullscreen) {
+    window.showMinimized();
+    QTRY_COMPARE(window.visibility(), QWindow::Minimized);
+    QVERIFY2(item.getProperty("fullscreen").toBool(), "minimizing must not cancel mpv fullscreen");
+    window.showFullScreen();
+    QTRY_COMPARE(window.visibility(), QWindow::FullScreen);
+  }
+  item.setVisible(false);
+  window.hide();
+}
+
 void TestWindowManager::testNativeFullscreenKeepsWindowsComposition_data()
 {
   testPlaybackFullscreenTargetsVideoWindow_data();

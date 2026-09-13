@@ -17,6 +17,8 @@ CMakeLists.txt text eol=lf
 *.js text eol=lf
 *.qml text eol=lf
 *.py text eol=lf
+# Unified diffs retain a space on empty context lines.
+*.patch text eol=lf -whitespace
 *.conf text eol=lf
 *.in text eol=lf
 *.plist text eol=lf

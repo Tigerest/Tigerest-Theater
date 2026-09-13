@@ -5,6 +5,8 @@ env:
   # using older version due to severe memory leak
   # https://qt-project.atlassian.net/browse/QTBUG-141377
   QT_VERSION: "6.9.3"
+  WEBENGINE_RUNTIME_TAG: "v2.0.17-dev"
+  WEBENGINE_RUNTIME_SHA256: "5f91143e7d6e7146ebf73aa09297a26c5207edd1dcf1fb635953bb206184fb7a"
 
 on:
   workflow_call:
@@ -15,6 +17,9 @@ on:
 
 jobs:
   build:
+    # The first release build reads the runtime from its own unpublished draft.
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -49,6 +54,21 @@ jobs:
       run: |
         choco install innosetup -y
       shell: powershell
+    - name: Install verified D3D11 WebEngine runtime
+      env:
+        GH_TOKEN: ${{ github.token }}
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        New-Item -ItemType Directory -Path webengine-runtime | Out-Null
+        gh release download $env:WEBENGINE_RUNTIME_TAG --repo $env:GITHUB_REPOSITORY --pattern TigerestWebEngine-6.9.3-d3d11.zip --dir webengine-runtime
+        if ($LASTEXITCODE -ne 0) { throw 'Patched WebEngine download failed' }
+        $archive = Join-Path $PWD 'webengine-runtime/TigerestWebEngine-6.9.3-d3d11.zip'
+        if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:WEBENGINE_RUNTIME_SHA256) {
+          throw 'Patched WebEngine archive checksum mismatch'
+        }
+        Expand-Archive -LiteralPath $archive -DestinationPath webengine-runtime
+        "TIGEREST_WEBENGINE_RUNTIME=$($PWD.Path)/webengine-runtime" >> $env:GITHUB_ENV
     - name: Install dependencies
       run: |
         mkdir build
@@ -106,6 +126,12 @@ jobs:
         ninja
         ninja windows_all
       shell: cmd
+    - name: Run unit tests
+      shell: pwsh
+      run: |
+        $env:PATH = "$env:GITHUB_WORKSPACE/build/mpv;$env:PATH"
+        ctest --test-dir build --output-on-failure
+        if ($LASTEXITCODE -ne 0) { throw 'Windows tests failed' }
     - name: Archive installer
       uses: actions/upload-artifact@v7
       with:

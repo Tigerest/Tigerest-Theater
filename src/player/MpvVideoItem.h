@@ -60,6 +60,7 @@ private:
     void trackScreen(QScreen* screen);
     void scheduleNativeHostWindowUpdate();
     void updateNativeHostWindow();
+    void syncFullscreenToMpv();
     void sendMousePosition(const QPointF& position);
     QString mouseButtonName(Qt::MouseButton button) const;
     QString keyName(QKeyEvent* event) const;

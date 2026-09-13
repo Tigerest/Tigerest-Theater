@@ -36,6 +36,7 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
     // hiding this item hides the whole mpv native subtree synchronously before
     // WebEngine is allowed to composite again.
     connect(this, &QQuickItem::visibleChanged, this, &MpvVideoItem::updateNativeHostWindow);
+    connect(this, &QQuickItem::visibleChanged, this, &MpvVideoItem::syncFullscreenToMpv);
     connect(this, &QQuickItem::xChanged, this, &MpvVideoItem::updateNativeHostWindow);
     connect(this, &QQuickItem::yChanged, this, &MpvVideoItem::updateNativeHostWindow);
     connect(this, &QQuickItem::widthChanged, this, &MpvVideoItem::updateNativeHostWindow);
@@ -45,6 +46,9 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
 
     const QString backend = SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "renderBackend").toString();
     m_nativeGpuNext = shouldUseNativeGpuNext(backend);
+    // A native video anchor owns input/geometry only. Allocating an unused
+    // OpenGL framebuffer would unnecessarily tie the browser scene to OpenGL.
+    setFlag(QQuickItem::ItemHasContents, !m_nativeGpuNext);
 #if defined(Q_OS_MAC)
     if (m_nativeGpuNext) {
         qInfo() << "Using a separate macOS GPU-Next playback window";
@@ -66,6 +70,10 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
 
 MpvVideoItem::~MpvVideoItem()
 {
+    // QQuickItem emits window/visibility changes while its base destructor
+    // detaches the item. Our members and MpvAbstractItem's controller have
+    // already been destroyed by then, so stop callbacks into this subclass.
+    disconnect(this, nullptr, this, nullptr);
 #if defined(Q_OS_MAC)
     removeMacInputMonitor();
 #endif
@@ -157,6 +165,8 @@ void MpvVideoItem::trackWindow(QQuickWindow* newWindow)
                     this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
             connect(newWindow, &QWindow::visibilityChanged,
                     this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
+            connect(newWindow, &QWindow::visibilityChanged,
+                    this, &MpvVideoItem::syncFullscreenToMpv, Qt::QueuedConnection);
             connect(newWindow, &QWindow::windowStateChanged,
                     this, &MpvVideoItem::scheduleNativeHostWindowUpdate);
             connect(newWindow, &QWindow::screenChanged, this, [this](QScreen* screen) {
@@ -360,6 +370,28 @@ void MpvVideoItem::initializeController()
     Q_EMIT observeProperty(QStringLiteral("vo"), MPV_FORMAT_STRING, VoObserverId);
     Q_EMIT observeProperty(QStringLiteral("gpu-api"), MPV_FORMAT_STRING, GpuApiObserverId);
     Q_EMIT observeProperty(QStringLiteral("gpu-context"), MPV_FORMAT_STRING, GpuContextObserverId);
+}
+
+void MpvVideoItem::syncFullscreenToMpv()
+{
+#if defined(Q_OS_MAC)
+    // Native Cocoa playback has its own window, independent of the library.
+    if (m_nativeGpuNext)
+        return;
+#endif
+    if (!isVisible() || !window() || !mpvController())
+        return;
+
+    const auto visibility = window()->visibility();
+    if (visibility == QWindow::Hidden || visibility == QWindow::Minimized)
+        return;
+
+    // uosc cycles mpv's fullscreen property. Publish the host's existing state
+    // when playback becomes visible, even if the host was already fullscreen.
+    const int result = setPropertyBlocking(QStringLiteral("fullscreen"),
+                                           visibility == QWindow::FullScreen);
+    if (result < 0)
+        qWarning() << "Unable to synchronize playback fullscreen state:" << result;
 }
 
 void MpvVideoItem::sendMousePosition(const QPointF& position)
