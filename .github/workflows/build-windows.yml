@@ -97,11 +97,20 @@ jobs:
         if (-not $vsPath) {
             $vsPath = (Get-ChildItem "C:\Program Files\Microsoft Visual Studio\*\*" | Where-Object { Test-Path "$_\VC\Redist\MSVC" } | Select-Object -First 1).FullName
         }
-        $vsRedist = Get-ChildItem "$vsPath\VC\Redist\MSVC\*\${{ matrix.vc_redist_arch }}\Microsoft.VC*.CRT" | Select-Object -First 1
-        if (-not $vsRedist) {
-            $vsRedist = Get-ChildItem "$vsPath\VC\Redist\MSVC" -Recurse -Filter "Microsoft.VC*.CRT" | Where-Object { $_.FullName -like "*${{ matrix.vc_redist_arch }}*" } | Select-Object -First 1
+        # Runners also contain the legacy v142 CRT. Directory enumeration can
+        # select it first; that runtime crashes the newer QtWebEngine at startup.
+        $candidates = Get-ChildItem "$vsPath\VC\Redist\MSVC" -Recurse -Filter 'Microsoft.VC*.CRT' |
+          Where-Object { $_.Parent.Name -eq '${{ matrix.vc_redist_arch }}' -and (Test-Path (Join-Path $_.FullName 'msvcp140.dll')) } |
+          ForEach-Object {
+            $info = (Get-Item (Join-Path $_.FullName 'msvcp140.dll')).VersionInfo
+            [pscustomobject]@{ Directory = $_.FullName; Version = [version]::new($info.FileMajorPart, $info.FileMinorPart, $info.FileBuildPart, $info.FilePrivatePart) }
+          }
+        $vsRedist = $candidates | Sort-Object Version -Descending | Select-Object -First 1
+        if (-not $vsRedist -or $vsRedist.Version -lt [version]'14.44.0.0') {
+          throw 'QtWebEngine requires an MSVC runtime version 14.44 or newer'
         }
-        Copy-Item "$vsRedist\*.dll" deps/vcruntime/
+        Write-Host "Bundling MSVC runtime $($vsRedist.Version) from $($vsRedist.Directory)"
+        Copy-Item "$($vsRedist.Directory)\*.dll" deps/vcruntime/
         # Also grab VCRedist installer for optional system-wide install
         Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile deps/vc_redist.x64.exe
       shell: powershell
@@ -132,6 +141,8 @@ jobs:
         $env:PATH = "$env:GITHUB_WORKSPACE/build/mpv;$env:PATH"
         ctest --test-dir build --output-on-failure
         if ($LASTEXITCODE -ne 0) { throw 'Windows tests failed' }
+    - name: Verify packaged application startup
+      run: node tests/smoke_windows_bundle.cjs "build/portable/Tigerest Theater.exe"
     - name: Archive installer
       uses: actions/upload-artifact@v7
       with:
