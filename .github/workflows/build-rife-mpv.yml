@@ -1,170 +1,57 @@
-name: build-rife-mpv
-
+name: reproduce-approved-rife-v233
 on:
   workflow_dispatch:
-    inputs:
-      arch:
-        description: Architecture to build
-        type: choice
-        options: [all, x86-64, x86-64-v3]
-        default: all
-  push:
-    branches: [codex/windows-rife-trt]
-    paths:
-      - .github/workflows/build-rife-mpv.yml
-      - dev/windows/rife/build_mpv.py
-      - dev/windows/rife/freeze_mpv_sources.py
-      - dev/windows/rife/mpv-private-vs-core.patch
-      - dev/windows/rife/mpv-win64-hwdec-pointer.patch
-      - dev/windows/rife/mpv-win64-queue-pointer.patch
-      - dev/windows/rife/ngtcp2-static-openssl.patch
-      - dev/windows/rife/curl-static-openssl.patch
-      - dev/windows/rife/mpv-source-lock.json
-      - dev/windows/rife/prepare_mpv_recipe.py
-      - dev/macos/rife/mpv-eof-aware.patch
-
 permissions:
-  contents: read
-
+  contents: write
 jobs:
-  freeze:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Fetch original build recipe
-        run: |
-          git clone https://github.com/shinchiro/mpv-winbuild-cmake.git recipe
-          git -C recipe checkout cd1edc11dc6887a50f705717619d879f5a93a488
-      - name: Verify frozen Git dependencies against original recipe
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 dev/windows/rife/freeze_mpv_sources.py --recipe recipe --verify-lock dev/windows/rife/mpv-source-lock.json --output source-lock.json
-      - name: Compile private core API before the media build
-        env:
-          RIFE_TEST_MPV_SOURCE: check-mpv
-        run: |
-          git clone --filter=blob:none --no-checkout https://github.com/mpv-player/mpv.git check-mpv
-          git -C check-mpv checkout dd5d17d3285a095a0f712fa9d116e22a076492de
-          python3 -B -m unittest discover -s tests -p test_rife_mpv_build.py -v
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rife-mpv-source-lock
-          path: source-lock.json
-
-  build:
-    needs: freeze
-    runs-on: ubuntu-24.04
-    timeout-minutes: 180
-    env:
-      GIT_COMMITTER_NAME: Tigerest mpv build
-      GIT_COMMITTER_EMAIL: mpv-build@tigerest.invalid
+  reproduce:
+    runs-on: windows-latest
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.arch != 'all' && format('["{0}"]', inputs.arch) || '["x86-64", "x86-64-v3"]') }}
+        architecture: [sm75, sm80, sm86, sm89, sm90, sm100, sm120]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
-          name: rife-mpv-source-lock
-      - name: Prepare compiler build tools
-        timeout-minutes: 15
+          python-version: '3.14.5'
+          architecture: x64
+      - name: Validate draft and original input
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
         run: |
-          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install --no-install-recommends -y build-essential bison flex gettext mercurial subversion ninja-build gyp cmake yasm nasm automake pkgconf libtool libtool-bin gcc-multilib g++-multilib clang lld libc++1 libc++abi1 libgmp-dev libmpfr-dev libmpc-dev libgcrypt-dev gperf ragel texinfo autopoint re2c asciidoc-base docbook2x unzip p7zip-full curl libmimalloc-dev ccache python3-venv
-          python3 -m venv tools
-          tools/bin/pip install --timeout 30 --retries 3 meson==1.11.2 mako==1.3.10 jsonschema==4.23.0 rst2pdf==0.103.1
-          echo "$PWD/tools/bin" >> "$GITHUB_PATH"
-      - name: Fetch pinned recipe
+          $ErrorActionPreference = 'Stop'
+          $release = gh release view v2.3.3 --repo $env:GITHUB_REPOSITORY --json isDraft,targetCommitish | ConvertFrom-Json
+          if (-not $release.isDraft -or $release.targetCommitish -ne '636798626b2775df32bc7213843cf454c1d1e4ea') { throw 'Unexpected release' }
+          $tagSha = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/v2.3.3" --jq .object.sha
+          if ($tagSha -ne $release.targetCommitish) { throw 'Unexpected tag' }
+          gh release download v2.2.0 --repo $env:GITHUB_REPOSITORY --pattern Tigerest-RIFE-NVIDIA-1.0.0.zip --dir original
+          if ($LASTEXITCODE -ne 0) { throw 'Original download failed' }
+      - name: Reproduce and match approved package bytes
+        shell: pwsh
         run: |
-          git clone https://github.com/shinchiro/mpv-winbuild-cmake.git recipe
-          git -C recipe checkout cd1edc11dc6887a50f705717619d879f5a93a488
-      - name: Verify completed media cache compatibility
-        id: baseline
+          python dev/windows/rife/reproduce_v233_release.py --architecture ${{ matrix.architecture }}
+          if ($LASTEXITCODE -ne 0) { throw 'Package differs from approved catalog' }
+      - name: Upload verified extension to draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
         run: |
-          baseline=7a2b62d61676c4ee49ab162c3ae6ce3a761c8d4e
-          git fetch --depth=1 origin "$baseline"
-          git show "$baseline:dev/windows/rife/prepare_mpv_recipe.py" > baseline-prepare.py
-          if git diff --quiet "$baseline" -- dev/windows/rife/mpv-source-lock.json dev/macos/rife/mpv-eof-aware.patch dev/windows/rife/mpv-private-vs-core.patch dev/windows/rife/ngtcp2-static-openssl.patch dev/windows/rife/curl-static-openssl.patch && python3 dev/windows/rife/prepare_mpv_recipe.py --recipe recipe --lock source-lock.json --verify-media-baseline baseline-prepare.py; then
-            echo "allowed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "allowed=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Prepare pinned recipe and EOF patch
-        run: |
-          python3 dev/windows/rife/prepare_mpv_recipe.py --recipe recipe --lock source-lock.json
-      - uses: actions/cache/restore@v4
-        id: media_cache
-        with:
-          path: build-mpv
-          key: rife-mpv-aug2026-${{ matrix.arch }}-${{ hashFiles('source-lock.json', 'dev/macos/rife/mpv-eof-aware.patch', 'dev/windows/rife/mpv-private-vs-core.patch', 'dev/windows/rife/mpv-win64-hwdec-pointer.patch', 'dev/windows/rife/mpv-win64-queue-pointer.patch', 'dev/windows/rife/ngtcp2-static-openssl.patch', 'dev/windows/rife/curl-static-openssl.patch', 'dev/windows/rife/prepare_mpv_recipe.py') }}
-          restore-keys: |
-            rife-media-${{ matrix.arch }}-${{ hashFiles('source-lock.json', 'dev/macos/rife/mpv-eof-aware.patch', 'dev/windows/rife/mpv-private-vs-core.patch', 'dev/windows/rife/mpv-win64-hwdec-pointer.patch', 'dev/windows/rife/mpv-win64-queue-pointer.patch', 'dev/windows/rife/ngtcp2-static-openssl.patch', 'dev/windows/rife/curl-static-openssl.patch', 'dev/windows/rife/prepare_mpv_recipe.py') }}-
-            ${{ steps.baseline.outputs.allowed == 'true' && format('rife-mpv-aug2026-{0}-b9e3f0f4395326409d45f220d6c76da6693912d1c7a27b5703ff464c28a1b640', matrix.arch) || 'rife-no-legacy-media-cache' }}
-      - name: Build cross compiler
-        run: |
-          cmake -G Ninja -S recipe -B build-mpv -DTARGET_ARCH=x86_64-w64-mingw32 -DGCC_ARCH=${{ matrix.arch }} -DCOMPILER_TOOLCHAIN=gcc -DMAKEJOBS=4
-          ninja -C build-mpv gcc
-      - name: Rebuild mpv after reusing compatible media dependencies
-        if: steps.media_cache.outputs.cache-matched-key == format('rife-mpv-aug2026-{0}-b9e3f0f4395326409d45f220d6c76da6693912d1c7a27b5703ff464c28a1b640', matrix.arch)
-        run: |
-          ninja -C build-mpv mpv-removebuild
-          find build-mpv -maxdepth 1 -type d -name 'mpv-dev-*' -exec rm -r -- {} +
-      - name: Restore cached git-am dependencies to their pinned sources
-        if: steps.media_cache.outputs.cache-matched-key != ''
-        run: |
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          import subprocess
-          for relative in json.loads(Path('source-lock.json').read_text())['sources']:
-              recipe = Path('recipe') / relative
-              name = recipe.stem
-              source = Path('build-mpv/packages') / (name+'-prefix/src/'+name)
-              if 'git am' in recipe.read_text() and (source/'.git').is_dir():
-                  subprocess.run(['ninja','-C','build-mpv',name+'-fullclean'],check=True)
-          PY
-      - name: Build mpv and media dependencies
-        id: media
-        run: |
-          ninja -C build-mpv mpv
-      - uses: actions/cache/save@v4
-        if: failure() && steps.media.outcome == 'failure'
-        with:
-          path: build-mpv
-          key: rife-media-${{ matrix.arch }}-${{ hashFiles('source-lock.json', 'dev/macos/rife/mpv-eof-aware.patch', 'dev/windows/rife/mpv-private-vs-core.patch', 'dev/windows/rife/mpv-win64-hwdec-pointer.patch', 'dev/windows/rife/mpv-win64-queue-pointer.patch', 'dev/windows/rife/ngtcp2-static-openssl.patch', 'dev/windows/rife/curl-static-openssl.patch', 'dev/windows/rife/prepare_mpv_recipe.py') }}-${{ github.run_id }}
-      - name: Record build provenance
-        if: success()
-        run: |
-          mkdir artifacts
-          find build-mpv -path '*/mpv-dev-*/libmpv-2.dll' -exec cp {} artifacts/ \;
-          find build-mpv -path '*/mpv-dev-*/libmpv.dll.a' -exec cp {} artifacts/ \;
-          test -s artifacts/libmpv-2.dll
-          cp source-lock.json artifacts/
-          sha256sum artifacts/libmpv-2.dll dev/macos/rife/mpv-eof-aware.patch dev/windows/rife/mpv-private-vs-core.patch dev/windows/rife/ngtcp2-static-openssl.patch > artifacts/SHA256SUMS.txt
-          sha256sum recipe/tigerest-luajit-utf8.patch >> artifacts/SHA256SUMS.txt
-          sha256sum dev/windows/rife/curl-static-openssl.patch >> artifacts/SHA256SUMS.txt
-          sha256sum dev/windows/rife/mpv-win64-hwdec-pointer.patch >> artifacts/SHA256SUMS.txt
-          sha256sum dev/windows/rife/mpv-win64-queue-pointer.patch >> artifacts/SHA256SUMS.txt
-          cp recipe/tigerest-luajit-utf8.patch artifacts/
-          printf '%s\n' '${{ github.sha }}' > artifacts/host-source-sha.txt
+          $ErrorActionPreference = 'Stop'
+          $proof = Get-Content reproduction-proof.json -Raw | ConvertFrom-Json
+          if (-not $proof.matchesApprovedCatalog) { throw 'Missing exact-match proof' }
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/402231980" | ConvertFrom-Json
+          if (-not $release.draft -or $release.tag_name -ne 'v2.3.3') { throw 'Unexpected release state' }
+          $existing = @($release.assets | Where-Object name -eq $proof.name)
+          if ($existing.Count -gt 0) {
+            if ($existing.Count -ne 1 -or $existing[0].digest -ne ('sha256:' + $proof.sha256) -or $existing[0].size -ne $proof.size -or $existing[0].state -ne 'uploaded') { throw 'Existing asset differs' }
+          } else {
+            gh release upload v2.3.3 "reproduced/$($proof.name)" --repo $env:GITHUB_REPOSITORY
+            if ($LASTEXITCODE -ne 0) { throw 'Extension upload failed' }
+          }
       - uses: actions/upload-artifact@v4
-        if: success()
         with:
-          name: rife-libmpv-${{ matrix.arch }}
-          path: artifacts
-      - uses: actions/cache/save@v4
-        if: success() && steps.media_cache.outputs.cache-hit != 'true'
-        with:
-          path: build-mpv
-          key: ${{ steps.media_cache.outputs.cache-primary-key }}
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: rife-libmpv-failure-${{ matrix.arch }}
-          path: |
-            build-mpv/**/src/*-stamp/*.log
-            build-mpv/CMakeFiles/CMakeConfigureLog.yaml
-            build-mpv/**/CMakeFiles/CMakeConfigureLog.yaml
-            source-lock.json
+          name: reproduction-proof-${{ matrix.architecture }}
+          path: reproduction-proof.json
