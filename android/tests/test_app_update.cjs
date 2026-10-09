@@ -5,16 +5,20 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const {run,connect,delay}=require('./cdp.cjs');
 const apk=path.resolve(process.env.TIGEREST_UPDATE_APK||path.join(__dirname,'../test-artifacts/update-candidate-2.4.2-debug.apk'));
 const bytes=fs.readFileSync(apk),hash=crypto.createHash('sha256').update(bytes).digest('hex');
-let mode='good',slow=false,c,port,releaseRequests=0,downloadRequests=0;
+let mode='good',slow=false,c,port,releaseRequests=0,downloadRequests=0,rangeRequests=0;
 const release=()=>[{tag_name:'v2.4.2',html_url:'https://github.com/Tigerest/Tigerest-Theater/releases/tag/v2.4.2',draft:false,prerelease:false,
  body:'更新检测实机验收\n升级到 2.4.2，保留现有设置。',assets:[{name:'TigerestTheater-2.4.2-android.apk',state:'uploaded',size:bytes.length,
  digest:'sha256:'+(mode==='bad-hash'?'0'.repeat(64):hash),browser_download_url:'https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.2/TigerestTheater-2.4.2-android.apk'}]}];
 const server=http.createServer((req,res)=>{
  if(req.url==='/releases'){releaseRequests++;res.setHeader('Content-Type','application/json');res.end(JSON.stringify(release()));return;}
  if(req.url==='/download'){
-  downloadRequests++;res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':bytes.length});
-  if(!slow){res.end(bytes);return;}
-  let offset=0;const timer=setInterval(()=>{const next=Math.min(offset+256*1024,bytes.length);res.write(bytes.subarray(offset,next));offset=next;if(offset===bytes.length){clearInterval(timer);res.end();}},12);
+  downloadRequests++;
+  // Honour resume requests like GitHub's asset host does.
+  const start=Number(/^bytes=(\d+)-$/.exec(req.headers.range||'')?.[1]||0),resumed=start>0&&start<bytes.length,body=resumed?bytes.subarray(start):bytes;
+  if(resumed){rangeRequests++;res.writeHead(206,{'Content-Type':'application/octet-stream','Content-Length':body.length,'Content-Range':`bytes ${start}-${bytes.length-1}/${bytes.length}`});}
+  else res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':bytes.length});
+  if(!slow){res.end(body);return;}
+  let offset=0;const timer=setInterval(()=>{const next=Math.min(offset+256*1024,body.length);res.write(body.subarray(offset,next));offset=next;if(offset===body.length){clearInterval(timer);res.end();}},12);
   res.on('close',()=>clearInterval(timer));return;
  }
  res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="background:#10141c;color:white"><h1>更新流程验收</h1></body>');
@@ -55,5 +59,6 @@ async function click(action){await wait(`!!document.querySelector('[data-update-
  await click('download');await wait('api.system.appUpdateState().then(s=>s.status==="downloading"&&s.received>0)');
  await reload();
  await wait('api.system.appUpdateState().then(s=>s.status==="installing"&&!s.installAfterDownload)');
- console.log(JSON.stringify({passed:true,startup:true,laterAcrossNavigation:true,skipAcrossRestart:true,manualBypassesSkip:true,hashRejection:true,cancelRetry:true,oneClickSurvivesReload:true,installerHandoff:true,releaseRequests,downloadRequests}));
+ assert.ok(rangeRequests>0,'downloading again after cancel must resume the kept prefix');
+ console.log(JSON.stringify({passed:true,startup:true,laterAcrossNavigation:true,skipAcrossRestart:true,manualBypassesSkip:true,hashRejection:true,cancelRetry:true,cancelResumes:true,oneClickSurvivesReload:true,installerHandoff:true,releaseRequests,downloadRequests,rangeRequests}));
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{c?.close();try{if(port)run('reverse','--remove','tcp:'+port);}finally{server.closeAllConnections();await new Promise(r=>server.close(r));}});

@@ -7,6 +7,8 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QFile>
+#include <QList>
+#include <QTimer>
 #include <functional>
 
 // Only native code supplies configuration, transport and a package launcher.
@@ -27,15 +29,24 @@ public:
   void cancel();
   void skip();
   void defer();
+  // Waits before each automatic resume of an interrupted package download.
+  // Only consecutive attempts that receive no new bytes consume an entry.
+  void setRetryDelays(const QList<int>& milliseconds);
 signals:
   void changed(const QVariantMap& state);
 private:
   void publish(const QString& status, const QString& error = {});
   void request(const QUrl& url, bool metadata, int redirects = 0);
+  void requestPackage();
+  bool acceptPackage(QNetworkReply* reply, int status);
   void receive(QNetworkReply* reply, bool metadata);
   void finish(QNetworkReply* reply, bool metadata, int redirects);
+  void retryPackage();
   void fail(const QString& message);
+  void stopTransfer();
   void clearTransfer();
+  void removeStalePartials() const;
+  QString packageDirectory() const;
   QString skippedVersion() const;
   const QString m_currentVersion;
   const AppUpdatePolicy::Package m_package;
@@ -50,6 +61,11 @@ private:
   QVariantMap m_state;
   QString m_downloadDirectory;
   QString m_readyPath;
+  QTimer m_retryTimer;
+  QList<int> m_retryDelays{2000, 5000, 10000, 20000, 30000};
+  int m_failedAttempts = 0;
+  qint64 m_attemptStart = 0;
+  bool m_packageAccepted = false;
   bool m_automaticAttempted = false;
   bool m_packageOpened = false;
 };
