@@ -41,3 +41,5 @@ node tests/test_community_messages_ui.cjs 'build/output/Tigerest Theater.exe' --
 `test_window_chrome` 的无边框最大化按钮检查会选择可用工作区小于整屏区域的显示器。若所有显示器的工作区都等于整屏，Qt 6.9 Windows 插件会在尺寸事件后把无边框最大化识别为全屏，该单个用例会明确跳过并说明原因；最小化、关闭、全屏、缩放边缘等检查继续执行。发布验证清单必须记录这个跳过项，不能把 CTest 可执行目标全部通过当作所有 Qt 用例均已执行。
 
 `test_webengine_runtime_deployment` 检查缺少同步补丁运行库、版本或 SHA256 不匹配时配置必须失败。`test_webengine_startup` 除软件渲染参数检查外，还使用独立临时配置启动正常硬件加速窗口，确认 D3D11 合成启用且日志实际出现 `D3D11 producer wait: completed=1, reset=0`。该测试不能代替媒体库悬停、滚动时的实际画面检查；不能因软件渲染测试通过就宣称花屏已修复。
+
+`test_windows_compositor` 采集前台 Windows 窗口的真实客户端像素，检查海报墙连续悬停、滚动后及全屏状态下的固定海报区域，并保存失败帧；它不使用 CDP 截图作为窗口合成通过证据。窗口被遮挡、切换前台、样本不足均失败。发布必须再对最终便携包运行，并完成 [每次更新花屏必检](RELEASE_CHECKLIST.md) 的真实媒体库人工记录。自动 fixture 通过不代表本次用户报告已解决。

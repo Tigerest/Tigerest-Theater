@@ -77,7 +77,7 @@ module.exports=async function withBrowser(routes,work,{settings={},gpu=false,vis
         // animation frames and short asynchronous bridge callbacks.
         await call('Page.bringToFront');
         await call('Emulation.setFocusEmulationEnabled',{enabled:true});
-        await work({url,call,evaluate,webengine});
+        await work({url,call,evaluate,webengine,pid:child.pid,profile,devToolsPort:port});
     }finally{
         socket?.close();
         if(child&&child.exitCode===null){const exited=new Promise(r=>child.once('exit',r));child.kill();await exited;}

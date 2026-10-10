@@ -15,6 +15,14 @@ add_test(NAME test_appupdater COMMAND test_appupdater)
 find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED COMPONENTS Test)
 
 if(WIN32)
+  add_executable(test_compositor_frame_check test_compositor_frame_check.cpp)
+  target_link_libraries(test_compositor_frame_check PRIVATE Qt6::Gui Qt6::Test)
+  add_test(NAME test_compositor_frame_check COMMAND test_compositor_frame_check)
+  add_executable(windows_compositor_capture windows_compositor_capture.cpp)
+  target_link_libraries(windows_compositor_capture PRIVATE Qt6::Gui gdi32 user32)
+endif()
+
+if(WIN32)
   add_executable(test_rife_startup_dialog test_rife_startup_dialog.cpp ../src/ui/RifeStartupDialog.cpp)
   target_include_directories(test_rife_startup_dialog PRIVATE ${CMAKE_SOURCE_DIR}/src)
   target_link_libraries(test_rife_startup_dialog PRIVATE Qt6::Widgets Qt6::Test)
@@ -146,6 +154,8 @@ set_tests_properties(test_emby_uosc_playlist PROPERTIES TIMEOUT 30 ENVIRONMENT "
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+  add_test(NAME test_compositor_release_gate
+           COMMAND ${Python3_EXECUTABLE} -B -X utf8 "${CMAKE_CURRENT_SOURCE_DIR}/test_compositor_release_gate.py")
   add_test(NAME test_macos_rife_runtime_pin COMMAND "${Python3_EXECUTABLE}" -B -X utf8
     "${CMAKE_CURRENT_SOURCE_DIR}/test_macos_rife_runtime_pin.py")
 endif()
@@ -536,6 +546,12 @@ if(Node_EXECUTABLE)
              COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_webengine_startup.js
                      $<TARGET_FILE:${MAIN_TARGET}>)
     set_tests_properties(test_webengine_startup PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+    add_test(NAME test_windows_compositor
+             COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_windows_compositor.cjs
+                     $<TARGET_FILE:${MAIN_TARGET}> --webengine
+                     --capture=$<TARGET_FILE:windows_compositor_capture>
+                     --output=${CMAKE_BINARY_DIR}/compositor-native-test)
+    set_tests_properties(test_windows_compositor PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE LABELS "windows-visual")
     add_test(NAME test_unicode_command_line
              COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_unicode_command_line.js
                      $<TARGET_FILE:TigerestTheater>)
@@ -555,6 +571,8 @@ if(Node_EXECUTABLE)
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_session_navigation.js)
   add_test(NAME test_web_appearance
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_web_appearance.js)
+  add_test(NAME test_compositor_evidence
+           COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_compositor_evidence.cjs)
 endif()
 if(WIN32)
   get_property(_rife_host_tests DIRECTORY PROPERTY TESTS)
