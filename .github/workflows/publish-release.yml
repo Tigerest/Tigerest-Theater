@@ -48,6 +48,10 @@ jobs:
             test "$(jq -r .path <<< "$RUN")" = ".github/workflows/$WORKFLOW"
           done
 
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+
       - name: Download successful build artifacts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -60,6 +64,16 @@ jobs:
           if [[ -n "$MACOS_RUN_ID" ]]; then
             gh run download "$MACOS_RUN_ID" --repo "$GITHUB_REPOSITORY" --name macos-arm64 --dir release-assets
           fi
+
+      - name: Require Windows hardware compositor and real-library checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          REPORT="TigerestTheater-${VERSION}-Windows-Visual-Check.json"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$REPORT" --dir release-check
+          python dev/windows/verify_compositor_release.py --report "release-check/$REPORT" --bundle "release-assets/TigerestTheater-${VERSION}-x64.zip"
 
       - name: Verify names and generate checksums
         env:

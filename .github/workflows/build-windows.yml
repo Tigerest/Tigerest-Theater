@@ -161,6 +161,21 @@ jobs:
         $env:TEST_PYTHON = (Get-Command python).Source
         node tests/test_windows_web_controls.cjs "build/portable/Tigerest Theater.exe"
         if ($LASTEXITCODE -ne 0) { throw 'Packaged controls failed' }
+    - name: Verify displayed packaged poster-wall pixels
+      shell: pwsh
+      run: |
+        Get-Content dev/windows/TESTING.md | Out-Null
+        . ./dev/windows/Enter-TestEnvironment.ps1
+        node tests/test_windows_compositor.cjs "build/portable/Tigerest Theater.exe" --webengine --capture=build/tests/windows_compositor_capture.exe --output=build/compositor-packaged-test
+        if ($LASTEXITCODE -ne 0) { throw 'Displayed compositor pixels failed; inspect captured evidence' }
+    - name: Archive Windows compositor evidence
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: windows-compositor-evidence
+        path: |
+          build/compositor-native-test/
+          build/compositor-packaged-test/
     - name: Archive installer
       uses: actions/upload-artifact@v7
       with:
