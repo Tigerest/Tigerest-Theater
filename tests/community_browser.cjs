@@ -17,7 +17,10 @@ module.exports=async function withBrowser(routes,work,{settings={},gpu=false,vis
         const route=routes[new URL(req.url,'http://fixture').pathname];
         if(!route){res.writeHead(404);res.end();return;}
         res.setHeader('Content-Type',route.type||'text/javascript; charset=utf-8');
-        res.end(route.path?fs.readFileSync(route.path):route.body);
+        // Optional per-route headers (e.g. no-store) and response delay.
+        for(const [name,value] of Object.entries(route.headers||{}))res.setHeader(name,value);
+        const send=()=>res.end(route.path?fs.readFileSync(route.path):route.body);
+        if(route.delay)setTimeout(send,route.delay);else send();
     });
     await new Promise(r=>server.listen(0,'127.0.0.1',r));
     const url='http://127.0.0.1:'+server.address().port;

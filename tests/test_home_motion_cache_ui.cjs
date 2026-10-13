@@ -6,6 +6,10 @@ const routes={
  '/transitions.js':{path:path.join(root,'native/homeTransitions.js')},'/motion.js':{path:path.join(root,'native/homeMotion.js')}
 };
 routes['/backdrop.js']={path:path.join(root,'native/homeBackdrop.js')};if(!embedded)routes['/'].body=routes['/'].body.replace('<script src="/transitions.js">','<script src="/backdrop.js"></script><script src="/transitions.js">');
+// A slow stylesheet, and one that loads once and then fails, both uncached so
+// every frozen copy of the page has to fetch them again.
+routes['/slow.css']={type:'text/css',body:'.slow-styled{outline:1px solid #f00}',delay:120,headers:{'Cache-Control':'no-store'}};
+let flakyServed=0;Object.defineProperty(routes,'/flaky.css',{enumerable:true,get:()=>flakyServed++?undefined:{type:'text/css',body:'.flaky-styled{outline:1px solid #0f0}',headers:{'Cache-Control':'no-store'}}});
 withBrowser(routes,async({evaluate,call,url})=>{
  await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
  assert.equal(await evaluate('typeof TigerestHomeTransitions.prewarm'),'function','current page can prewarm the expensive background');
@@ -57,12 +61,12 @@ withBrowser(routes,async({evaluate,call,url})=>{
  await evaluate(`new Promise((resolve,reject)=>{const img=document.createElement('img');img.id='cold-backdrop-image';Object.assign(img.style,{position:'fixed',right:'20px',top:'20px'});img.onload=resolve;img.onerror=reject;img.src='/poster.svg';libraryRoot.append(img);})`);
  // Hold actual decoding until motion is observed. The observer runs in the
  // browser, so CDP delivery and runner scheduling cannot miss the click phase.
- const firstPosterFrame=await evaluate(`(()=>{window.originalBitmap=createImageBitmap;window.coldDecoders=[];window.createImageBitmap=(...args)=>new Promise(resolve=>coldDecoders.push(()=>originalBitmap(...args).then(resolve)));TigerestHomeTransitions.invalidate();window.clickedPosterRect=libraryRoot.querySelector('img').getBoundingClientRect().toJSON();press();window.coldStart=performance.now();window.cold=router.showItem('work');window.coldStarted=motionFrame(()=>{const n=document.querySelector('.tigerest-motion-lens'),veil=document.querySelector('.tigerest-motion-veil'),p=document.querySelector('.tigerest-motion-poster'),rect=p?.getBoundingClientRect();const moved=rect&&Math.max(...['x','y','width','height'].map(k=>Math.abs(rect[k]-clickedPosterRect[k])))>.25;return n&&+getComputedStyle(n).opacity>0&&moved&&coldDecoders.length?{present:true,opacity:+getComputedStyle(n).opacity,veil:+getComputedStyle(veil).opacity,copies:document.querySelectorAll('.tigerest-motion-frozen').length,old:state.params.topParentId==='library',poster:rect.toJSON(),elapsedMs:performance.now()-coldStart}:null;});return document.querySelector('.tigerest-motion-poster').getBoundingClientRect().toJSON()})()`);
+ const firstPosterFrame=await evaluate(`(()=>{window.originalBitmap=createImageBitmap;window.coldDecoders=[];window.createImageBitmap=(...args)=>new Promise(resolve=>coldDecoders.push(()=>originalBitmap(...args).then(resolve)));TigerestHomeTransitions.invalidate();window.clickedPosterRect=libraryRoot.querySelector('img').getBoundingClientRect().toJSON();press();window.coldStart=performance.now();window.cold=router.showItem('work');window.coldStarted=motionFrame(()=>{const n=document.querySelector('.tigerest-motion-lens'),veil=document.querySelector('.tigerest-motion-veil'),p=document.querySelector('.tigerest-motion-poster'),rect=p?.getBoundingClientRect();const moved=rect&&Math.max(...['x','y','width','height'].map(k=>Math.abs(rect[k]-clickedPosterRect[k])))>.25;return n&&+getComputedStyle(n).opacity>0&&moved&&coldDecoders.length?{present:true,opacity:+getComputedStyle(n).opacity,veil:+getComputedStyle(veil).opacity,copies:document.querySelectorAll('.tigerest-motion-veil .tigerest-motion-frozen').length,covered:!!document.querySelector('.tigerest-motion-freeze'),poster:rect.toJSON(),elapsedMs:performance.now()-coldStart}:null;});return document.querySelector('.tigerest-motion-poster').getBoundingClientRect().toJSON()})()`);
  const clickedPoster=await evaluate('clickedPosterRect');
  assert.ok(Math.max(...['x','y','width','height'].map(k=>Math.abs(firstPosterFrame[k]-clickedPoster[k])))<1,'the floating poster starts exactly at the clicked poster');
  const started=await evaluate('coldStarted');
- assert.ok(started.present&&started.opacity>0&&started.old,'cold background preparation does not prevent the animation from starting: '+JSON.stringify(started));
- assert.ok(started.veil===0&&started.copies===0,'a cold click blurs the live page instead of copying it, and keeps the dark veil until the raster covers it: '+JSON.stringify(started));
+ assert.ok(started.present&&started.opacity>0&&started.covered,'cold background preparation does not prevent the animation from starting, and a freeze frame keeps the old page on screen: '+JSON.stringify(started));
+ assert.ok(started.veil===0&&started.copies===0,'a cold click blurs through a lens rather than a blurred copy, and keeps the dark veil until the raster covers it: '+JSON.stringify(started));
  const earlyPoster=started.poster;
  assert.ok(Math.abs(earlyPoster.width-clickedPoster.width)>.25||Math.abs(earlyPoster.x-clickedPoster.x)>.25||Math.abs(earlyPoster.y-clickedPoster.y)>.25,'the poster itself moves promptly while the cold background is still preparing');
  await evaluate('window.createImageBitmap=originalBitmap;Promise.all(coldDecoders.map(release=>release()))');
@@ -86,12 +90,42 @@ withBrowser(routes,async({evaluate,call,url})=>{
  await evaluate('press();window.foreignEntry=router.showItem("work");true');await evaluate('foreignEntry');
  const foreignMetric=await evaluate('TigerestHomeTransitions.last');assert.equal(foreignMetric.cacheHit,true);assert.equal(foreignMetric.backgroundPhases[0].rasterThread,'main-small');await evaluate('router.back()');
  await evaluate(`TigerestHomeTransitions.invalidate(false);window.savedWorker=Worker;window.Worker=undefined;window.noRaster=TigerestHomeTransitions.poster({source:libraryRoot.querySelector('img'),findTarget:()=>document.querySelector('#detail .detailImageContainer'),navigate:()=>new Promise(resolve=>{window.releaseNoRaster=()=>{show('detail');resolve();};})});true`);
- await evaluate('motionFrame(()=>!!window.releaseNoRaster)');
+ await evaluate(`motionFrame(()=>{const n=document.querySelector('.tigerest-motion-veil');return window.releaseNoRaster&&n&&+getComputedStyle(n).opacity>.99;})`);
  assert.ok(await evaluate(`(()=>{const n=document.querySelector('.tigerest-motion-veil');return +getComputedStyle(n).opacity>.99&&getComputedStyle(n).backgroundColor==='rgb(11, 13, 18)'})()`),'the DOM fallback covers its blur borders before the real route changes');
  assert.equal(await evaluate('state.params.topParentId'),'library');
  await evaluate('releaseNoRaster();true');await evaluate(`noRaster.then(()=>{window.Worker=savedWorker;show('library')})`);
+ // Off-screen list cards are size-holding placeholders in the frozen page;
+ // visible cards keep their exact positions after the list has scrolled,
+ // including fractional card sizes that rounding would accumulate.
+ await evaluate(`window.listCards=Array.from({length:60},(_,i)=>{const c=document.createElement('div');c.className='card extra-card';c.style.cssText='display:inline-block;vertical-align:top;width:90.4px;height:140.4px;margin:4px';c.innerHTML='<div class="cardImageContainer"><img class="cardImage" style="width:90px;height:130px" src="/poster.svg"></div>';return c;});libraryRoot.querySelector('.itemsContainer').prepend(...listCards);libraryRoot.style.overflow='auto';libraryRoot.scrollTop=600;Promise.all(listCards.map(c=>c.querySelector('img').decode().catch(()=>{}))).then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))`);
+ // Late image loads, the scroll event or the client's pending page entrance can
+ // invalidate or defer a prewarm; retry until the snapshot is settled.
+ await evaluate(`(async()=>{for(let i=0;i<30&&!TigerestHomeTransitions.cacheState.snapshot;i++)if(!await TigerestHomeTransitions.prewarm())await new Promise(r=>setTimeout(r,100));return TigerestHomeTransitions.cacheState.snapshot;})()`);
+ const pruned=await evaluate(`(()=>{const copies=Array.from(document.querySelector('.tigerest-motion-cache').firstElementChild.shadowRoot.querySelectorAll('.extra-card'));const inView=listCards.findIndex(c=>{const r=c.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;});if(inView<0)return {inView};const live=listCards[inView].querySelector('img').getBoundingClientRect(),copy=copies[inView].querySelector('img')?.getBoundingClientRect();return {count:copies.length,aboveEmpty:copies[0].childElementCount===0,aboveSize:Math.abs(copies[0].getBoundingClientRect().height-listCards[0].getBoundingClientRect().height),offset:copy?Math.max(...['x','y','width','height'].map(k=>Math.abs(live[k]-copy[k]))):null};})()`);
+ assert.ok(pruned.count===60&&pruned.aboveEmpty&&pruned.aboveSize<1&&pruned.offset!==null&&pruned.offset<1,'off-screen cards hold their size and visible cards stay aligned: '+JSON.stringify(pruned));
+ await evaluate(`listCards.forEach(c=>c.remove());libraryRoot.scrollTop=0;libraryRoot.style.overflow='';new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`);
+ // A visible frozen copy must never be missing a copied stylesheet.
+ await evaluate(`window.unstyledFrames=0;window.watchStyles=true;(function watch(){for(const host of document.querySelectorAll('.tigerest-motion-frozen')){const layer=host.closest('.tigerest-motion-layer');if(layer&&getComputedStyle(layer).opacity!=='0'&&getComputedStyle(host).opacity!=='0'&&Array.from(host.shadowRoot.querySelectorAll('link[rel="stylesheet"]')).some(l=>!l.sheet))unstyledFrames++;}if(watchStyles)requestAnimationFrame(watch);})();window.addSheet=href=>new Promise((resolve,reject)=>{const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.onload=()=>resolve(true);l.onerror=()=>reject(Error(href));document.head.append(l);window[href.includes('slow')?'slowLink':'flakyLink']=l;});window.homeStub={active:false,root:document.createElement('div')};window.toHome=()=>TigerestHomeTransitions.homeReturn({findGallery:()=>homeStub,navigate:()=>{homeStub.active=true;homeStub.root.classList.add('tg-entered');}}).then(()=>{homeStub.active=false;homeStub.root.classList.remove('tg-entered');});window.toDetail=()=>{window.atRoute=null;return TigerestHomeTransitions.poster({source:libraryRoot.querySelector('img'),findTarget:()=>document.querySelector('#detail .detailImageContainer'),navigate:()=>{const freeze=document.querySelector('.tigerest-motion-freeze .tigerest-motion-frozen');window.atRoute={freeze:!!freeze,styled:!!freeze&&Array.from(freeze.shadowRoot.querySelectorAll('link[rel="stylesheet"]')).every(l=>l.sheet),veil:+getComputedStyle(document.querySelector('.tigerest-motion-veil')).opacity};show('detail');}}).then(()=>show('library'));};true`);
+ // Slow sheet: fresh copies stay hidden until it loads, then are used.
+ await evaluate(`addSheet('/slow.css')`);
+ await evaluate('TigerestHomeTransitions.invalidate(false);toDetail()');
+ const slowRoute=await evaluate('atRoute');
+ assert.ok(slowRoute.freeze&&slowRoute.styled&&slowRoute.veil<.99,'a fresh freeze frame waits for a slow copied sheet, then the route still starts mid-fade: '+JSON.stringify(slowRoute));
+ await evaluate('TigerestHomeTransitions.invalidate(false);toHome()');
+ assert.ok(await evaluate(`TigerestHomeTransitions.last.lightCacheHit===false&&!TigerestHomeTransitions.last.copy&&!TigerestHomeTransitions.last.fallback`),'a fresh home-return copy is shown once its slow sheet loads');
+ // Failing sheet: a copy whose stylesheet errors is never offered or shown.
+ await evaluate(`addSheet('/flaky.css')`);
+ await evaluate('TigerestHomeTransitions.invalidate(false);TigerestHomeTransitions.prewarm()');
+ assert.deepEqual(await evaluate('({ready:TigerestHomeTransitions.cacheState.ready,snapshot:TigerestHomeTransitions.cacheState.snapshot})'),{ready:true,snapshot:false},'a snapshot whose copied sheet fails to load is never offered');
+ await evaluate('toDetail()');
+ const flakyRoute=await evaluate('({atRoute,freeze:TigerestHomeTransitions.last.freeze})');
+ assert.ok(flakyRoute.freeze==='late'&&!flakyRoute.atRoute.freeze&&flakyRoute.atRoute.veil>.99,'a failed copied sheet counts as not ready; the route waits for the opaque veil: '+JSON.stringify(flakyRoute));
+ await evaluate('TigerestHomeTransitions.invalidate(false);toHome()');
+ assert.equal(await evaluate('TigerestHomeTransitions.last.copy'),'unstyled','home return falls back to a plain fade instead of an unstyled copy');
+ await evaluate('watchStyles=false;slowLink.remove();flakyLink.remove();true');
+ assert.equal(await evaluate('unstyledFrames'),0,'no frame showed a frozen copy with a missing stylesheet');
  await evaluate('TigerestHomeMotion.reset()');assert.equal(await evaluate('TigerestHomeTransitions.cacheState.ready'),false,'account reset releases the cached background');
  await evaluate('TigerestHomeTransitions.prewarm()');await call('Emulation.setDeviceMetricsOverride',{width:900,height:700,deviceScaleFactor:1,mobile:false});assert.equal(await evaluate('TigerestHomeTransitions.cacheState.ready'),false,'viewport changes cannot use the old background');
  await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});assert.equal(await evaluate('TigerestHomeTransitions.prewarm()'),false);assert.equal(await evaluate('TigerestHomeTransitions.cacheState.bytes'),0);
- console.log('async background/cache fixture:',JSON.stringify({checks:29,hot,started,foreignMetric}));
+ console.log('async background/cache fixture:',JSON.stringify({checks:37,hot,started,foreignMetric}));
 },{gpu:true,visible:true}).catch(e=>{console.error(e);process.exitCode=1});

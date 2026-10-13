@@ -6,7 +6,18 @@
 const path=require('node:path'),withBrowser=require('./community_browser.cjs');
 const repo=path.resolve(__dirname,'..'),rounds=Number(process.argv.find(a=>a.startsWith('--rounds='))?.slice(9)||5);
 const embedded=process.argv.includes('--webengine')||!!process.env.TIGEREST_ANDROID_FIXTURE;
-const poster=hue=>`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},55%,45%)"/><stop offset="1" stop-color="hsl(${(hue+80)%360},45%,20%)"/></linearGradient></defs><rect width="600" height="900" fill="url(#g)"/><circle cx="300" cy="330" r="180" fill="hsl(${(hue+160)%360},40%,60%)" opacity=".7"/><text x="40" y="820" font-size="64" fill="#fff">POSTER ${hue}</text></svg>`;
+// Raster PNG posters like Emby's JPEG artwork. SVG artwork is rasterized on the
+// main thread and made QtWebEngine software rendering stall for seconds.
+const zlib=require('node:zlib'),posters=new Map();
+function chunk(type,data){const len=Buffer.alloc(4),crc=Buffer.alloc(4),body=Buffer.concat([Buffer.from(type),data]);len.writeUInt32BE(data.length);crc.writeUInt32BE(zlib.crc32(body));return Buffer.concat([len,body,crc]);}
+function poster(hue){
+ if(posters.has(hue))return posters.get(hue);
+ const w=300,h=450,raw=Buffer.alloc((w*3+1)*h),a=[(hue*7)%200+40,(hue*3)%180+30,(hue*11)%160+60],b=[a[2]>>2,a[0]>>2,a[1]>>2];
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){const t=(x+y)/(w+h),inside=(x-150)**2+(y-170)**2<90**2,o=y*(w*3+1)+1+x*3;for(let c=0;c<3;c++)raw[o+c]=inside?Math.min(255,a[c]+90):Math.round(a[c]*(1-t)+b[c]*t);}
+ const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(w,0);ihdr.writeUInt32BE(h,4);ihdr.set([8,2,0,0,0],8);
+ const png=Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]);
+ posters.set(hue,png);return png;
+}
 function sheet(seed,n){let s=':root{'+Array.from({length:40},(_,i)=>`--v${seed}-${i}:${i}px;`).join('')+'}\n';for(let i=0;i<n;i++)s+=`.s${seed}-${i} .k${i%97}>.m${i%31}:not(.hide),.skinBody .z${i}[data-a="${i%13}"]{margin:${i%7}px ${i%5}px;padding:${i%3}px;color:rgb(${i%255},${(i*7)%255},${(i*13)%255});border-radius:${i%9}px;font-size:${10+i%8}px}\n`;return s;}
 const layout=`body{margin:0;background:#101722;color:#ddd;font:14px sans-serif;overflow:hidden}
 .backgroundContainer,.backdropContainer{position:fixed;inset:0}.backdropImage{position:absolute;inset:0;background-size:cover;opacity:.35}
@@ -18,7 +29,7 @@ const layout=`body{margin:0;background:#101722;color:#ddd;font:14px sans-serif;o
 .tg-home-rail{overflow:hidden}.tg-cover-list{display:flex;gap:12px;overflow-x:auto;padding:12px}.tg-cover{flex:0 0 120px;height:180px;position:relative;border:0;padding:0;background:#000}.tg-cover img{width:100%;height:100%;object-fit:cover}.tg-cover-label{position:absolute;left:4px;bottom:4px;font-size:11px}
 .itemsContainer{display:flex;flex-wrap:wrap;gap:14px;padding:20px}.card{width:150px}.cardBox{margin:0}.cardScalable{position:relative}.cardPadder{padding-bottom:150%}.cardImageContainer{position:absolute;inset:0}.cardImage{width:100%;height:100%;object-fit:cover;display:block}.cardFooter{height:40px}.cardText{white-space:nowrap;overflow:hidden;font-size:12px}
 .detailMainContainer{display:flex;gap:24px;padding:40px}.detailImageContainer-main{width:240px;flex:0 0 240px}.detailImageContainer-main img{width:240px;height:360px;object-fit:cover}.detailTextContainer h1{font-size:36px}.castList{display:flex;flex-wrap:wrap;gap:10px;padding:20px 40px}.cast{width:90px}.cast img{width:90px;height:90px;border-radius:50%;object-fit:cover}`;
-let id=0;const img=(cls,hue,lazy=false)=>`<img class="${cls}" ${lazy?'loading="lazy" ':''}src="/img/p.svg?h=${hue}&n=${id++}">`;
+let id=0;const img=(cls,hue,lazy=false)=>`<img class="${cls}" ${lazy?'loading="lazy" ':''}src="/img/p.png?h=${hue}&n=${id++}">`;
 const homeHtml=`<div class="page mainAnimatedPage" id="home"><div class="tg-home-host"><div class="tg-home tg-entered">
 <nav class="tg-home-nav">${Array.from({length:10},(_,i)=>`<button class="tg-library" data-library-id="lib${i}">${img('',i*30)}<span class="tg-library-label"><span>媒体夹 ${i}</span><span>LIBRARY 0${i}</span></span></button>`).join('')}</nav>
 <section class="tg-home-stage">${img('hero',200)}<div class="hero-content"><div class="kicker">动画 / 继续观看</div><h2 id="hero-title">作品标题</h2><div class="sub">2024 · 最新入库 S1:E12</div><p id="hero-overview">${'简介文字。'.repeat(40)}</p></div></section>
@@ -29,12 +40,12 @@ const libraryHtml=`<div class="page mainAnimatedPage hide" id="library"><div cla
 const detailHtml=`<div class="page mainAnimatedPage hide view-item-item" id="detail"><div class="detailMainContainer"><div class="detailImageContainer detailImageContainer-main">${img('cardImage',7*3)}</div><div class="detailTextContainer"><h1>作品 3</h1>${Array.from({length:30},(_,i)=>`<div class="detail-row k${i}"><span>字段 ${i}</span><span>${'值'.repeat(i%9+1)}</span></div>`).join('')}<p>${'剧情介绍。'.repeat(80)}</p></div></div><div class="castList">${Array.from({length:60},(_,i)=>`<div class="cast">${img('',i*11,i>12)}<div>演员 ${i}</div><div>角色 ${i}</div></div>`).join('')}</div>${Array.from({length:4},(_,s)=>`<div class="itemsContainer">${Array.from({length:20},(_,i)=>card(300+s*20+i)).join('')}</div>`).join('')}</div>`;
 const hidden=n=>`<div class="page mainAnimatedPage hide" id="old${n}">${Array.from({length:150},(_,i)=>`<div class="row s2-${i}"><span class="a">${i}</span><span class="b">${'x'.repeat(i%20)}</span><div class="c"><i></i><i></i><i></i></div></div>`).join('')}</div>`;
 const body=`<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/a.css"><link rel="stylesheet" href="/css/b.css"><style>${layout}</style>${[1,2,3].map(n=>`<style>${sheet(n,900)}</style>`).join('')}
-<body class="skinBody"><div class="backgroundContainer"></div><div class="backdropContainer"><div class="backdropImage" style="background-image:url(/img/p.svg?h=99&n=bd)"></div></div><div class="skinHeader"><b>Emby</b>${Array.from({length:8},(_,i)=>`<button>btn${i}</button>`).join('')}</div>${homeHtml}${libraryHtml}${detailHtml}${hidden(1)}${hidden(2)}
+<body class="skinBody"><div class="backgroundContainer"></div><div class="backdropContainer"><div class="backdropImage" style="background-image:url(/img/p.png?h=99&n=bd)"></div></div><div class="skinHeader"><b>Emby</b>${Array.from({length:8},(_,i)=>`<button>btn${i}</button>`).join('')}</div>${homeHtml}${libraryHtml}${detailHtml}${hidden(1)}${hidden(2)}
 ${embedded?'':'<script src="/backdrop.js"></script><script src="/transitions.js"></script><script src="/motion.js"></script>'}</body>`;
 const routes={'/':{type:'text/html; charset=utf-8',body},'/css/a.css':{type:'text/css',body:sheet(4,900)},'/css/b.css':{type:'text/css',body:sheet(5,900)},
  '/backdrop.js':{path:path.join(repo,'native/homeBackdrop.js')},'/transitions.js':{path:path.join(repo,'native/homeTransitions.js')},'/motion.js':{path:path.join(repo,'native/homeMotion.js')}};
 // Card artwork: one deterministic SVG per query, so every card decodes separately.
-const proxy=new Proxy(routes,{get(t,k){if(typeof k==='string'&&k.startsWith('/img/'))return {type:'image/svg+xml',body:poster([...k].reduce((a,c)=>a*31+c.charCodeAt(0)>>>0,7)%360)};return t[k];}});
+const proxy=new Proxy(routes,{get(t,k){if(typeof k==='string'&&k.startsWith('/img/'))return {type:'image/png',body:poster([...k].reduce((a,c)=>a*31+c.charCodeAt(0)>>>0,7)%24)};return t[k];}});
 withBrowser(proxy,async({evaluate,call})=>{
  if(!process.env.TIGEREST_ANDROID_FIXTURE)await call('Emulation.setDeviceMetricsOverride',{width:1280,height:720,deviceScaleFactor:1,mobile:false});
  await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
