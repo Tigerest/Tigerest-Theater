@@ -9,6 +9,15 @@
 
 namespace AppUpdatePolicy
 {
+namespace
+{
+QString packageSuffix(Package package)
+{
+  return package == Package::WindowsInstaller ? "x64.exe" :
+    package == Package::WindowsPortable ? "x64.zip" : package == Package::MacArm64 ? "arm64.dmg" : QString();
+}
+}
+
 Candidate select(const QJsonArray& releases, const QString& currentVersion, Package package)
 {
   const QRegularExpression currentPattern("^v?(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})(-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$");
@@ -16,8 +25,7 @@ Candidate select(const QJsonArray& releases, const QString& currentVersion, Pack
   const auto currentMatch = currentPattern.match(currentVersion);
   if (!currentMatch.hasMatch()) return {};
   const QVersionNumber current(currentMatch.captured(1).toInt(), currentMatch.captured(2).toInt(), currentMatch.captured(3).toInt());
-  const QString suffix = package == Package::WindowsInstaller ? "x64.exe" :
-    package == Package::WindowsPortable ? "x64.zip" : package == Package::MacArm64 ? "arm64.dmg" : QString();
+  const QString suffix = packageSuffix(package);
   if (suffix.isEmpty()) return {};
   Candidate best;
   QVersionNumber bestVersion;
@@ -60,5 +68,33 @@ bool verifyFile(const QString& path, const Candidate& candidate)
   if (!file.open(QIODevice::ReadOnly) || file.size() != candidate.size) return false;
   QCryptographicHash hash(QCryptographicHash::Sha256);
   return hash.addData(&file) && hash.result() == candidate.sha256;
+}
+
+QString manifestName(const QString& tag, Package package)
+{
+  // Mac packages are added later with their own manifest.
+  if (packageSuffix(package).isEmpty()) return {};
+  return "TigerestTheater-" + tag.mid(1) + (package == Package::MacArm64 ? "-APPLE-RELEASE-MANIFEST.json" : "-RELEASE-MANIFEST.json");
+}
+
+QJsonArray manifestRelease(const QJsonObject& manifest, const QString& tag, Package package)
+{
+  const QString suffix = packageSuffix(package);
+  if (suffix.isEmpty() || manifest.value("version").toString() != tag.mid(1)) return {};
+  const QString name = "TigerestTheater-" + tag.mid(1) + "-" + suffix;
+  const QRegularExpression sha256("^[0-9a-fA-F]{64}$");
+  for (const QString key : {"files", "assets"})
+    for (const auto& item : manifest.value(key).toArray())
+    {
+      const auto file = item.toObject();
+      if (file.value("name").toString() != name || !sha256.match(file.value("sha256").toString()).hasMatch()) continue;
+      // select() still validates the version, size and canonical download URL.
+      const QJsonObject asset{{"name", name}, {"size", file.value("size")},
+        {"digest", "sha256:" + file.value("sha256").toString()},
+        {"browser_download_url", "https://github.com/Tigerest/Tigerest-Theater/releases/download/" + tag + "/" + name}};
+      return QJsonArray{QJsonObject{{"tag_name", tag}, {"draft", false}, {"prerelease", false}, {"body", ""},
+        {"assets", QJsonArray{asset}}}};
+    }
+  return {};
 }
 }

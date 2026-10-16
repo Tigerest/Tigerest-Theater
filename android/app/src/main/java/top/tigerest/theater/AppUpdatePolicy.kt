@@ -1,6 +1,7 @@
 package top.tigerest.theater
 
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.math.BigInteger
 import java.security.MessageDigest
@@ -45,6 +46,28 @@ object AppUpdatePolicy {
             if (best == null || compare(version, best.version) > 0) best = AppUpdateCandidate(version, releaseUrl, notes, size, hash.substring(7).lowercase(), downloadUrl)
         }
         return best
+    }
+    private val tagPage = Regex(Regex.escape(REPOSITORY) + "/releases/tag/(v(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8}))")
+    /** The stable tag whose page github.com/<repository>/releases/latest redirected to. */
+    fun latestTag(pageUrl: String): String? = tagPage.matchEntire(pageUrl)?.groupValues?.get(1)
+    fun manifestName(tag: String) = "TigerestTheater-${tag.removePrefix("v")}-RELEASE-MANIFEST.json"
+    /**
+     * A release's download manifest records each package's size and SHA-256. When the GitHub
+     * API is rate limited it stands in for that tag's API entry, still validated by select().
+     * Empty when the manifest does not list the APK.
+     */
+    fun manifestRelease(manifest: JSONObject, tag: String): JSONArray {
+        val version = tag.removePrefix("v")
+        val name = "TigerestTheater-$version-android.apk"
+        val files = manifest.optJSONArray("files")
+        if (manifest.optString("version") != version || files == null) return JSONArray()
+        val file = (0 until files.length()).mapNotNull { files.optJSONObject(it) }.firstOrNull { it.optString("name") == name }
+        val sha256 = file?.optString("sha256").orEmpty()
+        if (!Regex("[0-9a-fA-F]{64}").matches(sha256)) return JSONArray()
+        val asset = JSONObject().put("name", name).put("state", "uploaded").put("size", file?.opt("size"))
+            .put("digest", "sha256:$sha256").put("browser_download_url", "$REPOSITORY/releases/download/$tag/$name")
+        return JSONArray().put(JSONObject().put("tag_name", tag).put("draft", false).put("prerelease", false)
+            .put("html_url", "$REPOSITORY/releases/tag/$tag").put("body", "").put("assets", JSONArray().put(asset)))
     }
     fun verifyFile(file: File, candidate: AppUpdateCandidate) {
         require(file.isFile && file.length() == candidate.size) { "更新包大小不匹配，请重新下载" }

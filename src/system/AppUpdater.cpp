@@ -3,6 +3,7 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QTimer>
 
@@ -11,6 +12,7 @@ using AppUpdatePolicy::Package;
 namespace {
 constexpr int RetryDelays[] = {2000, 5000, 10000, 20000, 30000};
 constexpr int RetryLimit = sizeof(RetryDelays) / sizeof(RetryDelays[0]);
+constexpr auto RateLimited = "GitHub 请求受限，请稍后重试。";
 bool plainPath(const QString& path)
 {
   const QFileInfo info(path);
@@ -131,6 +133,7 @@ void AppUpdater::check(bool manual, bool enabled)
   }
   publish("checking");
   if (m_state.value("status") != "checking") return;
+  m_source = Source::Api;
   request(QUrl("https://api.github.com/repos/Tigerest/Tigerest-Theater/releases?per_page=30"), true);
 }
 
@@ -139,9 +142,10 @@ void AppUpdater::request(const QUrl& url, bool metadata, int redirects)
   QNetworkRequest request(url);
   request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
   request.setHeader(QNetworkRequest::UserAgentHeader, "Tigerest-Theater-Updater/" + m_currentVersion);
-  request.setRawHeader("Accept", metadata ? "application/vnd.github+json" : "application/octet-stream");
+  const bool api = metadata && m_source == Source::Api;
+  request.setRawHeader("Accept", api ? "application/vnd.github+json" : "application/octet-stream");
   request.setRawHeader("Accept-Encoding", "identity");
-  if (metadata) request.setRawHeader("X-GitHub-Api-Version", "2022-11-28");
+  if (api) request.setRawHeader("X-GitHub-Api-Version", "2022-11-28");
   if (!metadata && m_requestOffset > 0)
   {
     request.setRawHeader("Range", "bytes=" + QByteArray::number(m_requestOffset) + "-");
@@ -356,11 +360,16 @@ void AppUpdater::finish(QNetworkReply* reply, bool metadata, int redirects)
   receive(reply, metadata);
   if (m_reply != reply) return;
   const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+  if (metadata && m_source == Source::LatestRelease)
+  {
+    checkReleaseManifest(reply, status);
+    return;
+  }
   if (status >= 300 && status < 400)
   {
     const QUrl target = reply->url().resolved(reply->attribute(QNetworkRequest::RedirectionTargetAttribute).toUrl());
     const QString host = target.host().toLower();
-    const bool knownHost = metadata ? host == "api.github.com" :
+    const bool knownHost = metadata && m_source == Source::Api ? host == "api.github.com" :
       (host == "github.com" || host == "release-assets.githubusercontent.com" || host == "objects.githubusercontent.com");
     if (redirects >= 5 || !target.isValid() || target.scheme() != "https" || !knownHost ||
         !target.userInfo().isEmpty() || target.hasFragment() || (target.port() != -1 && target.port() != 443))
@@ -381,7 +390,17 @@ void AppUpdater::finish(QNetworkReply* reply, bool metadata, int redirects)
         error == QNetworkReply::OperationCanceledError || error == QNetworkReply::TemporaryNetworkFailureError ||
         error == QNetworkReply::HostNotFoundError || error == QNetworkReply::ConnectionRefusedError))
     { retryDownload("更新下载中断，正在重试。"); return; }
-    fail(status == 403 || status == 429 ? "GitHub 请求受限，请稍后重试。" : "无法获取更新，请检查网络后重试。");
+    if (metadata && m_source == Source::Api && (status == 403 || status == 429))
+    {
+      // The unauthenticated API allows 60 requests an hour per address, which a
+      // shared proxy can exhaust. Release pages and downloads are not counted.
+      m_reply.clear();
+      reply->deleteLater();
+      m_source = Source::LatestRelease;
+      request(QUrl("https://github.com/Tigerest/Tigerest-Theater/releases/latest"), true);
+      return;
+    }
+    fail(status == 403 || status == 429 || (metadata && m_source != Source::Api) ? RateLimited : "无法获取更新，请检查网络后重试。");
     return;
   }
   m_reply.clear();
@@ -391,12 +410,19 @@ void AppUpdater::finish(QNetworkReply* reply, bool metadata, int redirects)
     QJsonParseError parseError;
     const auto document = QJsonDocument::fromJson(m_metadata, &parseError);
     m_metadata.clear();
-    if (parseError.error != QJsonParseError::NoError || !document.isArray() || document.array().size() > 30)
+    const bool manifest = m_source == Source::Manifest;
+    if (parseError.error != QJsonParseError::NoError ||
+        (manifest ? !document.isObject() : !document.isArray() || document.array().size() > 30))
     {
       fail("更新服务器返回了无效的版本信息。");
       return;
     }
-    m_candidate = AppUpdatePolicy::select(document.array(), m_currentVersion, m_package);
+    const auto releases = manifest ?
+      AppUpdatePolicy::manifestRelease(document.object(), m_fallbackTag, m_package) : document.array();
+    // Without the API list an older release cannot be offered instead when the
+    // newest one lacks this package, as before its Mac build is added.
+    if (manifest && releases.isEmpty()) { fail(RateLimited); return; }
+    m_candidate = AppUpdatePolicy::select(releases, m_currentVersion, m_package);
     if (m_candidate.valid() && !m_state.value("manual").toBool() && m_candidate.version == skippedVersion())
     {
       m_candidate = {};
@@ -409,6 +435,23 @@ void AppUpdater::finish(QNetworkReply* reply, bool metadata, int redirects)
   }
   if (m_file.size() < m_candidate.size) { retryDownload("下载尚未完成，正在重试。"); return; }
   completeDownload();
+}
+
+void AppUpdater::checkReleaseManifest(QNetworkReply* reply, int status)
+{
+  // releases/latest redirects to the newest stable release's tag page.
+  static const QRegularExpression tagPage("^https://github\\.com/Tigerest/Tigerest-Theater/releases/tag/"
+    "(v(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8}))$");
+  const QUrl target = reply->url().resolved(reply->attribute(QNetworkRequest::RedirectionTargetAttribute).toUrl());
+  const auto match = tagPage.match(target.toString(QUrl::FullyEncoded));
+  m_reply.clear();
+  reply->deleteLater();
+  if (status < 300 || status >= 400 || !match.hasMatch()) { fail(RateLimited); return; }
+  m_metadata.clear();
+  m_fallbackTag = match.captured(1);
+  m_source = Source::Manifest;
+  request(QUrl("https://github.com/Tigerest/Tigerest-Theater/releases/download/" + m_fallbackTag + "/" +
+    AppUpdatePolicy::manifestName(m_fallbackTag, m_package)), true);
 }
 
 void AppUpdater::fail(const QString& message, bool discard)

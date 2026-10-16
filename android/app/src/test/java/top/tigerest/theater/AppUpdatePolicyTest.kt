@@ -40,6 +40,25 @@ class AppUpdatePolicyTest {
         )) assertNull(bad.toString(), AppUpdatePolicy.select(JSONArray().put(bad), "2.4.1"))
     }
 
+    @Test fun releaseManifestStandsInForRateLimitedApi() {
+        val repository = "https://github.com/Tigerest/Tigerest-Theater/releases"
+        assertEquals("v2.8.0", AppUpdatePolicy.latestTag("$repository/tag/v2.8.0"))
+        for (bad in listOf("$repository/tag/v2.8.0-beta", "$repository/tag/v2.8.0/extra", "https://github.com/Other/Repo/releases/tag/v2.8.0", "$repository/latest"))
+            assertNull(bad, AppUpdatePolicy.latestTag(bad))
+        assertEquals("TigerestTheater-2.8.0-RELEASE-MANIFEST.json", AppUpdatePolicy.manifestName("v2.8.0"))
+        fun file(name: String, size: Any = 3) = JSONObject().put("name", name).put("size", size).put("sha256", digest)
+        val manifest = JSONObject().put("version", "2.8.0").put("files", JSONArray()
+            .put(file("TigerestTheater-2.8.0-x64.exe", 5)).put(file("TigerestTheater-2.8.0-android.apk")))
+        val selected = AppUpdatePolicy.select(AppUpdatePolicy.manifestRelease(manifest, "v2.8.0"), "2.7.0")!!
+        assertEquals(AppUpdateCandidate("2.8.0", "$repository/tag/v2.8.0", "", 3, digest,
+            "$repository/download/v2.8.0/TigerestTheater-2.8.0-android.apk"), selected)
+        assertNull(AppUpdatePolicy.select(AppUpdatePolicy.manifestRelease(manifest, "v2.8.0"), "2.8.0"))
+        assertEquals(0, AppUpdatePolicy.manifestRelease(manifest, "v2.9.0").length())
+        assertEquals(0, AppUpdatePolicy.manifestRelease(JSONObject(manifest.toString()).put("files", JSONArray().put(file("TigerestTheater-2.8.0-x64.exe"))), "v2.8.0").length())
+        val oversized = JSONObject(manifest.toString()).put("files", JSONArray().put(file("TigerestTheater-2.8.0-android.apk", 2L * 1024 * 1024 * 1024)))
+        assertNull(AppUpdatePolicy.select(AppUpdatePolicy.manifestRelease(oversized, "v2.8.0"), "2.7.0"))
+    }
+
     @Test fun checksActualBytesAndExactLength() {
         val selected = AppUpdatePolicy.select(JSONArray().put(release("2.5.0")), "2.4.1")!!
         val file = File.createTempFile("update", ".apk")

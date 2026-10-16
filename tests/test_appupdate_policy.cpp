@@ -44,6 +44,27 @@ private slots:
     QVERIFY(!select({release("1.9.0")}, "2.0.0-dev", Package::WindowsInstaller).valid());
     QVERIFY(!select({release("2.0.0")}, "unknown", Package::WindowsInstaller).valid());
   }
+  void releaseManifestStandsInForTheApiRelease()
+  {
+    const QString hash = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    QJsonObject manifest{{"version", "2.1.0"}, {"files", QJsonArray{
+      QJsonObject{{"name", "TigerestTheater-2.1.0-x64.zip"}, {"size", 5}, {"sha256", QString(64, 'a')}},
+      QJsonObject{{"name", "TigerestTheater-2.1.0-x64.exe"}, {"size", 3}, {"sha256", hash}}}}};
+    const auto c = select(manifestRelease(manifest, "v2.1.0", Package::WindowsInstaller), "2.0.0", Package::WindowsInstaller);
+    QCOMPARE(c.fileName, "TigerestTheater-2.1.0-x64.exe");
+    QCOMPARE(c.size, 3);
+    QCOMPARE(QString::fromLatin1(c.sha256.toHex()), hash);
+    QCOMPARE(c.downloadUrl, QUrl("https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.1.0/TigerestTheater-2.1.0-x64.exe"));
+    QCOMPARE(c.releaseUrl, QUrl("https://github.com/Tigerest/Tigerest-Theater/releases/tag/v2.1.0"));
+    QVERIFY(!select(manifestRelease(manifest, "v2.1.0", Package::WindowsInstaller), "2.1.0", Package::WindowsInstaller).valid());
+    QVERIFY(manifestRelease(manifest, "v2.2.0", Package::WindowsInstaller).isEmpty());
+    QVERIFY(manifestRelease(manifest, "v2.1.0", Package::MacArm64).isEmpty());
+    QVERIFY(manifestRelease(manifest, "v2.1.0", Package::Unsupported).isEmpty());
+    manifest["files"] = QJsonArray{QJsonObject{{"name", "TigerestTheater-2.1.0-x64.exe"}, {"size", MaximumPackageBytes + 1}, {"sha256", hash}}};
+    QVERIFY(!select(manifestRelease(manifest, "v2.1.0", Package::WindowsInstaller), "2.0.0", Package::WindowsInstaller).valid());
+    QCOMPARE(manifestName("v2.1.0", Package::WindowsPortable), "TigerestTheater-2.1.0-RELEASE-MANIFEST.json");
+    QCOMPARE(manifestName("v2.1.0", Package::MacArm64), "TigerestTheater-2.1.0-APPLE-RELEASE-MANIFEST.json");
+  }
   void choosesExactPlatformPackage()
   {
     QJsonArray versions{release("2.0.0"), release("2.1.0", "arm64.dmg"), release("2.2.0", "x64.zip"), release("2.3.0", "arm64.apk")};

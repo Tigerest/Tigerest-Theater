@@ -10,6 +10,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.io.InterruptedIOException
@@ -17,6 +18,8 @@ import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipFile
+
+private class RateLimitedException(message: String): IllegalStateException(message)
 
 /** All production URLs originate from the fixed official feed and validated release metadata. */
 class AndroidAppUpdateSource(private val context: Context): AppUpdateSource {
@@ -49,6 +52,7 @@ class AndroidAppUpdateSource(private val context: Context): AppUpdateSource {
                     val message = if (code == 403 || code == 429) "更新服务暂时限流，请稍后重试" else "更新服务响应失败（$code），请稍后重试"
                     // Each retry opens the official release URL again, obtaining a fresh signed asset redirect.
                     if (resumeFrom != null && (code in setOf(403, 408, 429) || code in 500..599)) throw IOException(message)
+                    if (code == 403 || code == 429) throw RateLimitedException(message)
                     throw IllegalStateException(message)
                 }
                 return response
@@ -62,13 +66,31 @@ class AndroidAppUpdateSource(private val context: Context): AppUpdateSource {
         error("更新下载重定向过多")
     }
 
+    private fun text(response: Response): String {
+        val bytes = response.body?.byteStream()?.readNBytes(2 * 1024 * 1024 + 1) ?: throw IllegalStateException("更新服务返回空数据")
+        require(bytes.size <= 2 * 1024 * 1024) { "更新信息过大" }
+        return bytes.toString(Charsets.UTF_8)
+    }
+
     override fun releases(): JSONArray {
         val generation = cancellation.get()
-        val address = if (BuildConfig.DEBUG && fixture.isNotEmpty()) "$fixture/releases" else "https://api.github.com/repos/Tigerest/Tigerest-Theater/releases?per_page=30"
-        return open(address, "application/vnd.github+json", { generation != cancellation.get() }).use { response ->
-            val bytes = response.body?.byteStream()?.readNBytes(2 * 1024 * 1024 + 1) ?: throw IllegalStateException("更新服务返回空数据")
-            require(bytes.size <= 2 * 1024 * 1024) { "更新信息过大" }
-            JSONArray(bytes.toString(Charsets.UTF_8))
+        val cancelled = { generation != cancellation.get() }
+        if (BuildConfig.DEBUG && fixture.isNotEmpty()) return open("$fixture/releases", "application/vnd.github+json", cancelled).use { JSONArray(text(it)) }
+        return try {
+            open("https://api.github.com/repos/Tigerest/Tigerest-Theater/releases?per_page=30", "application/vnd.github+json", cancelled).use { JSONArray(text(it)) }
+        } catch (limited: RateLimitedException) {
+            // The unauthenticated API allows 60 requests an hour per address, which a shared
+            // proxy can exhaust. Release pages and downloads are not counted against it.
+            val release = try { manifestRelease(cancelled) } catch (error: InterruptedIOException) { throw error } catch (ignored: Exception) { null }
+            release?.takeIf { it.length() > 0 } ?: throw limited
+        }
+    }
+
+    private fun manifestRelease(cancelled: () -> Boolean): JSONArray? {
+        val repository = "https://github.com/Tigerest/Tigerest-Theater/releases"
+        val tag = open("$repository/latest", "text/html", cancelled).use { AppUpdatePolicy.latestTag(it.request.url.toString()) } ?: return null
+        return open("$repository/download/$tag/${AppUpdatePolicy.manifestName(tag)}", "application/octet-stream", cancelled).use {
+            AppUpdatePolicy.manifestRelease(JSONObject(text(it)), tag)
         }
     }
 

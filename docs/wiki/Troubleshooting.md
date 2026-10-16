@@ -87,6 +87,8 @@
 
 Windows 请完整安装或完整解压，避免只复制 EXE 或混用旧 DLL。旧版内置下载失败时，手动下载当前正式包覆盖安装一次。
 
+检查更新提示「GitHub 请求受限」：GitHub 的版本接口对未登录访问按网络出口 IP 每小时限 60 次，多人共用的代理节点很容易用完，与客户端本身无关。等一小时左右再检查，或者换一个代理节点，也可以直接到[发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载。2.8.0 之后的版本里，Windows、Mac 和 Android 遇到这种情况会改从发行页读取版本和安装包校验信息，一般不会再看到这个提示。
+
 便携版保留 `data`，Mac 替换完整应用包，Android 使用同签名正式包，iPad 和 Apple TV 用原来的签名身份重新签名后覆盖安装。校验失败时重新下载；系统架构或版本不满足要求时，应先核对[安装要求](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation)。
 
 Windows 媒体库页面闪烁／花屏时，确认完整更新。仍有异常可在完全退出后用 `"Tigerest Theater.exe" --disable-gpu` 比较网页 GPU 渲染；这与视频硬件解码是独立设置。
