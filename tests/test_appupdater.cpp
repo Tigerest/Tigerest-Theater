@@ -51,10 +51,69 @@ static QByteArray metadata()
 {
   return R"([{"tag_name":"v2.0.0","draft":false,"prerelease":false,"body":"Notes","assets":[{"name":"TigerestTheater-2.0.0-x64.exe","size":3,"digest":"sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad","browser_download_url":"https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.0.0/TigerestTheater-2.0.0-x64.exe"}]}])";
 }
+static QByteArray manifest(const QString& version, const QString& name, const QString& list = "files")
+{
+  return QJsonDocument(QJsonObject{{"version", version}, {list, QJsonArray{QJsonObject{{"name", name}, {"size", 3},
+    {"sha256", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}}}}}).toJson();
+}
+static const QString Repository = "https://github.com/Tigerest/Tigerest-Theater/releases/";
 class TestAppUpdater : public QObject
 {
   Q_OBJECT
 private slots:
+  void rateLimitedCheckFallsBackToReleaseManifest()
+  {
+    QTemporaryDir dir; FixtureNetwork network;
+    network.responses = {{{}, 403}, {{}, 302, QUrl(Repository + "tag/v2.0.0")},
+      {{}, 302, QUrl("https://release-assets.githubusercontent.com/manifest")},
+      {manifest("2.0.0", "TigerestTheater-2.0.0-x64.exe")}, {"abc"}};
+    AppUpdater updater("1.0.0", AppUpdatePolicy::Package::WindowsInstaller, dir.filePath("cache"), dir.filePath("skip.json"), &network, {});
+    updater.check(true, true); QTRY_COMPARE(updater.state().value("status").toString(), "available");
+    QCOMPARE(network.requests.mid(1, 2), (QList<QUrl>{QUrl(Repository + "latest"),
+      QUrl(Repository + "download/v2.0.0/TigerestTheater-2.0.0-RELEASE-MANIFEST.json")}));
+    QVERIFY(network.requestDetails[1].rawHeader("X-GitHub-Api-Version").isEmpty());
+    QCOMPARE(updater.state().value("version").toString(), "2.0.0");
+    QCOMPARE(updater.state().value("releaseUrl").toString(), Repository + "tag/v2.0.0");
+    QVERIFY(updater.state().value("notes").toString().isEmpty());
+    updater.download(); QTRY_COMPARE(updater.state().value("status").toString(), "ready");
+    QCOMPARE(network.requests.last(), QUrl(Repository + "download/v2.0.0/TigerestTheater-2.0.0-x64.exe"));
+  }
+  void rateLimitFallbackOnlyOffersPublishedPackages_data()
+  {
+    QTest::addColumn<int>("package"); QTest::addColumn<QUrl>("latest");
+    QTest::addColumn<int>("manifestStatus"); QTest::addColumn<QByteArray>("manifest"); QTest::addColumn<QString>("status");
+    const int exe = int(AppUpdatePolicy::Package::WindowsInstaller), dmg = int(AppUpdatePolicy::Package::MacArm64);
+    const QUrl latest(Repository + "tag/v2.0.0");
+    QTest::newRow("already latest") << exe << QUrl(Repository + "tag/v1.0.0") << 200 << manifest("1.0.0", "TigerestTheater-1.0.0-x64.exe") << "current";
+    QTest::newRow("mac manifest") << dmg << latest << 200 << manifest("2.0.0", "TigerestTheater-2.0.0-arm64.dmg", "assets") << "available";
+    QTest::newRow("other repository") << exe << QUrl("https://github.com/Other/Repo/releases/tag/v2.0.0") << 200 << QByteArray() << "error";
+    QTest::newRow("prerelease tag") << exe << QUrl(Repository + "tag/v2.0.0-beta") << 200 << QByteArray() << "error";
+    QTest::newRow("no redirect") << exe << QUrl() << 200 << QByteArray() << "error";
+    QTest::newRow("manifest missing") << dmg << latest << 404 << QByteArray() << "error";
+    QTest::newRow("package not added") << dmg << latest << 200 << manifest("2.0.0", "TigerestTheater-2.0.0-x64.exe") << "error";
+    QTest::newRow("other version") << exe << latest << 200 << manifest("1.9.0", "TigerestTheater-2.0.0-x64.exe") << "error";
+  }
+  void rateLimitFallbackOnlyOffersPublishedPackages()
+  {
+    QFETCH(int, package); QFETCH(QUrl, latest); QFETCH(int, manifestStatus); QFETCH(QByteArray, manifest); QFETCH(QString, status);
+    QTemporaryDir dir; FixtureNetwork network;
+    network.responses = {{{}, 429}, {{}, latest.isEmpty() ? 200 : 302, latest}, {manifest, manifestStatus}};
+    AppUpdater updater("1.0.0", AppUpdatePolicy::Package(package), dir.filePath("cache"), dir.filePath("skip.json"), &network, {});
+    updater.check(true, true); QTRY_VERIFY(updater.state().value("status") != "checking");
+    QCOMPARE(updater.state().value("status").toString(), status);
+    if (status == "error") QCOMPARE(updater.state().value("error").toString(), "GitHub 请求受限，请稍后重试。");
+    if (network.requests.size() == 3)
+      QVERIFY(network.requests[2].path().endsWith(package == int(AppUpdatePolicy::Package::MacArm64) ?
+        "-APPLE-RELEASE-MANIFEST.json" : "0-RELEASE-MANIFEST.json"));
+  }
+  void otherApiFailuresDoNotUseTheFallback()
+  {
+    QTemporaryDir dir; FixtureNetwork network; network.responses = {{{}, 500}};
+    AppUpdater updater("1.0.0", AppUpdatePolicy::Package::WindowsInstaller, dir.filePath("cache"), dir.filePath("skip.json"), &network, {});
+    updater.check(true, true); QTRY_COMPARE(updater.state().value("status").toString(), "error");
+    QCOMPARE(updater.state().value("error").toString(), "无法获取更新，请检查网络后重试。");
+    QCOMPARE(network.requests.size(), 1);
+  }
   void repeatedPrefixesDoNotRefillRetryBudget_data()
   {
     QTest::addColumn<QByteArray>("etag");

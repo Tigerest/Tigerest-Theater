@@ -49,6 +49,9 @@ private:
   void retryDownload(const QString& message);
   void restartDownload();
   QString skippedVersion() const;
+  void checkReleaseManifest(QNetworkReply* reply, int status);
+  // The API release list, then the release page and manifest when it is rate limited.
+  enum class Source { Api, LatestRelease, Manifest };
   const QString m_currentVersion;
   const AppUpdatePolicy::Package m_package;
   const QString m_cacheDirectory;
@@ -75,4 +78,6 @@ private:
   bool m_restartedFresh = false;
   bool m_automaticAttempted = false;
   bool m_packageOpened = false;
+  Source m_source = Source::Api;
+  QString m_fallbackTag;
 };
