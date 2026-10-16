@@ -2,13 +2,13 @@
 
 独立 Kotlin 工程，最低 Android 15（API 35），目标 API 36，内置 arm64-v8a / x86_64 的 libmpv，无需另装播放器。现有 `native/` 网页插件、消息中心、评论与深色金色样式在构建时同步到 APK；安卓通过限定来源的 WebMessage 桥接替换 Qt WebChannel。
 
-当前工程版本为 2.8.0（versionCode 2080000）。2.8.0 带上与桌面共用的「一起看」：在大河服务器上组房间同步观看，房间里的影片暂停加载、由房间统一开始；应用切到后台时只暂停本机播放，不让整个房间暂停。同时带上独立评论账号自助修改昵称和密码、首页媒体夹的隐藏与排序（设置项 `home.libraryLayout`），以及给不带令牌的本服务器播放地址补上令牌。原生库与 2.7.0 相同。2.6.0 新增跨服务器公共评论、独立评论账号、按服务能力显示 8–128／12–128 字符密码要求，以及发言时的本人 Emby 头像同步。大河登录可直接保存手动共享弹幕绑定，无需管理员令牌文件。正式包沿用已有签名。
+当前工程版本为 2.8.1（versionCode 2080100）。2.8.1 修复首页同一作品出现两次：服务器上同一作品有两个条目时，共用网页首页按 Emby 的作品身份（PresentationUniqueKey）合并；原生部分与 2.8.0 相同。2.8.0 带上与桌面共用的「一起看」：在大河服务器上组房间同步观看，房间里的影片暂停加载、由房间统一开始；应用切到后台时只暂停本机播放，不让整个房间暂停。同时带上独立评论账号自助修改昵称和密码、首页媒体夹的隐藏与排序（设置项 `home.libraryLayout`），以及给不带令牌的本服务器播放地址补上令牌。原生库与 2.7.0 相同。2.6.0 新增跨服务器公共评论、独立评论账号、按服务能力显示 8–128／12–128 字符密码要求，以及发言时的本人 Emby 头像同步。大河登录可直接保存手动共享弹幕绑定，无需管理员令牌文件。正式包沿用已有签名。
 
 保留首页排序、播放防误触锁、选集、直接上下集按钮与系统旋转锁。更新包下载支持暂停、重启后续传与自动重试。报错说明为 3–2000 字，可按分秒填写发生时间，并附带最近约 10 分钟的脱敏日志。普通用户教程见 [Wiki](https://github.com/Tigerest/Tigerest-Theater/wiki/Home)。
 
 ## 使用
 
-下载 [V2.8.0 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.0/TigerestTheater-2.8.0-android.apk)，完整附件见[发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)。打开“大河影院”，选择服务器或输入自己的 Emby 地址，再使用该服务器账号登录。同签名正式包可覆盖升级并保留登录和设置；调试包与正式包的数据分开。Emby 登录信息保留在应用私有 WebView 中，公共评论会话使用 Android Keystore 加密保存。
+下载 [V2.8.1 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.1/TigerestTheater-2.8.1-android.apk)，完整附件见[发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)。打开“大河影院”，选择服务器或输入自己的 Emby 地址，再使用该服务器账号登录。同签名正式包可覆盖升级并保留登录和设置；调试包与正式包的数据分开。Emby 登录信息保留在应用私有 WebView 中，公共评论会话使用 Android Keystore 加密保存。
 
 视频播放自动进入沉浸界面，返回网页时恢复系统栏，安卓不显示桌面全屏／窗口按钮。开始播放及缓冲时显示加载转圈。轻触空白处显示／隐藏控制栏，播放时约 3.5 秒自动收起；拖动进度或打开菜单时保持显示。常用暂停、前后跳转、选集、上一集、下一集、弹幕和倍速直接显示；音轨、内嵌及 Emby 外置字幕、字幕偏移、画质和客户端设置在“更多”中。顶部「防误触」隐藏控制栏并屏蔽手势和返回，长按「长按解锁」恢复操作。音频保留网页播放器界面。应用进入后台时暂停；当前版本未实现后台持续播放、画中画、离线下载或桌面 RIFE 补帧。
 
@@ -108,4 +108,4 @@ ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=24 -f lavfi -i sine=frequency=440
 
 mpv 默认构建为 GPLv2 或更新版，上游 FFmpeg 开启 GPL 和 version3，因此本原生组合适用 GPLv3 或更新版。MIT、GPL、LGPL、Apache 及依赖许可文本在 `app/src/main/assets/licenses/` 并随 APK 打包。JNI 来源哈希和二进制哈希分别在构建脚本与锁文件记录。
 
-正式版同时提供 [TigerestTheater-2.8.0-android-Sources.zip](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.0/TigerestTheater-2.8.0-android-Sources.zip) 和[来源清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.0/TigerestTheater-2.8.0-android-SOURCE-MANIFEST.json)，包含客户端源码、上游应用／JNI／原生构建脚本及官方发布列出的固定依赖与子模块。源码包内 `unpack_native_sources.py` 可用 Python 3.12+ 解包；具体编译要求见包内 README。未重新编译原生库，不宣称原生二进制逐字节可复现。原生运行库未改变时，可用 `tools/package_sources.py --previous <已验证的源码附件> --apk <签名 APK> --output <新版-Sources.zip>` 更新客户端源码；它验证原生锁文件与每份旧源档案哈希，并只打包已提交的 Git 源码。原生依赖改变时必须重新收集对应源码。
+正式版同时提供 [TigerestTheater-2.8.1-android-Sources.zip](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.1/TigerestTheater-2.8.1-android-Sources.zip) 和[来源清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.1/TigerestTheater-2.8.1-android-SOURCE-MANIFEST.json)，包含客户端源码、上游应用／JNI／原生构建脚本及官方发布列出的固定依赖与子模块。源码包内 `unpack_native_sources.py` 可用 Python 3.12+ 解包；具体编译要求见包内 README。未重新编译原生库，不宣称原生二进制逐字节可复现。原生运行库未改变时，可用 `tools/package_sources.py --previous <已验证的源码附件> --apk <签名 APK> --output <新版-Sources.zip>` 更新客户端源码；它验证原生锁文件与每份旧源档案哈希，并只打包已提交的 Git 源码。原生依赖改变时必须重新收集对应源码。

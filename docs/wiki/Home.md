@@ -1,6 +1,6 @@
 # Tigerest Theater 使用教程
 
-这里是 EMBY 大河版的中文使用说明，对应 2.8.0。客户端支持 Windows、Apple Silicon Mac、Android、iPad 和 Apple TV；播放内容和访问权限来自你连接的 Emby 服务器。
+这里是 EMBY 大河版的中文使用说明，对应 Windows、Android 2.8.1 与 Mac、iPad、Apple TV 2.8.0。客户端支持 Windows、Apple Silicon Mac、Android、iPad 和 Apple TV；播放内容和访问权限来自你连接的 Emby 服务器。
 
 ## 第一次使用
 
@@ -29,6 +29,10 @@
 | [常见问题](https://github.com/Tigerest/Tigerest-Theater/wiki/FAQ) | 平台区别、账号范围、补帧与共享功能的常见疑问 |
 | [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture) | 各客户端的实现与架构、播放链路、一起看同步、评论和弹幕的数据流 |
 
+## 2.8.1 更新了什么（Windows、Android）
+
+- **首页重复作品：** 服务器上同一部作品有两个条目时，首页按 Emby 的作品身份合并为一张卡，保留最近一次播放的继续观看进度；同名的不同作品不合并。Mac、iPad 与 Apple TV 在 2.8.0 已修复。
+
 ## 2.8.0 更新了什么
 
 - **一起看：** 登录大河服务器后，可以和朋友组一个房间同时观看同一部影片，每个房间最多 4 人。所有成员都可以播放、暂停、拖动和换片，各客户端自动对齐进度。Windows、Mac、Android、iPad 可用，Apple TV 暂不支持。见[一起看](https://github.com/Tigerest/Tigerest-Theater/wiki/Watch-Together)。
@@ -40,7 +44,7 @@
 
 2.6.1 起 Windows 网页界面按屏幕刷新率运行，并新增 iPad 客户端；2.7.0 起首页「继续观看」按观看记录排序，兼容 Emby 4.8–4.10 和 .strm 媒体库，并补充了 Apple TV 首版。完整记录见[更新记录](https://github.com/Tigerest/Tigerest-Theater/blob/main/CHANGELOG.md)。
 
-**已知问题：** 部分 Windows 高刷新率环境下，窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.8.0 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。
+**已知问题：** 部分 Windows 高刷新率环境下，窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.8.1 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。
 
 ## 各平台功能范围
 
