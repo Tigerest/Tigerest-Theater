@@ -478,6 +478,24 @@
 			<key>fileRef</key>
 			<string>A3F82A4A6930AACC4A0ABD4D</string>
 		</dict>
+		<key>9FC506DAAA639EBC117B07A7</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>text.xml</string>
+			<key>path</key>
+			<string>Config/TV/PrivacyInfo.xcprivacy</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>553F0365076AB44BC6D8F3CA</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>9FC506DAAA639EBC117B07A7</string>
+		</dict>
 		<key>35A44ABCD1083C4498F32DD5</key>
 		<dict>
 			<key>isa</key>
@@ -561,6 +579,8 @@
 				<string>26.0</string>
 				<key>TARGETED_DEVICE_FAMILY</key>
 				<string>3</string>
+				<key>TIGEREST_DISTRIBUTION</key>
+				<string>github</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -607,6 +627,8 @@
 				<string>26.0</string>
 				<key>TARGETED_DEVICE_FAMILY</key>
 				<string>3</string>
+				<key>TIGEREST_DISTRIBUTION</key>
+				<string>github</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -689,6 +711,7 @@
 				<string>B0D75AFC19C3D2CF1A8CA50B</string>
 				<string>8D8E2CD248F51ADCDFA900B5</string>
 				<string>092ED5CF93913942041AAB66</string>
+				<string>553F0365076AB44BC6D8F3CA</string>
 			</array>
 			<key>runOnlyForDeploymentPostprocessing</key>
 			<integer>0</integer>
@@ -824,6 +847,8 @@
 				<string>26.0</string>
 				<key>TARGETED_DEVICE_FAMILY</key>
 				<string>3</string>
+				<key>TIGEREST_DISTRIBUTION</key>
+				<string>github</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -870,6 +895,8 @@
 				<string>26.0</string>
 				<key>TARGETED_DEVICE_FAMILY</key>
 				<string>3</string>
+				<key>TIGEREST_DISTRIBUTION</key>
+				<string>github</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -990,6 +1017,7 @@
 				<string>FC178867AD461E3C97D94B56</string>
 				<string>188694BC498E2E6E0231298B</string>
 				<string>A3F82A4A6930AACC4A0ABD4D</string>
+				<string>9FC506DAAA639EBC117B07A7</string>
 				<string>DBCF258C0E434F3DFBDA5648</string>
 				<string>79BBD3B852F40BDCEA1D0F8D</string>
 			</array>

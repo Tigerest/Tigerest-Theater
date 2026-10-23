@@ -17,7 +17,9 @@ struct TVServerPickerView: View {
                     TVServerListView(model: model)
                     HStack(spacing: 30) {
                         Button("添加自建服务器") { model.selectServer(.selfHosted) }.accessibilityIdentifier("tv.servers.add")
-                        Button("专属服务器") { model.selectServer(.dedicated) }.accessibilityIdentifier("tv.servers.dedicated")
+                        if !Distribution.testFlight {
+                            Button("专属服务器") { model.selectServer(.dedicated) }.accessibilityIdentifier("tv.servers.dedicated")
+                        }
                     }.frame(maxWidth: .infinity, alignment: .leading).focusSection().padding(.top, 24)
                 }
             }

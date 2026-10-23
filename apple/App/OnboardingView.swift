@@ -94,7 +94,7 @@ struct OnboardingView: View {
         cancelConnection(); connecting = true; failure = ""; activeCard = record?.key
         // The attempt owns these values even if the user chooses another option.
         let chosenMode = record?.mode ?? mode, submittedAddress = record?.address ?? address, submittedReplacement = replacing
-        let submittedMode = Distribution.testFlight && chosenMode == "custom" && model.isDedicatedAddress(submittedAddress) ? "tigerest" : chosenMode
+        let submittedMode = Distribution.testFlight && chosenMode == "custom" && ServerPresets.bundled.contains(typed: submittedAddress) ? "tigerest" : chosenMode
         connectionTask = Task {
             do {
                 if submittedMode == "tigerest" { try await model.connectDedicated(replacing: submittedReplacement) }

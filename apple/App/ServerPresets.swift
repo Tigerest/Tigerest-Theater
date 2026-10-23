@@ -7,6 +7,13 @@ struct ServerPresets: Decodable {
     let localIP: String
     static var bundled: Self { try! JSONDecoder().decode(Self.self,from:Data(contentsOf:Bundle.main.resourceURL!.appending(path:"Web/server_defaults.json"))) }
     func contains(_ address: ServerAddress) -> Bool { [remote, local].contains { (try? ServerAddress($0).origin) == address.origin && address.baseURL.path == "/" } }
+    /// Whether a typed address is the dedicated server's local or remote preset.
+    func contains(typed input: String) -> Bool {
+        let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let canonical = ServerHistory.canonicalAddress(value.contains("://") ? value : "http://" + value),
+              let address = try? ServerAddress(canonical) else { return false }
+        return contains(address)
+    }
     static func onLocalSubnet(_ host: String) -> Bool {
         var target = in_addr()
         guard inet_pton(AF_INET,host,&target)==1 else {return false}

@@ -129,13 +129,6 @@ import AppleCore
         guard response.statusCode == 200, info["Id"].string != nil || info["Version"].string != nil else { throw URLError(.badServerResponse) }
         return address
     }
-    /// Whether a typed address is the dedicated server's local or remote preset.
-    func isDedicatedAddress(_ input: String) -> Bool {
-        let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let canonical = ServerHistory.canonicalAddress(value.contains("://") ? value : "http://" + value),
-              let address = try? ServerAddress(canonical) else { return false }
-        return ServerPresets.bundled.contains(address)
-    }
     func connectDedicated(replacing: String? = nil) async throws {
         let profile = profiles.currentID
         let presets = ServerPresets.bundled

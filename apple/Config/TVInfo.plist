@@ -16,6 +16,10 @@
 	<string>2.9.4</string>
 	<key>CFBundleVersion</key>
 	<string>294</string>
+	<key>TigerestDistribution</key>
+	<string>$(TIGEREST_DISTRIBUTION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
