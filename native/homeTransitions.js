@@ -229,9 +229,16 @@
     // The flying copy is drawn a frame or two after the frame that adds it;
     // hiding its card in that same frame left an empty slot until then. The
     // tablet's DOM scene leaves the card out of its own copy instead (bitmap()).
+    // On Android it was sometimes drawn four frames later; the card stays
+    // under the poster, which has barely moved, for HOLD_MS.
     function holdDrawn(job, node) {
         job.leaving = node;
-        requestAnimationFrame(() => requestAnimationFrame(() => { if (!job.done) hold(job, node); }));
+        const until = performance.now() + (android() ? HOLD_MS : 0);
+        const step = frames => requestAnimationFrame(now => {
+            if (job.done) return;
+            if (frames > 1 || now < until) step(frames - 1); else hold(job, node);
+        });
+        step(2);
     }
     const release = ({node, value, opacity}) => { node.style.visibility = value; if (opacity !== undefined) node.style.opacity = opacity; node.removeAttribute('data-tigerest-poster-held'); };
     // A hidden card is not drawn, and Emby decodes its artwork asynchronously:
@@ -572,6 +579,8 @@
     const ARRIVE_BY_MS=560;
     // The landing card is drawn, nearly transparent, this long before the poster leaves it.
     const PREDRAW_MS=40;
+    // Android: the pressed card is hidden this long after the press, under its poster.
+    const HOLD_MS=50;
     // Where a destination's poster landed before, per window size, so the next
     // press can fly at once. Kept across restarts; a few dozen entries.
     let landings=null;
