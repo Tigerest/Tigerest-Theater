@@ -233,7 +233,15 @@
         job.leaving = node;
         requestAnimationFrame(() => requestAnimationFrame(() => { if (!job.done) hold(job, node); }));
     }
-    const release = ({node, value}) => { node.style.visibility = value; node.removeAttribute('data-tigerest-poster-held'); };
+    const release = ({node, value, opacity}) => { node.style.visibility = value; if (opacity !== undefined) node.style.opacity = opacity; node.removeAttribute('data-tigerest-poster-held'); };
+    // A hidden card is not drawn, and Emby decodes its artwork asynchronously:
+    // shown in the frame the poster left, it was blank for that frame. Draw it
+    // nearly transparent under the landing poster first.
+    function predraw(job, target) {
+        for (const h of job.held) if (h.owner === target && h.opacity === undefined) {
+            h.opacity = h.node.style.opacity; h.node.style.opacity = '.01'; h.node.style.visibility = h.value;
+        }
+    }
     // Lazy artwork: Jellyfin keeps data-src until its image has loaded and
     // then fades it in; Emby's lazy images have no src until then.
     function artworkReady(node) {
@@ -456,7 +464,10 @@
             }
             if (node.tagName === 'IMG') {
                 clone.removeAttribute('srcset');
-                if(r.width&&r.height&&r.bottom>=0&&r.top<=innerHeight&&r.right>=0&&r.left<=innerWidth){clone.src=node.currentSrc||node.src;clone.loading='eager';}
+                // Emby decodes card artwork asynchronously. A copy drawn again in a
+                // busy frame showed those posters blank for three frames; a frozen
+                // picture keeps its previous pixels until they draw.
+                if(r.width&&r.height&&r.bottom>=0&&r.top<=innerHeight&&r.right>=0&&r.left<=innerWidth){clone.src=node.currentSrc||node.src;clone.loading='eager';clone.decoding='sync';}
                 else clone.removeAttribute('src');
             }
             for (const attr of Array.from(clone.attributes)) if (/^on/i.test(attr.name)) clone.removeAttribute(attr.name);
@@ -466,18 +477,24 @@
         Object.assign(body.style,{width:innerWidth+'px',height:innerHeight+'px',pointerEvents:'none'});
         const computed = getComputedStyle(document.documentElement);
         for (const name of computed) if (name.startsWith('--')) html.style.setProperty(name,computed.getPropertyValue(name));
+        const restore = () => scrolls.forEach(([n,x,y]) => { n.scrollLeft=x; n.scrollTop=y; });
         document.querySelectorAll('style,link[rel="stylesheet"]').forEach(node => {
             if (node.closest('.tigerest-motion-layer,.tigerest-motion-cache')) return;
             if (home && node.tagName === 'LINK') return;
             const copy = node.cloneNode(true);
             if (copy.tagName === 'STYLE') copy.textContent = copy.textContent.replace(/:root\b/g,'.tigerest-motion-html');
-            else copy.href = node.href;
+            else {
+                // A copied link applies a task after the copy is attached. Emby's
+                // list scroller only scrolls with its linked styles, so the first
+                // sync clamped it to the top, whose cards the copy leaves empty.
+                copy.href = node.href; copy.addEventListener('load',restore);
+            }
             shadow.append(copy);
         });
         const override = document.createElement('style');
         override.textContent = '*{animation:none!important;transition:none!important;pointer-events:none!important}';
         shadow.append(override,html); html.append(body);
-        job.syncs ||= []; job.syncs.push(() => scrolls.forEach(([n,x,y]) => { n.scrollLeft=x; n.scrollTop=y; }));
+        job.syncs ||= []; job.syncs.push(restore);
         return host;
     }
     // Returns an opaque cover holding a crisp copy of the current page.
@@ -553,6 +570,8 @@
     const COVER_MS=150,LAND_MS=600,DEADLINE_MS=700,LIFT_MS=260,FLIGHT_MS=320,SHORT_FLIGHT_MS=120,SHORT_REVEAL_MS=120,TOUCH_FLIGHT_MS=720,CORRECT_MS=160,LATE_MS=120,VEIL_MS=150,LENS_DELAY_MS=80,LENS_MS=180;
     // Android's library: the live wall starts coming in by then after the press, loaded or not.
     const ARRIVE_BY_MS=560;
+    // The landing card is drawn, nearly transparent, this long before the poster leaves it.
+    const PREDRAW_MS=40;
     // Where a destination's poster landed before, per window size, so the next
     // press can fly at once. Kept across restarts; a few dozen entries.
     let landings=null;
@@ -756,6 +775,9 @@
                 landAt=Math.max(landAt,now+Math.max(60,Math.min(LATE_MS,job.start+DEADLINE_MS-now)));job.metric.lateCorrection=true;job.metric.plannedEndMs=Math.max(job.metric.plannedEndMs,landAt-job.start);
                 fly(job,flight,'B',end,late,{duration:landAt-now,easing:'cubic-bezier(.4,0,.2,1)'});
             }
+            await sleep(job,landAt-PREDRAW_MS-performance.now());
+            if(job.signal.aborted)return result;
+            if(artworkReady(target))predraw(job,target);
             await Promise.all([reveal,sleep(job,landAt-performance.now())]);
             if(job.signal.aborted)return result;
             const landing=box(flight.poster), actual=box(target);
@@ -818,9 +840,13 @@
         homeReturn({navigate,findGallery}) { return run('homeReturn',async job => {
             if (reduced()) return simple(job,navigate);
             const {cover,copy}=outgoing(job);
-            // The tablet's copy is drawn a few frames after it is added; until then
-            // the opaque cover showed only its dark background.
-            if(nativeGlass()&&!job.signal.aborted){await primed(job,cover);cover.style.opacity='1';}
+            // The copy is drawn a few frames after it is added; until then the
+            // opaque cover showed only its dark background on the tablet, and
+            // blank posters for three frames on Android. There the leaving copy
+            // gets its own layer now, drawn while primed, not once it moves
+            // and the route keeps the main thread busy.
+            if(android())copy.style.willChange='transform, opacity';
+            if((nativeGlass()||android())&&!job.signal.aborted){await primed(job,cover);cover.style.opacity='1';}
             // Android changes the route under the opaque cover while the copy
             // leaves, and hands input back as soon as the home is uncovered; the
             // gallery's entrance keeps running. Emby's back() returns nothing, so

@@ -5,6 +5,7 @@ const routes={
  '/poster.svg':{type:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="720"><rect width="480" height="720" fill="#7d643d"/></svg>'},
  '/transitions.js':{path:path.join(root,'native/homeTransitions.js')},'/motion.js':{path:path.join(root,'native/homeMotion.js')}
 };
+routes['/scroller.css']={type:'text/css',body:'.linked-scroller{height:300px;overflow:auto}'};
 routes['/backdrop.js']={path:path.join(root,'native/homeBackdrop.js')};if(!embedded)routes['/'].body=routes['/'].body.replace('<script src="/transitions.js">','<script src="/backdrop.js"></script><script src="/transitions.js">');
 withBrowser(routes,async({evaluate,call,url})=>{
  await evaluate('window.TigerestAmbientBackdrop?.dispose();true');
@@ -138,6 +139,23 @@ withBrowser(routes,async({evaluate,call,url})=>{
  assert.ok(virtualCopy.constructed<=virtualCopy.visible+12,'absolute virtual cards outside the viewport must not copy their contents: '+JSON.stringify(virtualCopy));
  assert.equal(virtualCopy.scroll,1800);assert.equal(virtualCopy.wallHeight,8000);
  assert.ok(Math.max(...['x','y','width','height'].map(k=>Math.abs(virtualCopy.live[k]-virtualCopy.copy[k])))<1,'virtual poster geometry must survive pruning');
+ // Emby's list scroller only scrolls with its linked stylesheet, which a copy
+ // applies after it is attached. Its offset must survive that, or a return
+ // home flies the empty top of the list instead of the cards on screen.
+ const linkedScroll=await evaluate(`(async()=>{
+  const link=document.createElement('link');link.rel='stylesheet';link.href='/scroller.css';
+  await new Promise(r=>{link.onload=r;document.head.append(link);});
+  const scroller=document.createElement('div');scroller.id='linked-scroller';scroller.className='linked-scroller';
+  const content=document.createElement('div');content.style.height='2000px';scroller.append(content);libraryRoot.append(scroller);scroller.scrollTop=500;
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  TigerestHomeTransitions.invalidate(false);await TigerestHomeTransitions.prewarm();
+  const shadow=document.querySelector('.tigerest-motion-cache').firstElementChild.shadowRoot,copy=shadow.querySelector('link[href$="/scroller.css"]');
+  if(!copy.sheet)await new Promise(r=>copy.addEventListener('load',r,{once:true}));
+  await new Promise(r=>requestAnimationFrame(r));
+  const result={live:scroller.scrollTop,copy:shadow.querySelector('#linked-scroller').scrollTop};
+  scroller.remove();link.remove();TigerestHomeTransitions.invalidate(false);return result;
+ })()`);
+ assert.deepEqual(linkedScroll,{live:500,copy:500},'a copy keeps the offset of a scroller styled by a linked stylesheet');
  await evaluate('TigerestHomeTransitions.prewarm()');
  // A completed page entrance must stay completed in the frozen background.
  // Emby's important animation rule otherwise starts again inside the shadow tree.
