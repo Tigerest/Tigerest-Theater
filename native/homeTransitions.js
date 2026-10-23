@@ -299,9 +299,24 @@
         const out = t.root.animate([{opacity: 1}, {opacity: 0}], {duration: 120, fill: 'forwards'});
         out.finished.catch(() => {}).finally(() => t.root.remove());
     }
+    // A live page brought in after input was handed back (Android's library)
+    // finishes its entrance when the next transition starts.
+    let arriving = [];
+    function arrive(nodes, frames, timing) {
+        finishArriving();
+        for (const node of new Set(nodes)) {
+            if (node.closest('.tigerest-motion-layer,.tigerest-motion-cache') || !usable(node)) continue;
+            // Each part scales about the window's centre, as one copy of the page did.
+            const r = box(node), origin = node.style.transformOrigin;
+            node.style.transformOrigin = `${innerWidth/2-r.x}px ${innerHeight/2-r.y}px`;
+            const a = node.animate(frames, timing); arriving.push(a);
+            a.finished.catch(() => {}).finally(() => { node.style.transformOrigin = origin; arriving = arriving.filter(n => n !== a); });
+        }
+    }
+    function finishArriving() { for (const a of arriving.splice(0)) { try { a.finish(); } catch {} } }
     async function run(kind, perform) {
         if (active) return;
-        dropTail();
+        dropTail(); finishArriving();
         changes(observer?.takeRecords()||[]);
         ensureStyle();
         // Only poster transitions consume a pending raster. Other routes must
@@ -536,6 +551,8 @@
     // after 520-630 ms on a remote server: its short flight and reveal are
     // what still fits before DEADLINE_MS.
     const COVER_MS=150,LAND_MS=600,DEADLINE_MS=700,LIFT_MS=260,FLIGHT_MS=320,SHORT_FLIGHT_MS=120,SHORT_REVEAL_MS=120,TOUCH_FLIGHT_MS=720,CORRECT_MS=160,LATE_MS=120,VEIL_MS=150,LENS_DELAY_MS=80,LENS_MS=180;
+    // Android's library: the live wall starts coming in by then after the press, loaded or not.
+    const ARRIVE_BY_MS=560;
     // Where a destination's poster landed before, per window size, so the next
     // press can fly at once. Kept across restarts; a few dozen entries.
     let landings=null;
@@ -588,7 +605,7 @@
         get busy() { return !!active; }, get last() { return last; },
         get cacheState(){changes(observer?.takeRecords()||[]);return {ready:cacheReady(),snapshot:cacheReady()&&!!cached.light,warming:!!warming,bytes:cacheReady()?cached.width*cached.height*4:0};},
         prewarm,invalidate,
-        cancel(reason = 'reset') { invalidate(false);dropTail();if (active) { const job=active;job.controller.abort(reason);clean(job); } },
+        cancel(reason = 'reset') { invalidate(false);dropTail();finishArriving();if (active) { const job=active;job.controller.abort(reason);clean(job); } },
         dispose(){transitions.cancel();observer?.disconnect();window.removeEventListener('resize',onResize);document.removeEventListener('scroll',onScroll,true);document.removeEventListener('load',onLoad,true);document.removeEventListener('viewshow',onView,true);motionPreference.removeEventListener('change',onPreference);},
         poster(options) { return run('poster',async job => {
             const source=options.source, artwork=url(source);
@@ -757,25 +774,44 @@
             const scope=gallery.root||backgroundRoot()||document, part=name=>gallery[name]||scope.querySelector('.tg-home-'+name);
             const nav=part('nav'), rail=part('rail'), stage=part('stage'), cover=layer(job);cover.style.background='#0b0d12';
             const accelerated='cubic-bezier(.65,0,.85,.25)';
+            // A press during the gallery's entrance (Android hands input back
+            // before it ends) starts the parts from where they are.
+            const pose=node=>{const s=node&&getComputedStyle(node);return {transform:s?.transform||'none',opacity:s?Number(s.opacity):1};},from={nav:pose(nav),rail:pose(rail)};
+            if(gallery.root&&!gallery.root.classList.contains('tg-entered'))gallery.finishEntrance?.();
             await Promise.all([
-                animate(job,nav,[{transform:'none',opacity:1,offset:0},{transform:'translate3d(0,18px,0) rotate(1deg)',opacity:1,offset:.19},{transform:'translate3d(-36px,-130vh,0) rotate(-7deg)',opacity:0,offset:1}],{duration:380,easing:accelerated}),
-                animate(job,rail,[{transform:'none',opacity:1,offset:0},{transform:'translate3d(-24px,0,0) skewX(-2deg)',opacity:1,offset:.16},{transform:'translate3d(130vw,0,0) skewX(8deg)',opacity:0,offset:1}],{duration:410,easing:accelerated}),
+                animate(job,nav,[{...from.nav,offset:0},{transform:'translate3d(0,18px,0) rotate(1deg)',opacity:1,offset:.19},{transform:'translate3d(-36px,-130vh,0) rotate(-7deg)',opacity:0,offset:1}],{duration:380,easing:accelerated}),
+                animate(job,rail,[{...from.rail,offset:0},{transform:'translate3d(-24px,0,0) skewX(-2deg)',opacity:1,offset:.16},{transform:'translate3d(130vw,0,0) skewX(8deg)',opacity:0,offset:1}],{duration:410,easing:accelerated}),
                 animate(job,stage,[{opacity:1,transform:'none'},{opacity:0,transform:'scale(.95)'}],{duration:260}),
                 animate(job,cover,[{opacity:0,offset:0},{opacity:0,offset:.58},{opacity:1,offset:1}],{duration:410})
             ]);
             if (job.signal.aborted && job.signal.reason !== 'resize') return;
-            cover.style.background='#0b0d12';const previous=page(),result=await navigate();
+            cover.style.background='#0b0d12';job.metric.routeStartMs=performance.now()-job.start;const previous=page(),result=await navigate();
             const target=await wait(job,()=>{const n=page();return n && (n!==previous || (samePage && !gallery.active)) ? n : null;});
+            job.metric.pageMs=performance.now()-job.start;
+            const zoom=[{opacity:0,transform:'scale(.82)',offset:0},{opacity:1,transform:'scale(1.008)',offset:.82},{opacity:1,transform:'none',offset:1}],zoomTiming={duration:460,easing:'cubic-bezier(.16,.8,.22,1)'};
+            if (target && !job.signal.aborted && android()) {
+                // Android brings the live page in and hands input back as it
+                // starts: copying a wall that was still loading, rastering the
+                // copy and flying it in kept the wall unusable for 1.1-1.4 s.
+                // Cards that load during the zoom appear in their places.
+                await loaded(job,target,Math.max(0,job.start+ARRIVE_BY_MS-performance.now()));job.metric.loadedMs=performance.now()-job.start;
+                if (job.signal.aborted) return result;
+                for (const a of target.getAnimations?.()||[]) if (Number.isFinite(a.effect?.getComputedTiming().endTime)) {try{a.finish();}catch{}}
+                // The body's background is the cover's colour.
+                cover.remove();arrive([target,...document.querySelectorAll('.skinHeader,.backgroundContainer')],zoom,zoomTiming);
+                job.metric.incomingMs=performance.now()-job.start;
+                return result;
+            }
             if (target && !job.signal.aborted) {
-                await loaded(job,target);
+                await loaded(job,target);job.metric.loadedMs=performance.now()-job.start;
                 // The opaque cover hides the page's own entrance. Snapshot its
                 // final pixels, not an early low-opacity/blurred frame that
                 // would suddenly become sharp when the cover is removed.
                 // The central incoming animation below still runs in full.
                 for (const a of target.getAnimations?.()||[]) if (Number.isFinite(a.effect?.getComputedTiming().endTime)) {try{a.finish();}catch{}}
                 const incoming=frozen(job,false);cover.replaceChildren(incoming);sync(job);
-                await primed(job,incoming);
-                await animate(job,incoming,[{opacity:0,transform:'scale(.82)',offset:0},{opacity:1,transform:'scale(1.008)',offset:.82},{opacity:1,transform:'none',offset:1}],{duration:460,easing:'cubic-bezier(.16,.8,.22,1)'});
+                await primed(job,incoming);job.metric.incomingMs=performance.now()-job.start;
+                await animate(job,incoming,zoom,zoomTiming);
             }
             return result;
         }); },
@@ -785,14 +821,23 @@
             // The tablet's copy is drawn a few frames after it is added; until then
             // the opaque cover showed only its dark background.
             if(nativeGlass()&&!job.signal.aborted){await primed(job,cover);cover.style.opacity='1';}
+            // Android changes the route under the opaque cover while the copy
+            // leaves, and hands input back as soon as the home is uncovered; the
+            // gallery's entrance keeps running. Emby's back() returns nothing, so
+            // whether the route has started is kept apart from its result.
+            const early=android();let routed=false;
+            const route=()=>{routed=true;cover.style.background='#0b0d12';job.metric.routeStartMs=performance.now()-job.start;return navigate();};
+            const routing=early?route():null;
             await animate(job,copy,[{opacity:1,transform:'none'},{opacity:0,transform:'scale(.82)'}],{duration:320,easing:'cubic-bezier(.6,0,.8,.4)'});
-            if (job.signal.aborted && job.signal.reason !== 'resize') return;
-            cover.style.background='#0b0d12';const result=await navigate();
+            if (job.signal.aborted && job.signal.reason !== 'resize') return routing;
+            const result=await (routed?routing:route());
+            job.metric.routedMs=performance.now()-job.start;
             const home=await wait(job,()=>{const g=findGallery();return g?.active?g:null;});
+            job.metric.homeMs=performance.now()-job.start;
             if (home && !job.signal.aborted) {
                 cover.remove();
                 // start/onResume owns the shipping Gallery entrance. Never replace its keyframes.
-                await wait(job,()=>home.root.classList.contains('tg-entered'),4000);
+                if (!early) await wait(job,()=>home.root.classList.contains('tg-entered'),4000);
             }
             return result;
         }); }
