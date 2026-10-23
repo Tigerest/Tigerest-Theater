@@ -7,9 +7,9 @@
     // its target exists, late sections load during the flight and its rejoin
     // absorbs layout shifts. Touch devices stalled mid-flight on those batches
     // and still wait for a steady target and a quiet page, except WebKit on iPad
-    // and iPhone, which flies as the desktop does. Android's WebView stalled
-    // 50-70 ms when the page rendered under a moving poster, so with a
-    // predicted landing it flies first and changes the route once landed.
+    // and iPhone, which flies as the desktop does, and Android: its WebView
+    // stalled 50-90 ms on the page ambient's two oversized blurred layers, which
+    // ambientBackdrop.js now draws as small prepared bitmaps.
     const settles = () => window.matchMedia('(pointer: coarse)').matches && window.jmpInfo?.platform !== 'ipad';
     const android = () => !!(window.tigerestAndroidApi || window.api?.system?.isAndroid);
     const box = node => node?.getBoundingClientRect();
@@ -605,7 +605,7 @@
             const key=options.landingKey&&`${options.landingKey}|${Math.round(from.width/from.height*10)}`;
             const usableRect=rect=>rect?.width>1&&rect.height>1?rect:null;
             const departure=usableRect(options.landingRect), preset=usableRect(options.presetRect);
-            const predicted=remembered(key)||departure||preset, deferRoute=android()&&!!predicted, settle=!deferRoute&&settles();
+            const predicted=remembered(key)||departure||preset, settle=!android()&&settles();
             let aim=settle?null:predicted, landAt=null;
             if (aim) {
                 job.metric.aim=remembered(key)?'remembered':departure?'departure':'preset';
@@ -643,12 +643,6 @@
                     await animate(job,hot?fromScene.bitmap:veil,[{opacity:0},{opacity:1}],{duration:Math.max(80,COVER_MS-(performance.now()-job.start)),easing:soft});
                 })()]);
             if (job.signal.aborted && job.signal.reason !== 'resize') return;
-            if (deferRoute) {
-                job.metric.deferRoute=true;
-                await sleep(job,landAt-performance.now());
-                if (job.signal.aborted && job.signal.reason !== 'resize') return;
-                job.metric.posterLandedMs=performance.now()-job.start;
-            }
             job.metric.routeStartMs=performance.now()-job.start;
             const result=await options.navigate();
             if (job.signal.aborted) return result;
@@ -685,12 +679,12 @@
             if(!usable(target))return missing();
             // An image without fixed dimensions changes size when it decodes.
             // A landed poster covers it while it does.
-            if (target.tagName==='IMG' && !target.complete) await wait(job,()=>target.complete,deferRoute?300:Math.max(0,Math.min(200,(landAt?landAt-CORRECT_MS:job.start+DEADLINE_MS-SHORT_FLIGHT_MS)-performance.now())),16);
+            if (target.tagName==='IMG' && !target.complete) await wait(job,()=>target.complete,Math.max(0,Math.min(200,(landAt?landAt-CORRECT_MS:job.start+DEADLINE_MS-SHORT_FLIGHT_MS)-performance.now())),16);
             if(job.signal.aborted)return result;
             let to=box(target),now=performance.now(),end=aim;
             job.metric.targetMs=now-job.start;if(job.metric.aim!=='lift')job.metric.aimErrorPx=Math.max(...['x','y','width','height'].map(k=>Math.abs(aim[k]-to[k])));
             // A poster that already landed is corrected instead.
-            if (!settle && !deferRoute && now+SHORT_FLIGHT_MS>job.start+DEADLINE_MS && (job.metric.aim==='lift'||differs(aim,to))) {
+            if (!settle && now+SHORT_FLIGHT_MS>job.start+DEADLINE_MS && (job.metric.aim==='lift'||differs(aim,to))) {
                 // Too late for a flight that lands by DEADLINE_MS: the poster
                 // stays where it settled and fades out as the page is revealed
                 // under it, with the real card shown in its own place.
@@ -728,8 +722,7 @@
                     if (job.signal.aborted) return;
                     job.metric.cardsLoading=cardsLoading(target);
                 }
-                // After a deferred route the poster has landed: reveal at once, at full length.
-                const at=performance.now(), span=deferRoute?LENS_DELAY_MS+LENS_MS:Math.min(LENS_DELAY_MS+LENS_MS,Math.max(SHORT_REVEAL_MS,landAt-at)), pace=span/(LENS_DELAY_MS+LENS_MS), revealAt=deferRoute?at:Math.max(at,landAt-span);
+                const at=performance.now(), span=Math.min(LENS_DELAY_MS+LENS_MS,Math.max(SHORT_REVEAL_MS,landAt-at)), pace=span/(LENS_DELAY_MS+LENS_MS), revealAt=Math.max(at,landAt-span);
                 job.metric.revealMs=revealAt-job.start;
                 await Promise.all([
                     animate(job,veil,[{opacity:1},{opacity:0}],{delay:revealAt-at,duration:VEIL_MS*pace,easing:soft}),

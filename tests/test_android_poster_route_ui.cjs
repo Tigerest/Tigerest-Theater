@@ -1,5 +1,6 @@
-// Android flies a poster to its predicted landing over the old page and changes
-// the route only once it has landed; other platforms keep their own path.
+// Android flies a poster to its predicted landing and changes the route as soon
+// as the opaque veil covers the old page, as the desktop does, without a touch
+// screen's wait for a quiet page.
 // Runs in Chrome, in the client (--webengine) or on a phone (TIGEREST_ANDROID_FIXTURE).
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),withBrowser=require('./community_browser.cjs');
 const root=path.resolve(__dirname,'..'),renderer=path.join(root,'native/homeTransitions.js');
@@ -28,30 +29,29 @@ withBrowser(routes,async({evaluate,call})=>{
    const detail=!document.querySelector('#detail').classList.contains('hide');this.home();
    return {...TigerestHomeTransitions.last,routedAt,at300,leaks,detail};}};true`);
  const done=m=>m.detail&&m.leaks===0&&!m.interrupted;
- // A predicted landing: the poster crosses the old page and the route starts after it lands.
- const deferred=await evaluate('fixture.fly()');
- assert.ok(done(deferred),'transition completes: '+JSON.stringify(deferred));
- assert.ok(deferred.deferRoute&&deferred.aim==='preset','Android defers the route for a predicted landing: '+JSON.stringify(deferred));
- assert.deepEqual(deferred.at300,{oldShown:true,routed:false,poster:true},'mid-flight the old page is still shown and the route has not started');
- assert.ok(deferred.posterLandedMs>=590&&deferred.routedAt>=590,'the route starts once the poster has landed: '+JSON.stringify(deferred));
- assert.ok(!deferred.fallback&&deferred.landingErrorPx<2,'the landed poster meets the real one: '+JSON.stringify(deferred));
- assert.ok(deferred.landedMs-deferred.targetMs<=400&&deferred.quietWaitMs===undefined,'the page is revealed at once, without waiting for a quiet page: '+JSON.stringify(deferred));
+ // A predicted landing: the route starts once the veil covers the old page, mid-flight.
+ const early=await evaluate('fixture.fly()');
+ assert.ok(done(early),'transition completes: '+JSON.stringify(early));
+ assert.ok(early.aim==='preset'&&early.routedAt<300,'Android changes the route once the old page is covered: '+JSON.stringify(early));
+ assert.deepEqual(early.at300,{oldShown:false,routed:true,poster:true},'mid-flight the new page is behind the veil and the poster still flies');
+ assert.ok(!early.fallback&&early.landingErrorPx<2&&early.landedMs<=700,'the poster lands on the real one by the deadline: '+JSON.stringify(early));
+ assert.ok(early.quietWaitMs===undefined,'the page is revealed without waiting for a quiet page: '+JSON.stringify(early));
  // A stale prediction: the landed poster is corrected onto the real one, never faded out as late.
  const corrected=await evaluate('(()=>{const r=fixture.rect();return fixture.fly({preset:{...r,x:r.x+40,y:r.y-30}});})()');
- assert.ok(done(corrected)&&corrected.deferRoute&&!corrected.fallback,'a stale landing is not a late target: '+JSON.stringify(corrected));
+ assert.ok(done(corrected)&&!corrected.fallback,'a stale landing is not a late target: '+JSON.stringify(corrected));
  assert.ok(corrected.correctionPx>=30&&corrected.landingErrorPx<2,'the poster is corrected onto the real one: '+JSON.stringify(corrected));
- // Without a prediction the route is not deferred (the poster lifts; touch screens still wait for a quiet page).
+ // Without a prediction the poster lifts and flies once the target exists; a phone does not wait for a quiet page.
  const unknown=await evaluate('fixture.fly({preset:null})');
- assert.ok(done(unknown)&&unknown.aim==='lift'&&!unknown.deferRoute&&unknown.routedAt<450,'no prediction, no deferred route: '+JSON.stringify(unknown));
+ assert.ok(done(unknown)&&unknown.aim==='lift'&&unknown.routedAt<300&&unknown.quietWaitMs===undefined,'no prediction: lift, no quiet wait: '+JSON.stringify(unknown));
  // Folding or rotating the phone mid-flight still changes the route.
  const resized=await evaluate(`fixture.fly({during:()=>window.dispatchEvent(new Event('resize'))})`);
- assert.ok(resized.detail&&resized.leaks===0&&resized.routedAt!==null,'a resize during the deferred flight still navigates: '+JSON.stringify(resized));
+ assert.ok(resized.detail&&resized.leaks===0&&resized.routedAt!==null,'a resize during the flight still navigates: '+JSON.stringify(resized));
  let others=null;
  if(!nativeAndroid){
   // Desktop and iPad keep flying while the route loads.
   others=await evaluate('fixture.fly({android:false})');
-  assert.ok(done(others)&&others.aim==='preset'&&!others.deferRoute&&others.routedAt<300,'other platforms change the route during the flight: '+JSON.stringify(others));
+  assert.ok(done(others)&&others.aim==='preset'&&others.routedAt<300,'other platforms change the route during the flight: '+JSON.stringify(others));
  }
- const pick=m=>m&&{aim:m.aim,posterLandedMs:m.posterLandedMs,routedAt:Math.round(m.routedAt),targetMs:m.targetMs&&Math.round(m.targetMs),landedMs:Math.round(m.landedMs),correctionPx:m.correctionPx};
- console.log('android poster route:',JSON.stringify({nativeAndroid,deferred:pick(deferred),corrected:pick(corrected),unknown:pick(unknown),others:pick(others)}));
+ const pick=m=>m&&{aim:m.aim,routedAt:Math.round(m.routedAt),targetMs:m.targetMs&&Math.round(m.targetMs),landedMs:Math.round(m.landedMs),correctionPx:m.correctionPx};
+ console.log('android poster route:',JSON.stringify({nativeAndroid,early:pick(early),corrected:pick(corrected),unknown:pick(unknown),others:pick(others)}));
 },{gpu:true,visible:true}).catch(error=>{console.error(error);process.exitCode=1;});
