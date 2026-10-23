@@ -600,6 +600,24 @@
 			<key>fileRef</key>
 			<string>9D8EABB4B9C632203EC1188C</string>
 		</dict>
+		<key>0B1C71BDAFA77CCA663D0969</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>text.xml</string>
+			<key>path</key>
+			<string>Config/PrivacyInfo.xcprivacy</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>8CA703A5F0F83D3A35DD4F1C</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>0B1C71BDAFA77CCA663D0969</string>
+		</dict>
 		<key>6B9AF8604B8E01F0D6FA89F9</key>
 		<dict>
 			<key>isa</key>
@@ -820,6 +838,7 @@
 				<string>56A8D05600A8536CF5036A94</string>
 				<string>08AB90A94555CBD3B2BE2AF7</string>
 				<string>0D22CACDDB1DD98A42AA6A9E</string>
+				<string>8CA703A5F0F83D3A35DD4F1C</string>
 				<string>A02024E3BCA7E6CE19D8E2A1</string>
 			</array>
 			<key>runOnlyForDeploymentPostprocessing</key>
@@ -886,6 +905,8 @@
 				<string>26.0</string>
 				<key>TARGETED_DEVICE_FAMILY</key>
 				<string>1,2</string>
+				<key>TIGEREST_DISTRIBUTION</key>
+				<string>github</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -973,6 +994,8 @@
 				<string>26.0</string>
 				<key>TARGETED_DEVICE_FAMILY</key>
 				<string>1,2</string>
+				<key>TIGEREST_DISTRIBUTION</key>
+				<string>github</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -1216,6 +1239,8 @@
 				<string>26.0</string>
 				<key>TARGETED_DEVICE_FAMILY</key>
 				<string>1,2</string>
+				<key>TIGEREST_DISTRIBUTION</key>
+				<string>github</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -1301,6 +1326,8 @@
 				<string>26.0</string>
 				<key>TARGETED_DEVICE_FAMILY</key>
 				<string>1,2</string>
+				<key>TIGEREST_DISTRIBUTION</key>
+				<string>github</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -1507,6 +1534,7 @@
 				<string>EA4EA786C5BC9B7737331310</string>
 				<string>F8C47B4287EC8D65BA2E613B</string>
 				<string>9D8EABB4B9C632203EC1188C</string>
+				<string>0B1C71BDAFA77CCA663D0969</string>
 				<string>6B9AF8604B8E01F0D6FA89F9</string>
 				<string>F411B6DE337B11F9A0947421</string>
 				<string>8EC36EC682A40B0C657E04C4</string>

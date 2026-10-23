@@ -23,3 +23,7 @@ struct ServerPresets: Decodable {
         return false
     }
 }
+/// TestFlight builds set TIGEREST_DISTRIBUTION=testflight; GitHub IPAs and Apple TV keep the default.
+enum Distribution {
+    static let testFlight = Bundle.main.object(forInfoDictionaryKey:"TigerestDistribution") as? String == "testflight"
+}

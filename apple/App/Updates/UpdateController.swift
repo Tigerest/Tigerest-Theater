@@ -16,10 +16,12 @@ import AppleCore
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
             defaults=UserDefaults(suiteName:"TigerestUITestUpdates")!
         } else {defaults = .standard}
-        state = .object(["status":.string("idle"),"currentVersion":.string(currentVersion),"checkOnly":.bool(true),"message":.string("开发签名版通过 Mac 上的 Xcode 更新。")])
+        state = .object(["status":.string("idle"),"currentVersion":.string(currentVersion),"checkOnly":.bool(true),"message":.string(Distribution.testFlight ? "TestFlight 版通过 TestFlight App 更新。" : "开发签名版通过 Mac 上的 Xcode 更新。")])
     }
     private func publish(_ value:JSONValue) {state=value;model.bridge.emit("system","appUpdateChanged",[value])}
     func check(manual:Bool) async -> JSONValue {
+        // TestFlight delivers its own updates; this build never asks the release feed or GitHub.
+        if Distribution.testFlight {publish(state);return state}
         if let task {
             if manual {manualCheck=true}
             return await task.value

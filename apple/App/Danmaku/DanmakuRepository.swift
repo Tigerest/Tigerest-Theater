@@ -173,7 +173,11 @@ import CryptoKit
     }
     func search(_ keyword: String, manual: Bool = true) async throws -> [JSONValue] {
         guard !keyword.isEmpty,keyword.count<=200 else { throw CoreError.invalidRequest }
-        if manual, let query=DanmakuExtra.query(keyword) {return try await searchExtra(query.name,category:query.category)}
+        if manual, let query=DanmakuExtra.query(keyword) {
+            // TestFlight builds reach danmaku only through the configured servers.
+            if Distribution.testFlight {return try await search(query.name)}
+            return try await searchExtra(query.name,category:query.category)
+        }
         let token=playbackGeneration, origins=providers.map(\.url)
         let encoded=keyword.addingPercentEncoding(withAllowedCharacters:.urlQueryAllowed.subtracting(CharacterSet(charactersIn:"&+=?#")))!
         var results:[JSONValue]=[],seen=Set<String>(),succeeded=false
@@ -354,6 +358,7 @@ import CryptoKit
         }
         // The PC's default aggregation fallback. Individual site extractors are
         // separate from the catalog/search path and are not run in the iOS core.
+        guard !Distribution.testFlight else {throw URLError(.resourceUnavailable)}
         let data=try await fetchBytes("/?ac=dm&url="+encoded(url),server:"https://api.danmu.icu",retry:true)
         let comments=try DanmakuParser.parse(data:data)
         guard token==generation,!Task.isCancelled else {throw CancellationError()}
