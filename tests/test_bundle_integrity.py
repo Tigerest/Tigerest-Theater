@@ -777,17 +777,29 @@ def test_windows_portable_runtime_bundle_contract() -> None:
 
 
 def test_macos_reproducibility_contract() -> None:
-    require("CMAKE_OSX_DEPLOYMENT_TARGET \"26.0\"" in read("CMakeLists.txt"),
-            "CMake macOS 26 target is missing")
-    require("<string>26.0</string>" in read("bundle/osx/Info.plist.in"),
-            "Info.plist macOS 26 minimum is missing")
-    require("CMAKE_OSX_DEPLOYMENT_TARGET=26.0" in read("dev/macos/build.sh"),
+    # Bundled Homebrew bottles carry the build runner's macOS as their minimum,
+    # so the floor, the runner and every compiled component must agree.
+    require("CMAKE_OSX_DEPLOYMENT_TARGET \"15.0\"" in read("CMakeLists.txt"),
+            "CMake macOS 15 target is missing")
+    require("<string>${CMAKE_OSX_DEPLOYMENT_TARGET}</string>" in read("bundle/osx/Info.plist.in"),
+            "Info.plist minimum must follow the CMake deployment target")
+    require('MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-15.0}"' in read("dev/macos/common.sh") and
+            read("dev/macos/build.sh").count('"${MACOS_DEPLOYMENT_TARGET}"') == 2,
             "local macOS build target is missing")
+    require("26.0" not in read("dev/macos/rife/build_mpv.py") and
+            "LSMinimumSystemVersion" in read("dev/macos/bundle_vapoursynth.py"),
+            "bundled mpv or VapourSynth launcher has its own macOS minimum")
+    require("verify_minimum_macos(Path(sys.argv[1]))" in read("tests/test_macos_bundle.py"),
+            "bundle check does not reject libraries built for a newer macOS")
     workflow = read(".github/workflows/build-macos.yml")
-    require("macos-26" in workflow and
-            "CMAKE_OSX_DEPLOYMENT_TARGET=26.0" in workflow and
+    require("MACOS_DEPLOYMENT_TARGET: '15.0'" in workflow and
+            "macos-15" in workflow and "macos-26" not in workflow and
+            workflow.count('"$MACOS_DEPLOYMENT_TARGET"') == 2 and
             "ctest --test-dir build" in workflow,
             "macOS CI matrix or test step is missing")
+    require("dev/macos/use_patched_webengine.py" in workflow and
+            re.search(r"WEBENGINE_SOURCE_SHA256: [0-9a-f]{64}\n", workflow),
+            "macOS CI does not install the pinned display-link WebEngine")
     deploy = read("CMakeModules/CompleteBundleMac.cmake.in")
     for unsupported_plugin in (
         "libqsqlmimer.dylib", "libqsqlodbc.dylib", "libqsqlpsql.dylib",

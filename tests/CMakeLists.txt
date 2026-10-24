@@ -549,12 +549,14 @@ if(Node_EXECUTABLE)
   add_test(NAME test_home_motion_webengine
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_home_motion_ui.cjs
                    $<TARGET_FILE:${MAIN_TARGET}> --webengine)
-  set_tests_properties(test_home_motion_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+  # gpu-hardware: needs GPU compositing (transition deadlines, D3D11 checks);
+  # hosted CI runners have none and run ctest -LE gpu-hardware.
+  set_tests_properties(test_home_motion_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE LABELS "gpu-hardware")
   # Android's deferred poster route, simulated in the client's WebEngine.
   add_test(NAME test_android_poster_route_webengine
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_android_poster_route_ui.cjs
                    $<TARGET_FILE:${MAIN_TARGET}> --webengine)
-  set_tests_properties(test_android_poster_route_webengine PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
+  set_tests_properties(test_android_poster_route_webengine PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE LABELS "gpu-hardware")
   # The mpv.conf editor against the real native bridge, parser and files.
   add_test(NAME test_mpvconf_editor_webengine
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mpvconf_editor_ui.cjs
@@ -571,11 +573,11 @@ if(Node_EXECUTABLE)
   add_test(NAME test_episode_motion_webengine
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_episode_motion_ui.cjs
                    $<TARGET_FILE:${MAIN_TARGET}> --webengine)
-  set_tests_properties(test_episode_motion_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+  set_tests_properties(test_episode_motion_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE LABELS "gpu-hardware")
   add_test(NAME test_jellyfin_motion_webengine
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_jellyfin_motion_ui.cjs
                    $<TARGET_FILE:${MAIN_TARGET}> --webengine)
-  set_tests_properties(test_jellyfin_motion_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+  set_tests_properties(test_jellyfin_motion_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE LABELS "gpu-hardware")
   add_test(NAME test_web_appearance_worlds_webengine
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_web_appearance_worlds_ui.cjs
                    $<TARGET_FILE:${MAIN_TARGET}> --webengine)
@@ -737,7 +739,7 @@ if(Node_EXECUTABLE)
     add_test(NAME test_webengine_startup
              COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_webengine_startup.js
                      $<TARGET_FILE:${MAIN_TARGET}>)
-    set_tests_properties(test_webengine_startup PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+    set_tests_properties(test_webengine_startup PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE LABELS "gpu-hardware")
     add_test(NAME test_unicode_command_line
              COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_unicode_command_line.js
                      $<TARGET_FILE:TigerestTheater>)

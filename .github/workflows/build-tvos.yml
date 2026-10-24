@@ -1,0 +1,42 @@
+name: build-tvos
+
+# Unsigned Apple TV IPA, packaged like the release attachment.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  tvos:
+    runs-on: macos-26
+    steps:
+    - uses: actions/checkout@v7
+    - name: Select Xcode
+      run: |
+        if ! xcodebuild -version | head -1 | grep -q '^Xcode 27'; then
+          candidate=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$candidate" ]; then sudo xcode-select -s "$candidate"; fi
+        fi
+        xcodebuild -version
+    - name: Generate project
+      run: |
+        # Both projects use the ignored apple/Local.xcconfig for a personal
+        # team; only the iPad generator creates it. CI builds unsigned.
+        [ -f apple/Local.xcconfig ] || echo '// Unsigned CI build.' > apple/Local.xcconfig
+        python3 apple/tools/generate_tv_project.py
+        git diff --exit-code -- apple
+    - name: Build Release for generic tvOS device
+      run: |
+        xcodebuild -project apple/TigerestTV.xcodeproj -scheme TigerestTV \
+          -configuration Release -derivedDataPath apple/DerivedDataTV \
+          -clonedSourcePackagesDirPath apple/DerivedData/SourcePackages \
+          -sdk appletvos -destination 'generic/platform=tvOS' CODE_SIGNING_ALLOWED=NO build
+    - name: Package unsigned IPA
+      run: |
+        python3 apple/tools/package_ipa.py --platform tvos \
+          --app apple/DerivedDataTV/Build/Products/Release-appletvos/TigerestTV.app \
+          --output "$PWD/dist"
+    - name: Archive IPA
+      uses: actions/upload-artifact@v7
+      with:
+        name: tigerest-theater-tvos
+        path: dist/*.ipa

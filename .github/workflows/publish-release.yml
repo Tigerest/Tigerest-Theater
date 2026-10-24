@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       macos_run_id:
-        description: Optional successful build-macos run ID containing macos-arm64
+        description: Optional successful build-macos run ID containing tigerest-theater-macos-arm64
         required: false
         default: ''
         type: string
@@ -55,10 +55,10 @@ jobs:
           MACOS_RUN_ID: ${{ inputs.macos_run_id }}
         run: |
           mkdir release-assets
-          gh run download "$WINDOWS_RUN_ID" --repo "$GITHUB_REPOSITORY" --name windows-x64-installer --dir release-assets
-          gh run download "$WINDOWS_RUN_ID" --repo "$GITHUB_REPOSITORY" --name windows-x64-portable --dir release-assets
+          gh run download "$WINDOWS_RUN_ID" --repo "$GITHUB_REPOSITORY" --name tigerest-theater-windows-x64-installer --dir release-assets
+          gh run download "$WINDOWS_RUN_ID" --repo "$GITHUB_REPOSITORY" --name tigerest-theater-windows-x64-portable --dir release-assets
           if [[ -n "$MACOS_RUN_ID" ]]; then
-            gh run download "$MACOS_RUN_ID" --repo "$GITHUB_REPOSITORY" --name macos-arm64 --dir release-assets
+            gh run download "$MACOS_RUN_ID" --repo "$GITHUB_REPOSITORY" --name tigerest-theater-macos-arm64 --dir release-assets
           fi
 
       - name: Verify names and generate checksums

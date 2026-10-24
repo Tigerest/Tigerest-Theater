@@ -23,7 +23,7 @@ def setup_meson(meson,out,source,arguments,env):
     subprocess.run([meson,'setup',*(['--reconfigure','--clearcache'] if (out/'build.ninja').exists() else []),
                     str(out),str(source),*arguments,'-Dpkg_config_path='+json.dumps(pkg_paths)],env=env,check=True)
 
-def build(destination,meson,runtime_python=None):
+def build(destination,meson,runtime_python=None,deployment_target='15.0'):
     destination=destination.resolve();destination.mkdir(parents=True,exist_ok=True)
     archive=destination/f'mpv-v{VERSION}.tar.gz'
     if not archive.exists():
@@ -45,12 +45,12 @@ def build(destination,meson,runtime_python=None):
     out=destination/'mpv-build'
     architecture='arm64' if platform.machine()=='arm64' else 'x86_64'
     sdk=subprocess.check_output(['xcrun','--sdk','macosx','--show-sdk-path'],text=True).strip()
+    minimum=f'-mmacosx-version-min={deployment_target}'
     arguments=['-Dbuildtype=release','-Dlibmpv=true','-Djavascript=enabled','-Dlua=luajit',
         '-Dlibarchive=enabled','-Duchardet=enabled','-Dvulkan=enabled','-Dvapoursynth=enabled',
-        '-Dmanpage-build=disabled',f'-Dswift-flags=-target {architecture}-apple-macos26.0',
-        '-Dc_args=-mmacosx-version-min=26.0','-Dc_link_args=-mmacosx-version-min=26.0',
-        '-Dobjc_args=-mmacosx-version-min=26.0','-Dobjc_link_args=-mmacosx-version-min=26.0']
-    env=dict(os.environ,MACOSX_DEPLOYMENT_TARGET='26.0',SDKROOT=sdk)
+        '-Dmanpage-build=disabled',f'-Dswift-flags=-target {architecture}-apple-macos{deployment_target}',
+        f'-Dc_args={minimum}',f'-Dc_link_args={minimum}',f'-Dobjc_args={minimum}',f'-Dobjc_link_args={minimum}']
+    env=dict(os.environ,MACOSX_DEPLOYMENT_TARGET=deployment_target,SDKROOT=sdk)
     brew=Path(subprocess.check_output(['brew','--prefix'],text=True).strip())
     pkg_paths=[str(brew/'opt'/name/'lib/pkgconfig') for name in ('libarchive','luajit','vapoursynth','libplacebo')]
     runtime = inspect_runtime(runtime_python) if runtime_python else None
@@ -60,7 +60,7 @@ def build(destination,meson,runtime_python=None):
     setup_meson(meson,out,source,arguments,env)
     subprocess.run([meson,'compile','-C',str(out),'-j',str(min(os.cpu_count() or 4,8))],env=env,check=True)
     (destination/'mpv-provenance.json').write_text(json.dumps({
-        'version':VERSION,'archive_sha256':SHA256,'patches':hashes,'deployment_target':'26.0',
+        'version':VERSION,'archive_sha256':SHA256,'patches':hashes,'deployment_target':deployment_target,
         'architecture':architecture,'vapoursynthVersion':runtime['vapoursynthVersion'] if runtime else None,
         'vapoursynthPkgConfig':runtime['pkgconfig'] if runtime else None},indent=2)+'\n')
     return out/'libmpv.dylib'
@@ -70,6 +70,8 @@ if __name__=='__main__':
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--meson',default=shutil.which('meson'))
     parser.add_argument('--vapoursynth-python',type=Path)
+    parser.add_argument('--deployment-target',default='15.0',
+                        help='Minimum macOS; must not be newer than the bundle LSMinimumSystemVersion')
     args=parser.parse_args()
     if not args.meson:parser.error('Install Meson 1.9.2 in the build environment')
-    print(build(args.output,args.meson,args.vapoursynth_python))
+    print(build(args.output,args.meson,args.vapoursynth_python,args.deployment_target))

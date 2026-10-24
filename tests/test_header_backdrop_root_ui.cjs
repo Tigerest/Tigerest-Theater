@@ -26,10 +26,15 @@ const jellyfin = fs.readFileSync(path.join(__dirname, 'fixtures/jellyfin-detail/
 // Explicit tab font/Latin labels keep this pixel fixture deterministic:
 // identical unoptimized reloads otherwise changed 464 CJK glyph pixels on
 // Windows. Chinese title/native-control coverage remains in the top row.
+// The top row keeps its styled height (123.84 px) from the start. The header
+// controls style arrives after the first paint and lifted the tabs 33.6 px;
+// after that move Chromium drew the active tab's 2 px underline one row lower
+// on a few percent of reloads (88 pixels, on Windows, macOS and Linux).
 const stripes = Array.from({length: 60}, (_, i) => `<div style="height:14px;background:hsl(${i * 47 % 360} 90% ${40 + i % 3 * 15}%)"></div>`).join('');
 const icon = 'headerButton paper-icon-button-light';
 const page = `<!doctype html><meta charset="utf-8"><style>${jellyfin}
 body{font:16px system-ui}
+.headerTop{box-sizing:border-box;height:124px}
 /* jellyfin-web emby-button.scss */
 .paper-icon-button-light{position:relative;display:inline-flex;align-items:center;justify-content:center;font-size:1.5em;color:inherit;margin:0 .29em;background:transparent;text-align:center;padding:.556em;vertical-align:middle;border:0;border-radius:50%;outline:none!important;overflow:hidden;z-index:0;flex-shrink:0}
 .headerTabs{display:flex;justify-content:center}.emby-tabs-slider{display:flex;border-radius:50px}

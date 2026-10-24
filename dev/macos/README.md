@@ -1,6 +1,6 @@
-# 在 macOS 26+ 构建 Tigerest Theater
+# 在 macOS 15+ 构建 Tigerest Theater
 
-本工程支持 Apple Silicon 与 Intel macOS 26+。本地脚本按当前机器架构构建；GitHub Actions 工程分别使用 macOS 26 arm64 与 x86_64 runner。
+本工程支持 Apple Silicon 与 Intel macOS 15+。本地脚本按当前机器架构构建；GitHub Actions 工程分别使用 macOS 15 arm64（`macos-15`）与 x86_64（`macos-15-intel`）runner。
 
 ## 快速开始
 
@@ -12,7 +12,9 @@ dev/macos/run.sh
 dev/macos/bundle.sh
 ```
 
-依赖包括 Xcode Command Line Tools、Homebrew、CMake、Ninja、create-dmg、Node.js、mpv、aqtinstall 和 Qt 6.9.3（含 WebEngine、WebChannel、Positioning）。所有 CMake 入口均将最低部署目标设为 macOS 26.0。
+依赖包括 Xcode Command Line Tools、Homebrew、CMake、Ninja、create-dmg、Node.js、mpv、aqtinstall 和 Qt 6.9.3（含 WebEngine、WebChannel、Positioning）。所有 CMake 入口均将最低部署目标设为 macOS 15.0，`Info.plist` 的 `LSMinimumSystemVersion` 跟随 `CMAKE_OSX_DEPLOYMENT_TARGET`。
+
+安装包会原样带上 Homebrew 的媒体库（FFmpeg、libplacebo、libass 等），而 Homebrew bottle 的最低系统就是构建机的 macOS 版本。因此要发布给 macOS 15 的安装包，必须在 macOS 15 上构建；在更新的 macOS 上打出的包会在 macOS 15 启动时被 dyld 以 `Symbol not found` 终止。`tests/test_macos_bundle.py` 会检查包内每个 Mach-O 的最低系统，超过 `LSMinimumSystemVersion` 时停止打包。只在本机使用的开发包可设置 `MACOS_DEPLOYMENT_TARGET=<本机版本>` 再运行 `build.sh`。
 
 输出位置：
 

@@ -8,6 +8,8 @@ import json
 import hashlib
 import os
 from pathlib import Path
+import plistlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -128,10 +130,47 @@ def verify_dependencies(app: Path) -> None:
             assert target.exists(),f'Missing library: {binary}: {target}'
 
 
+def required_macos(load_commands):
+    """Return every minimum macOS recorded in `otool -l` output."""
+    versions=[]
+    # Field order differs between otool versions (LLVM prints sdk before minos).
+    for block in re.split(r'^Load command \d+$',load_commands,flags=re.M)[1:]:
+        fields=dict(line.split(None,1) for line in block.splitlines() if len(line.split(None,1))==2)
+        if fields.get('cmd')=='LC_BUILD_VERSION' and fields.get('platform','').lower() in ('1','macos'):
+            versions.append(fields['minos'])
+        elif fields.get('cmd')=='LC_VERSION_MIN_MACOSX':
+            versions.append(fields['version'])
+    return versions
+
+
+def macos_version(text):
+    return tuple(int(part) for part in (text.split('.')+['0','0'])[:3])
+
+
+def verify_minimum_macos(app: Path) -> None:
+    # dyld loads a library built for a newer macOS and then aborts on the first
+    # libc++/system symbol that older release lacks, before any app code runs.
+    app=app.resolve()
+    with (app/'Contents/Info.plist').open('rb') as source:
+        info=plistlib.load(source)
+    declared=info['LSMinimumSystemVersion']
+    executable=app/'Contents/MacOS'/info['CFBundleExecutable']
+    newer=set()
+    for binary in macho_files(app):
+        required=required_macos(subprocess.check_output(['otool','-l',str(binary)],text=True))
+        if binary==executable:assert required,f'Cannot read the minimum macOS of {binary}'
+        newer.update(f'{binary.relative_to(app)} (macOS {version})' for version in required
+                     if macos_version(version)>macos_version(declared))
+    assert not newer,(f'Bundled code needs a newer macOS than LSMinimumSystemVersion {declared}; '
+                      f'build on macOS {declared} so Homebrew bottles match: '+', '.join(sorted(newer)))
+
+
 if __name__ == "__main__":
+    verify_minimum_macos(Path(sys.argv[1]))
     verify_vulkan_driver(Path(sys.argv[1]))
     verify_vapoursynth_runtime(Path(sys.argv[1]))
     archs=subprocess.check_output(['lipo','-archs',str(Path(sys.argv[1])/'Contents/MacOS/Tigerest Theater')],text=True)
     if 'arm64' in archs:verify_rife_models(Path(sys.argv[1]))
     verify_dependencies(Path(sys.argv[1]))
-    print("PASS: portable MoltenVK/Python/VapourSynth, verified RIFE models on arm64, closed runtime dependencies")
+    print("PASS: bundled code within LSMinimumSystemVersion, portable MoltenVK/Python/VapourSynth, "
+          "verified RIFE models on arm64, closed runtime dependencies")

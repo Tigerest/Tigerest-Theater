@@ -3,6 +3,9 @@
 # Sourced by other scripts
 
 QT_VERSION="${QT_VERSION:-6.9.3}"
+# Homebrew bottles target the macOS they were poured on; build on this version
+# so every bundled library runs there.
+MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-15.0}"
 
 SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
