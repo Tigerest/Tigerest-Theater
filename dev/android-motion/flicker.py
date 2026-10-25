@@ -13,7 +13,7 @@ blanks and reappears.
 import os, subprocess, sys
 import numpy as np
 
-W, H, BLOCK = 135, 315, 15
+BLOCK = 15
 
 
 def tool(name):
@@ -21,7 +21,14 @@ def tool(name):
     return os.path.join(folder, name) if folder else name
 
 
-def frames(video):
+def size(video):
+    # About an eighth of the screen, in whole blocks: 135x315 for 1080x2520.
+    w, h = subprocess.run([tool('ffprobe'), '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height',
+                           '-of', 'csv=p=0', video], capture_output=True, text=True, check=True).stdout.split(',')
+    return BLOCK * round(int(w) / BLOCK / 8), BLOCK * round(int(h) / BLOCK / 8)
+
+
+def frames(video, W, H):
     raw = subprocess.run([tool('ffmpeg'), '-v', 'quiet', '-i', video, '-fps_mode', 'passthrough',
                           '-vf', f'scale={W}:{H}:flags=area,format=gray', '-f', 'rawvideo', '-'],
                          capture_output=True, check=True).stdout
@@ -34,7 +41,8 @@ def frames(video):
 
 
 def check(video):
-    f, t = frames(video)
+    W, H = size(video)
+    f, t = frames(video, W, H)
     n = len(f)
     blocks = f.reshape(n, H // BLOCK, BLOCK, W // BLOCK, BLOCK).mean((2, 4))
     diff = lambda a, b: float(np.abs(f[a] - f[b]).mean())
