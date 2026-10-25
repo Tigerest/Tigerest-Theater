@@ -191,7 +191,15 @@ const back = () => shell('input keyevent KEYCODE_BACK');
         // --set=<expression> runs in the page before measuring, e.g. an experiment switch.
         if (argument('set', null)) await c.evaluate(String(argument('set')) + ';true');
         const offset = await clockOffset(c), layer = layerName(), results = [];
-        const press = kind => async () => { const p = await c.evaluate(pick(kind)); if (!p) throw Error('nothing to press: ' + kind); tap(p); };
+        const press = kind => async () => {
+            for (let attempt = 0; ; attempt++) {
+                const p = await c.evaluate(pick(kind)); if (!p) throw Error('nothing to press: ' + kind); tap(p);
+                // The gallery's auto-advance can unselect the cover between picking and the tap,
+                // which then only selects it: press again, measured from that press.
+                if (kind === 'card' || attempt || await waitFor(c, 'window.TigerestHomeTransitions.busy||window.TigerestHomeTransitions.last!==window.__tgmLast', 600)) return;
+                await c.evaluate('window.__tgm.events.length=0;true');
+            }
+        };
         const ensure = async (want, timeout = 6000) => {
             // Home is reached unmeasured by going back from wherever a previous run stopped.
             for (let i = 0; want === 'home' && i < 3 && !await waitFor(c, `(${state}).home&&!window.TigerestHomeTransitions.busy`, 1500); i++) { back(); await delay(2500); }
