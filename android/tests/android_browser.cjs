@@ -2,7 +2,7 @@
 const fs=require('node:fs'),http=require('node:http');
 const {connect,run,delay}=require('./cdp.cjs');
 module.exports=async function(routes,work,{settings={}}={}){
- const server=http.createServer((req,res)=>{const route=routes[new URL(req.url,'http://fixture').pathname];if(!route){res.writeHead(404);res.end();return;}res.setHeader('Content-Type',route.type||'text/javascript; charset=utf-8');res.end(route.path?fs.readFileSync(route.path):route.body);});
+ const server=http.createServer((req,res)=>{const route=routes[new URL(req.url,'http://fixture').pathname];if(!route){res.writeHead(404);res.end();return;}res.setHeader('Content-Type',route.type||'text/javascript; charset=utf-8');for(const [name,value] of Object.entries(route.headers||{}))res.setHeader(name,value);res.end(route.path?fs.readFileSync(route.path):route.body);});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const port=server.address().port,url='http://127.0.0.1:'+port;let c;
  try{
   run('reverse','tcp:'+port,'tcp:'+port);run('shell','am','force-stop','top.tigerest.theater.debug');

@@ -16,7 +16,10 @@
             // Emby's image tag changes with the artwork. Ordinary mutable URLs
             // must keep decoding their actual current image, even on a cache hit.
             const versioned = /\/Items\/[^/]+\/Images\/[^/]+(?:\/\d+)?$/i.test(source.pathname) && source.searchParams.get('tag');
-            if (!['qrc:', 'data:', 'blob:'].includes(source.protocol) &&
+            // Artwork bundled with the client is immutable too: qrc: on desktop,
+            // the app's asset origin on Android.
+            const scripts = window.jmpInfo?.scriptPath, bundled = !!scripts && source.href.startsWith(new URL(scripts.replace(/\/*$/, '/'), location.href).href);
+            if (!['qrc:', 'data:', 'blob:'].includes(source.protocol) && !bundled &&
                 !(['http:', 'https:'].includes(source.protocol) && versioned)) return null;
             return JSON.stringify([source.href, node.naturalWidth, node.naturalHeight]);
         } catch { return null; }
@@ -31,18 +34,36 @@
     function checkAborted(signal) {
         if (signal?.aborted) throw Object.assign(new Error('capture aborted'), {name: 'AbortError'});
     }
+    // Emby varies artwork on Accept, so the cached copy is found only with the
+    // header the element's own request sent: Chromium's image Accept, which
+    // has gained formats over versions (Android's WebView 155 sends JPEG XL).
+    // The plain header is for servers that do not vary.
+    const accepts = ['image/jxl,image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8', 'image/webp,image/apng,image/*,*/*;q=0.8', null];
+    let accepted = 0;
+    // Resolves null when the element's bytes are not such cached artwork.
+    async function cachedDecode(node, options, signal) {
+        const source = new URL(node.currentSrc || node.src, location.href);
+        if (!window.fetch || source.origin !== location.origin || !/\/Items\/[^/]+\/Images\/[^/]+(?:\/\d+)?$/i.test(source.pathname) || !source.searchParams.get('tag')) return null;
+        for (const index of [accepted, ...accepts.keys()].filter((value, i, all) => all.indexOf(value) === i)) {
+            let response;
+            try {
+                response = await fetch(source.href, {cache: 'only-if-cached', mode: 'same-origin', credentials: 'same-origin', signal,
+                    headers: accepts[index] ? {Accept: accepts[index]} : {}});
+            } catch (error) { checkAborted(signal); continue; }
+            checkAborted(signal);
+            if (!response.ok) return null;
+            accepted = index;
+            const blob = await response.blob();
+            checkAborted(signal);
+            return createImageBitmap(blob, options);
+        }
+        return null;
+    }
     async function decodeSource(node, options, signal) {
         try {
-            const source = new URL(node.currentSrc || node.src, location.href);
-            if (window.fetch && source.origin === location.origin && /\/Items\/[^/]+\/Images\/[^/]+(?:\/\d+)?$/i.test(source.pathname) && source.searchParams.get('tag')) {
-                const response = await fetch(source.href, {cache: 'only-if-cached', mode: 'same-origin', credentials: 'same-origin', signal});
-                checkAborted(signal);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    checkAborted(signal);
-                    return await createImageBitmap(blob, options);
-                }
-            }
+            const bitmap = await cachedDecode(node, options, signal);
+            if (bitmap) return bitmap;
         } catch (error) { checkAborted(signal); }
         checkAborted(signal);
         return createImageBitmap(node, options);
@@ -183,5 +204,5 @@
         }catch(error){return null;}
         finally{owned.forEach(bitmap=>bitmap.close());}
     }
-    window.TigerestHomeBackdrop={build,dispose};
+    window.TigerestHomeBackdrop={build,dispose,decode:cachedDecode};
 }());
