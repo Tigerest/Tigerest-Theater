@@ -26,7 +26,10 @@ withBrowser(routes,async({evaluate,call})=>{
   window.fixture={async fly(source){
    const home=document.querySelector('#home'),detail=document.querySelector('#detail');
    let shown=null;
-   setTimeout(()=>{const p=document.querySelector('.tigerest-motion-poster'),c=p?.querySelector('canvas');shown=p&&{canvas:c?[c.width,c.height]:null,background:p.style.backgroundImage};},60);
+   const centre=canvas=>[...canvas.getContext('2d').getImageData(canvas.width>>1,canvas.height>>1,1,1).data].slice(0,3);
+   const expected=Object.assign(document.createElement('canvas'),{width:source.naturalWidth,height:source.naturalHeight});expected.getContext('2d').drawImage(source,0,0);
+   setTimeout(()=>{const p=document.querySelector('.tigerest-motion-poster'),c=p?.querySelector('canvas');
+    shown=p&&{canvas:c?[c.width,c.height]:null,background:p.style.backgroundImage,pixel:c?centre(c):null,artwork:centre(expected)};},60);
    await TigerestHomeTransitions.poster({source,findTarget:()=>document.querySelector('#detail:not(.hide) .detailImageContainer'),
     navigate:async()=>{home.classList.add('hide');document.body.classList.remove('tg-home-active');detail.classList.remove('hide');},
     landingKey:'cover-art-'+Math.random(),presetRect:{x:60,y:60,width:130,height:195}});
@@ -40,6 +43,7 @@ withBrowser(routes,async({evaluate,call})=>{
  assert.ok(selected.preparedArt&&selected.shown?.canvas&&!selected.shown.background,'the selected cover flies its prepared bitmap: '+JSON.stringify(selected));
  // No detail landing is known yet: twice the cover's height, at most the artwork's own.
  assert.deepEqual(selected.shown.canvas,[320,240],'prepared at the artwork size here: '+JSON.stringify(selected));
+ assert.ok(selected.shown.pixel.every((v,i)=>Math.abs(v-selected.shown.artwork[i])<=6),'the canvas holds the artwork: '+JSON.stringify(selected.shown));
  assert.equal(downloads,loaded,'the cover is decoded from its cached bytes, not downloaded again');
  assert.equal(selected.leaks,0,'the flight cleans up');
  const other=await evaluate(`fixture.fly(document.querySelector('.tg-cover:not(.is-selected) img'))`);
