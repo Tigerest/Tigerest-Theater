@@ -58,3 +58,6 @@ body:has(#server-choice) { box-sizing:border-box; padding:calc(var(--tgs-safe-to
 /* A library press flies the home's columns out. Kept in their own layers, the flight
    starts at once instead of after they are rastered again and their artwork decoded. */
 .tg-home-nav,.tg-home-stage,.tg-home-rail { will-change:transform,opacity; }
+/* A cover press hides its artwork under the flying poster. In their own layers the
+   other covers are not rastered again, nor their artwork decoded, before the flight. */
+.tg-cover img { will-change:transform; }

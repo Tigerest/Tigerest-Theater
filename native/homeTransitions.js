@@ -80,9 +80,34 @@
         wrapper.append(light);document.body.append(wrapper);sync(warmJob);light.getBoundingClientRect();
         Object.assign(cached,{light,wrapper,copies:warmJob.copies});
     }
+    // Android rasters a flying poster's artwork at the start of its flight and
+    // presents nothing until that frame is rastered. Flights off the small home
+    // covers waited 30-300 ms for a full-size JPEG decode: the 4K scenery had
+    // pushed the cover's decoded art out of the cache. The selected cover is the
+    // likely press, so its art is decoded on a decoder thread beforehand, at
+    // the size this window's detail posters landed, and that flight shows it
+    // on a canvas, which needs no raster.
+    let art=null,preparing=null;
+    function prepareArt(){
+        const node=document.querySelector('.tg-home .tg-cover.is-selected img'),source=node?.complete&&node.naturalWidth&&url(node);
+        if(!source||art?.source===source||preparing?.source===source||!window.TigerestHomeBackdrop?.decode)return;
+        preparing?.controller.abort();
+        const task=preparing={source,controller:new AbortController()},signal=task.controller.signal;
+        const landed=Object.entries(stored()).filter(([key,entry])=>key.startsWith('detail|')&&entry.w===innerWidth&&entry.h===innerHeight).map(([,entry])=>entry.rect.height);
+        const height=Math.min(node.naturalHeight,Math.ceil((landed.length?Math.max(...landed):box(node).height*2)*1.1*devicePixelRatio));
+        window.TigerestHomeBackdrop.decode(node,{resizeWidth:Math.max(1,Math.round(height*node.naturalWidth/node.naturalHeight)),resizeHeight:height,resizeQuality:'high'},signal).then(bitmap=>{
+            if(!bitmap)return;
+            if(!signal.aborted&&url(node)===source){
+                const canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;
+                canvas.getContext('2d').drawImage(bitmap,0,0);art={source,canvas};
+            }
+            bitmap.close();
+        }).catch(()=>{}).finally(()=>{if(preparing===task)preparing=null;});
+    }
     function prewarm(){
         changes(observer?.takeRecords()||[]);
         if(active||reduced()||!window.TigerestHomeBackdrop||!backgroundRoot())return Promise.resolve(false);
+        if(android()&&homeActive())prepareArt();
         if(warming)return warming.promise;
         if(cacheReady()&&(cached.light||!snapshotWanted()))return Promise.resolve(true);
         if(cached&&!cacheReady())invalidate(false);
@@ -126,6 +151,7 @@
       .tigerest-motion-part,.tigerest-motion-poster{position:absolute;left:0;top:0;transform-origin:0 0}
       .tigerest-motion-part{will-change:transform}
       .tigerest-motion-poster{overflow:hidden;background-size:cover;background-position:center}
+      .tigerest-motion-poster>canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
       @media(max-width:900px){
         .view-item-item .detailMainContainer:has(.detailImageContainer-main.detailImageContainer-portrait){display:grid!important;grid-template-columns:clamp(90px,18vw,130px) minmax(0,1fr);gap:12px 18px;align-items:center}
         .view-item-item .detailImageContainer-main.detailImageContainer-portrait{display:block!important;grid-column:1;grid-row:1/3;width:100%!important;max-width:none!important;margin:0!important;align-self:center}
@@ -585,10 +611,13 @@
     // press can fly at once. Kept across restarts; a few dozen entries.
     let landings=null;
     const landingStore='tigerest-motion-landings';
+    function stored(){
+        if(!landings){try{landings=JSON.parse(localStorage.getItem(landingStore)||'{}')||{};}catch{landings={};}}
+        return landings;
+    }
     function remembered(key){
         if(!key)return null;
-        if(!landings){try{landings=JSON.parse(localStorage.getItem(landingStore)||'{}')||{};}catch{landings={};}}
-        const entry=landings[key];
+        const entry=stored()[key];
         return entry&&entry.w===innerWidth&&entry.h===innerHeight?entry.rect:null;
     }
     function remember(key,rect){
@@ -612,7 +641,10 @@
         const moveA=part(),moveB=part(),move=part(),size=part(),sizeB=part(),sizeA=part();
         root.append(moveA);moveA.append(moveB);moveB.append(move);move.append(size);size.append(sizeB);sizeB.append(sizeA);sizeA.append(poster);
         for(const n of [moveA,moveB,move,size,sizeB,sizeA,poster])Object.assign(n.style,{width:from.width+'px',height:from.height+'px'});
-        Object.assign(poster.style,{backgroundImage:'url('+JSON.stringify(artwork)+')',borderRadius:radius});
+        poster.style.borderRadius=radius;
+        job.metric.preparedArt=art?.source===artwork;
+        if(job.metric.preparedArt){poster.append(art.canvas);art=null;}
+        else poster.style.backgroundImage='url('+JSON.stringify(artwork)+')';
         move.style.transform=`translate3d(${from.x}px,${from.y}px,0)`;
         job.layers.push(root);document.body.append(root);
         return {root,poster,from,final:new Map(),stages:{base:[move,size],A:[moveA,sizeA],B:[moveB,sizeB]}};
