@@ -610,9 +610,10 @@
     // and the destination is revealed as soon as its poster exists.
     // A wall that was never shown from home answers its item queries only
     // after 520-630 ms on a remote server: its short flight and reveal are
-    // what still fits before DEADLINE_MS, which leaves the landing frame and
-    // the release of input inside 700 ms.
-    const COVER_MS=150,LAND_MS=600,DEADLINE_MS=680,LIFT_MS=260,FLIGHT_MS=320,SHORT_FLIGHT_MS=120,SHORT_REVEAL_MS=120,TOUCH_FLIGHT_MS=720,CORRECT_MS=160,LATE_MS=120,VEIL_MS=150,LENS_DELAY_MS=80,LENS_MS=180;
+    // what still fits before DEADLINE_MS. That leaves the landing frame and
+    // the release of input inside 700 ms even while the wall's first rows keep
+    // Android's main thread busy: there they came 6-25 ms after the plan.
+    const COVER_MS=150,LAND_MS=600,DEADLINE_MS=650,LIFT_MS=260,FLIGHT_MS=320,SHORT_FLIGHT_MS=120,SHORT_REVEAL_MS=120,TOUCH_FLIGHT_MS=720,CORRECT_MS=160,LATE_MS=120,VEIL_MS=150,LENS_DELAY_MS=80,LENS_MS=180;
     // Android's library: the live wall starts coming in by then after the press, loaded or not.
     const ARRIVE_BY_MS=560;
     // The landing card is drawn, nearly transparent, this long before the poster leaves it.
