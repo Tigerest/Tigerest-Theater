@@ -2,6 +2,7 @@
     'use strict';
     let singleton;
     const element=(tag,text)=>{const e=document.createElement(tag);if(text!=null)e.textContent=text;return e;};
+    const openUrl=url=>window.NativeShell?.openUrl?window.NativeShell.openUrl(url):window.open(url,'_blank','noopener');
     class Account {
         constructor(connectionManager){
             this.connectionManager=connectionManager;
@@ -90,15 +91,68 @@
                 input.setAttribute('aria-label',label);input.style.cssText='box-sizing:border-box;display:block;width:100%;padding:9px;margin-top:5px;font:inherit';wrap.append(input);form.append(wrap);return input;
             };
             const hint=(input,text,id)=>{const help=element('small',text);help.id=id;help.style.cssText='display:block;margin-top:5px;color:#aebbd0';input.parentElement.append(help);input.setAttribute('aria-describedby',id);return help;};
+            const checkbox=(form,label)=>{
+                const wrap=element('label'),input=element('input');input.type='checkbox';wrap.style.cssText='display:flex;gap:8px;align-items:center';
+                wrap.append(input,element('span',label));form.append(wrap);return input;
+            };
+            // Terms and contact details come from the service; nothing shows before it announces them.
+            const legal=()=>{
+                const terms=this.session.terms();if(!terms)return;
+                const box=element('div');box.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:center;color:#aebbd0';
+                addButton('阅读使用条款',()=>openUrl(terms.url),box);
+                const contact=typeof terms.contact==='string'?terms.contact.replace(/^mailto:/i,''):'';
+                if(contact)box.append(element('small','联系我们：'+contact));
+                body.append(box);
+            };
+            const blocks=async()=>{
+                if(this.session.moderation()?.blocks!==true)return;
+                const form=group('已屏蔽的用户'),list=element('div');list.style.cssText='display:grid;gap:8px';form.append(list);
+                const more=addButton('加载更多',()=>run(load,()=>{}),form);more.hidden=true;
+                let cursor=null;
+                const empty=()=>{if(!list.children.length)list.append(element('small','没有屏蔽任何用户。'));};
+                const load=async()=>{
+                    const page=await this.session.request('/me/blocks?limit=20'+(cursor?'&cursor='+encodeURIComponent(cursor):''));
+                    if(!current())return;
+                    for(const entry of page.items||[]){
+                        if(!entry?.author?.id)continue;
+                        const row=element('div');row.style.cssText='display:flex;gap:10px;align-items:center;justify-content:space-between';
+                        const name=entry.author.name||'已注销用户';row.append(element('span',name));
+                        addButton('解除屏蔽',()=>run(()=>this.session.request('/me/blocks/'+encodeURIComponent(entry.author.id),{method:'DELETE'}),()=>{
+                            row.remove();empty();status.textContent='已解除对 '+name+' 的屏蔽，刷新评论后可见。';}),row);
+                        list.append(row);
+                    }
+                    cursor=page.nextCursor||null;more.hidden=!cursor;empty();
+                };
+                try{await load();}catch(error){if(current())list.append(element('small',error.message));}
+            };
+            const deletion=me=>{
+                if(!this.session.canDeleteAccount(me))return;
+                const form=group('注销评论账号'),emby=me.account.authKind==='emby';
+                form.append(element('p','仅注销评论身份，不会删除 Emby 账号。将删除昵称、头像、屏蔽名单、消息以及你发表的评论正文；有他人回复的评论会显示为「已注销用户」。注销后无法恢复。'));
+                const password=emby?null:field(form,'当前密码','password','current-password');
+                const sure=checkbox(form,'我了解注销后无法恢复');sure.required=true;
+                addButton('注销评论账号',()=>{if(form.reportValidity())run(()=>this.session.deleteAccount(password?.value),()=>{
+                    this.avatars?.clear?.();this.show(onDone,'评论账号已注销。'+(emby?'不会自动重新加入，需要时可以在这里重新加入。':''));});},form);
+            };
             try{
                 const caps=await this.session.discover();if(!current())return;
                 const policy=this.session.passwordPolicy?.()||{minLength:12,maxLength:128};
                 const passwordLabel=prefix=>prefix+'（'+policy.minLength+'–'+policy.maxLength+' 个字符）';
                 const helpText='可使用字母、数字和符号，不可包含换行等控制字符。';
                 if(this.session.trusted()){
-                    await this.session.ready();if(!current())return;
-                    status.textContent='已使用大河 Emby 账号登录公共评论。';
-                    summary.textContent='评论里显示的名称和登录密码由 Emby 管理，请在 Emby 中修改。';summary.hidden=false;return;
+                    try{await this.session.ready();}catch(error){if(error.code!=='COMMUNITY_LEFT')throw error;}
+                    if(!current())return;
+                    if(this.session.left){
+                        status.textContent=notice||'你已注销评论身份，不会自动重新加入。';
+                        addButton('重新加入公共评论',()=>run(()=>this.session.rejoin(),()=>this.show(onDone,'已重新加入公共评论。')));
+                        legal();return;
+                    }
+                    status.textContent=notice||'已使用大河 Emby 账号登录公共评论。';
+                    summary.textContent='评论里显示的名称和登录密码由 Emby 管理，请在 Emby 中修改。';summary.hidden=false;
+                    let me=null;try{me=await this.session.request('/me');}catch(_){}
+                    if(!current())return;
+                    await blocks();if(!current())return;
+                    deletion(me);legal();return;
                 }
                 try{await this.session.ready();}catch(error){if(!['LOGIN_REQUIRED','AUTH_REQUIRED','AUTH_INVALID'].includes(error.code))throw error;}
                 if(!current())return;
@@ -126,27 +180,32 @@
                         addButton('修改密码',()=>{if(form.reportValidity())run(()=>this.session.changePassword(old.value,next.value,again.value),
                             ()=>this.show(onDone,'密码已修改，所有设备上的评论登录都已退出。请用新密码重新登录。'));},form);
                     }
-                    return;
+                    await blocks();if(!current())return;
+                    deletion(me);legal();return;
                 }
                 status.textContent=notice||'使用独立评论账号参与公共讨论。你的 Emby 登录凭据只用于自己的服务器。';
                 const form=group();
                 const username=field(form,'用户名','text','username'),password=field(form,'密码','password','current-password');
                 const passwordHelp=hint(password,helpText,'tc-password-requirements');passwordHelp.hidden=true;
-                let displayName,repeated,register=false;
-                const submit=addButton('登录',()=>{if(form.reportValidity())run(()=>register?this.session.register(username.value,displayName.value,password.value,repeated.value):this.session.login(username.value,password.value));});
+                let displayName,repeated,agree,register=false;
+                const terms=this.session.terms();
+                const submit=addButton('登录',()=>{if(form.reportValidity())run(()=>register?this.session.register(username.value,displayName.value,password.value,repeated.value,agree?.checked?terms.version:null):this.session.login(username.value,password.value));});
                 form.onsubmit=e=>{e.preventDefault();submit.click();};
                 if(caps.registrationEnabled)addButton('注册新账号',event=>{
                     register=!register;event.target.textContent=register?'已有账号，返回登录':'注册新账号';submit.textContent=register?'注册并登录':'登录';
                     if(!displayName){
                         displayName=field(form,'显示名称（1–60 字符）','text','nickname');displayName.maxLength=120;form.insertBefore(displayName.parentElement,password.parentElement);
                         repeated=field(form,'确认密码','password','new-password',false);
+                        if(terms)agree=checkbox(form,'我已阅读并同意使用条款（零容忍不当内容）');
                     }
                     displayName.parentElement.hidden=!register;displayName.required=register;repeated.parentElement.hidden=!register;
+                    if(agree){agree.parentElement.hidden=!register;agree.required=register;}
                     password.autocomplete=register?'new-password':'current-password';
                     password.parentElement.firstChild.textContent=register?passwordLabel('密码'):'密码';
                     passwordHelp.hidden=!register;
                     status.textContent=register?'用户名 3–32 位，以字母开头，可含数字、_、.、-。':'请输入评论账号和密码。';
                 });
+                legal();
             }catch(error){if(current()){
                 status.textContent=error.message;addButton('重试连接',()=>this.show(onDone));
                 if(this.session.renewalError)addButton('重新登录',()=>{this.session.tokens=null;this.session.renewalError=null;this.session.onChange();this.show(onDone);});

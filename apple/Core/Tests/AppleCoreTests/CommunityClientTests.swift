@@ -308,4 +308,81 @@ private func credentials(_ name: String, expired: Bool = false) throws -> JSONVa
         #expect(await store.read() == nil)
         #expect(authorizedReads.values.isEmpty)
     }
+    private func moderatedCapabilities() throws -> JSONValue {
+        try value(["data": ["enabled": true, "auth": ["password", "emby-exchange"], "mediaIdentity": "tmdb-aired", "embyExchangeServerId": trustedID,
+                            "moderation": ["flagReasons": ["spam", "harassment"], "blocks": true, "accountDeletion": ["authKinds": ["password", "emby"]],
+                                           "terms": ["version": "2026-10-24", "url": "http://nas.tigerest.top:18443/community/v2/terms", "contact": "mailto:owner@example.com"]]]])
+    }
+    private func exchanged() throws -> JSONValue {
+        try value(["data": ["accessToken": "access-token", "refreshToken": "refresh-token", "tokenType": "Bearer", "expiresAt": "2099-01-01T00:00:00Z", "refreshExpiresAt": "2099-02-01T00:00:00Z", "author": ["id": "a", "name": "A"]]])
+    }
+    @Test func complianceCallsCarryClientHeadersAndBlocksSendNoBody() async throws {
+        let calls = CommentRequests()
+        let transport = CommentFixture.session { request in
+            let path = request.url!.path
+            #expect(request.value(forHTTPHeaderField: "X-Tigerest-Client-Platform") == "tvOS")
+            if path.hasSuffix("/capabilities") { return (200, try self.moderatedCapabilities()) }
+            if path.hasSuffix("/auth/emby") { return (200, try self.exchanged()) }
+            let body = request.httpBody ?? request.httpBodyStream.map { _ in Data([1]) } ?? Data()
+            _ = calls.append(try value(["path": path, "method": request.httpMethod!, "empty": body.isEmpty]))
+            if path.hasSuffix("/flags") { #expect(try requestJSON(request) == value(["reason": "spam", "clientRequestId": "11111111-1111-4111-8111-111111111111"])) }
+            return (200, try value(["data": ["ok": true]]))
+        }
+        defer { transport.invalidateAndCancel() }
+        let client = CommunityClient(emby: communityEmby(), serverID: trustedID, urlSession: transport, clientHeaders: ClientIdentity.headers(platform: "tvOS", version: "2.9.4"))
+        try await client.block(authorID: "author-2")
+        _ = try await client.flag(commentID: "comment-1", reason: "spam", clientRequestID: "11111111-1111-4111-8111-111111111111")
+        await #expect(throws: CommunityError.self) { _ = try await client.flag(commentID: "comment-1", reason: "unknown", clientRequestID: UUID().uuidString) }
+        #expect(calls.values.first == (try value(["path": "/community/v2/me/blocks/author-2", "method": "PUT", "empty": true])))
+        #expect(calls.values.count == 2, "an unannounced reason never reaches the network")
+    }
+    @Test func deletedEmbyIdentityIsNeverExchangedUntilRejoin() async throws {
+        let exchanges = CommentRequests()
+        let transport = CommentFixture.session { request in
+            let path = request.url!.path
+            if path.hasSuffix("/capabilities") { return (200, try self.moderatedCapabilities()) }
+            if path.hasSuffix("/auth/emby") { _ = exchanges.append(.null); return (200, try self.exchanged()) }
+            if path.hasSuffix("/me/delete") {
+                #expect(try requestJSON(request) == value(["confirm": "DELETE"]))
+                #expect(request.value(forHTTPHeaderField: "X-Emby-Token") == nil)
+                return (200, try value(["data": ["deleted": true]]))
+            }
+            return (200, try value(["data": ["author": ["id": "a", "name": "A"]]]))
+        }
+        defer { transport.invalidateAndCancel() }
+        let store = try CommentStore(.null)
+        let client = CommunityClient(emby: communityEmby(), serverID: trustedID, urlSession: transport, store: store)
+        _ = try await client.me(channel: .publicCommunity)
+        try await client.deleteAccount()
+        #expect(try JSONDecoder().decode(JSONValue.self, from: await store.read() ?? Data()) == value(["left": true]))
+        // A restart reads the marker back.
+        let restarted = CommunityClient(emby: communityEmby(), serverID: trustedID, urlSession: transport, store: store)
+        await #expect(throws: CommunityError.self) { _ = try await restarted.me(channel: .publicCommunity) }
+        #expect(exchanges.values.count == 1)
+        try await restarted.rejoin()
+        #expect(exchanges.values.count == 2)
+        #expect(await restarted.left == false)
+    }
+    @Test func wrongDeletionPasswordKeepsTheAccount() async throws {
+        let deletions = CommentRequests()
+        let transport = CommentFixture.session { request in
+            let path = request.url!.path
+            if path.hasSuffix("/capabilities") { return (200, try self.moderatedCapabilities()) }
+            if path.hasSuffix("/me/delete") { _ = deletions.append(.null); return (401, try value(["error": ["code": "AUTH_INVALID"]])) }
+            return (200, try value(["data": ["author": ["id": "saved", "name": "saved"]]]))
+        }
+        defer { transport.invalidateAndCancel() }
+        let store = try CommentStore(credentials("saved"))
+        let client = CommunityClient(emby: communityEmby(), serverID: "foreign", urlSession: transport, store: store)
+        await #expect { try await client.deleteAccount(password: "wrong") } throws: { ($0 as? CommunityError)?.code == "DELETION_WRONG_PASSWORD" }
+        #expect(deletions.values.count == 1)
+        #expect(await store.read() != nil)
+        #expect(await client.currentAccessToken() == "saved-access")
+    }
+    @Test func clientIdentityAndTermsTextStayPlain() {
+        let headers = ClientIdentity.headers(platform: " tvOS\n", version: String(repeating: "9", count: 50))
+        #expect(headers["X-Tigerest-Client-Platform"] == "tvOS")
+        #expect(headers["X-Tigerest-Client-Version"]?.count == 40)
+        #expect(CommunityClient.plainText("<html><style>p{}</style><h1>条款</h1><p>零容忍&amp;举报<br>24 小时</p><script>x()</script></html>") == "条款\n零容忍&举报\n24 小时")
+    }
 }

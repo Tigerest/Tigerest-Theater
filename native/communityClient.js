@@ -16,7 +16,8 @@
         DIAGNOSTICS_TOO_LARGE: '日志附件过大，报错仍已保存。',
         DIAGNOSTICS_STORAGE_UNAVAILABLE: '日志存储暂不可用，请稍后重试附件。',
         UNSUPPORTED_MEDIA_TYPE: '日志附件格式不受支持。',
-        INVALID_REQUEST: '提交内容格式无效，请检查后重试。'
+        INVALID_REQUEST: '提交内容格式无效，请检查后重试。',
+        COMMENT_API_RETIRED: '专属评论已停止发言，请在公共评论中发表。'
     };
     function abortError() { const error = new Error('评论请求已取消'); error.name = 'AbortError'; return error; }
     function uuid() {
@@ -305,5 +306,6 @@
             return this.request(path.slice('/community/v1'.length), {...options,image:true});
         }
     }
+    CommunityClient.uuid = uuid;
     window.TigerestCommunityClient = CommunityClient;
 })();

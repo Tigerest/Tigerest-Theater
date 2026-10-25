@@ -96,3 +96,14 @@ module.exports=async function withBrowser(routes,work,{settings={},gpu=false,vis
         fs.rmSync(profile,{recursive:true,force:true,maxRetries:10,retryDelay:200});
     }
 };
+// Frame-precise motion checks need a hardware GPU. A software renderer (CI under
+// Xvfb) runs at a handful of frames per second, so the transitions take their
+// designed late-target fallback depending on timing. Such runs report CTest's
+// skip code instead of a result.
+module.exports.SKIP_CODE=77;
+module.exports.softwareRenderer=async evaluate=>{
+    const renderer=await evaluate(`(()=>{const gl=document.createElement('canvas').getContext('webgl');if(!gl)return 'no WebGL';
+        const info=gl.getExtension('WEBGL_debug_renderer_info');return String(gl.getParameter(info?info.UNMASKED_RENDERER_WEBGL:gl.RENDERER));})()`);
+    console.log('renderer: '+renderer);
+    return /SwiftShader|llvmpipe|softpipe|lavapipe|Software|no WebGL/i.test(renderer)?renderer:null;
+};

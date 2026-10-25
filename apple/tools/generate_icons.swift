@@ -68,9 +68,16 @@ for size in [20, 29, 40, 76] {
     }
 }
 images.append(["idiom": "ipad", "size": "83.5x83.5", "scale": "2x", "filename": "icon-167.png"])
+// The universal build also runs on iPhone, whose home screen needs its own sizes.
+for size in [20, 29, 40, 60] {
+    for scale in [2, 3] {
+        images.append(["idiom": "iphone", "size": "\(size)x\(size)", "scale": "\(scale)x",
+                       "filename": "icon-\(size * scale).png"])
+    }
+}
 images.append(["idiom": "ios-marketing", "size": "1024x1024", "scale": "1x", "filename": "icon-1024.png"])
 try json(["info": info, "images": images], at: appIcon)
-for size in Set([20, 40, 29, 58, 80, 76, 152, 167, 1024]) {
+for size in Set([20, 40, 29, 58, 80, 76, 152, 167, 1024, 60, 87, 120, 180]) {
     try png(at: appIcon.appendingPathComponent("icon-\(size).png"), width: size, height: size,
             background: true, logoFraction: 1)
 }

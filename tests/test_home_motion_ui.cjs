@@ -13,6 +13,8 @@ routes['/'].body=routes['/'].body.replace('http://localhost:PORT/theme.css','/th
 if(embedded)routes['/'].body=routes['/'].body.replace('<script src="/transitions.js"></script><script src="/motion.js"></script>','');
 routes['/backdrop.js']={path:path.join(root,'native/homeBackdrop.js')};if(!embedded)routes['/'].body=routes['/'].body.replace('<script src="/transitions.js">','<script src="/backdrop.js"></script><script src="/transitions.js">');
 withBrowser(routes,async({evaluate,call,url})=>{
+ const software=await withBrowser.softwareRenderer(evaluate);
+ if(software){console.log('SKIP: frame-precise motion needs a hardware GPU ('+software+')');process.exitCode=withBrowser.SKIP_CODE;return;}
  await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
  await evaluate(`document.querySelector('link').href=${JSON.stringify(url.replace('127.0.0.1','localhost')+'/theme.css')}`);
  await evaluate(`window.fixture={state:{params:{},contextPath:'/home'},show(name){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('hide',p.id!==name));this.state.params=name==='detail'?{id:'work'}:{};this.state.contextPath='/'+name;},async route(name,delay=0){await new Promise(r=>setTimeout(r,delay));this.show(name);}};window.router={showItem:()=>fixture.route('detail'),back:()=>fixture.route('home'),goHome:()=>fixture.route('home'),getRouteUrl:()=>'/library'};TigerestHomeMotion.attach({router,pageJs:{replace:()=>fixture.route('library')},manager:{currentApiClient:()=>({serverId:()=> 'fixture',getCurrentUserId:()=> 'user'})},viewManager:{currentViewInfo:()=>fixture.state}});`);

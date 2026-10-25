@@ -9,6 +9,8 @@ const routes={
  '/poster.svg':{type:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="720"><rect width="480" height="720" fill="#856633"/><circle cx="240" cy="280" r="140" fill="#c5b185"/></svg>'}
 };
 withBrowser(routes,async({evaluate,call})=>{
+ const software=await withBrowser.softwareRenderer(evaluate);
+ if(software){console.log('SKIP: frame-precise motion needs a hardware GPU ('+software+')');process.exitCode=withBrowser.SKIP_CODE;return;}
  await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
  // The working tree's renderer, so a phone's installed debug build need not be rebuilt first.
  await evaluate(fs.readFileSync(renderer,'utf8')+';true');

@@ -66,6 +66,13 @@
             }catch(error){if(error.status===429&&options.method==='POST')this.cooldownUntil=Math.max(this.cooldownUntil,this.now()+error.retryAfter*1000);throw error;}
             finally{options.signal?.removeEventListener('abort',cancel);this.controllers.delete(controller);}
         }
+        // A retry of the same report keeps its UUID; the caller owns that identity.
+        flag(commentId,reason,note,clientRequestId){
+            return this.request('/comments/'+encodeURIComponent(commentId)+'/flags',{method:'POST',body:{reason,...(note?{note}:{}),clientRequestId}});
+        }
+        block(authorId){return this.request('/me/blocks/'+encodeURIComponent(authorId),{method:'PUT'});}
+        unblock(authorId){return this.request('/me/blocks/'+encodeURIComponent(authorId),{method:'DELETE'});}
+        blocks(cursor){return this.page('/me/blocks',cursor,false);}
         messageSummary(){return this.request('/me/messages?limit=1');}
         messages(kind='replies',cursor,unreadOnly=false){
             if(!['sent','replies'].includes(kind))return Promise.reject(new Error('消息类型无效。'));

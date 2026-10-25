@@ -13,7 +13,12 @@ public struct CommunityError: Error, LocalizedError, Sendable {
                 "MEDIA_IDENTITY_UNAVAILABLE":"缺少可靠的作品 TMDB 信息，暂不支持公共评论。", "USER_MUTED":"你已被禁言，暂时无法发言。",
                 "NOT_FOUND":"评论不可见或已删除，请刷新。", "TARGET_DELETED":"回复目标已删除，请重新选择。", "INVALID_REQUEST":"内容或媒体信息无效，请检查后重试。",
                 "AUTH_UNAVAILABLE":"评论身份服务暂不可用，请稍后重试。", "NETWORK_UNAVAILABLE":"评论服务暂不可用，请稍后重试。",
-                "PASSWORD_LOGIN_UNAVAILABLE":"此评论账号使用 Emby 登录。", "REGISTRATION_DISABLED":"评论账号注册暂未开放。", "USERNAME_TAKEN":"评论用户名已被使用。"] [code] ?? "评论操作失败，请稍后重试。"
+                "PASSWORD_LOGIN_UNAVAILABLE":"此评论账号使用 Emby 登录。", "REGISTRATION_DISABLED":"评论账号注册暂未开放。", "USERNAME_TAKEN":"评论用户名已被使用。",
+                "TERMS_NOT_ACCEPTED":"发言前请先阅读并同意使用条款。", "TERMS_OUTDATED":"使用条款已更新，请重新阅读并同意。",
+                "CANNOT_FLAG_SELF":"不能举报自己的评论。", "CANNOT_BLOCK_SELF":"不能屏蔽自己。", "BLOCK_LIMIT":"屏蔽名单已满，请先解除部分屏蔽。",
+                "CONTENT_REJECTED":"内容不符合社区规则，请修改后再试。", "COMMENT_API_RETIRED":"专属评论已停止发言，请在公共评论中发表。",
+                "COMMUNITY_LEFT":"你已注销评论身份，需要时可以重新加入。", "DELETION_WRONG_PASSWORD":"密码不正确，评论账号没有注销。",
+                "DELETION_UNKNOWN":"暂时无法确认评论账号是否已注销，请稍后查看，不要重复提交。", "IDEMPOTENCY_CONFLICT":"提交内容已变更，请重新发起。"] [code] ?? "评论操作失败，请稍后重试。"
     }
 }
 public struct CommunityCredentials: Codable, Sendable {
@@ -52,10 +57,13 @@ public actor CommunityClient {
     private var storageFlight: Task<Void, Error>?
     private var pendingSends: [String: JSONValue] = [:]
     private var cooldown = Date.distantPast
+    private let clientHeaders: [String: String]
+    /// A deleted Emby identity is never exchanged again until the user rejoins.
+    public private(set) var left = false
 
-    public init(emby: EmbySession, serverID: String? = nil, urlSession: URLSession = .shared, store: (any CommunityTokenStore)? = nil) {
+    public init(emby: EmbySession, serverID: String? = nil, urlSession: URLSession = .shared, store: (any CommunityTokenStore)? = nil, clientHeaders: [String: String] = [:]) {
         self.emby = emby; self.serverID = serverID ?? emby.serverID ?? ""
-        self.configuration = urlSession.configuration; self.store = store
+        self.configuration = urlSession.configuration; self.store = store; self.clientHeaders = clientHeaders
     }
     public func discover() async throws -> JSONValue {
         if Date() < capsUntil { return caps }
@@ -68,6 +76,37 @@ public actor CommunityClient {
         caps["enabled"].bool == true && caps["auth"].array?.contains(.string("emby-exchange")) == true
     }
     public func privateAvailable() async throws -> Bool { _ = try await discover(); return trusted }
+    /// Compliance entries appear only where the service announces them.
+    public func moderation() async throws -> JSONValue { try await discover()["moderation"] }
+    public func terms() async throws -> JSONValue {
+        let terms = try await moderation()["terms"]
+        guard let version = terms["version"].string, !version.isEmpty, let url = terms["url"].string, url.hasPrefix("http") else { return .null }
+        return terms
+    }
+    /// The service's terms page as plain text: Apple TV has no browser to open it in.
+    public func termsText() async throws -> String {
+        guard let link = try await terms()["url"].string, let url = URL(string: link), ["http", "https"].contains(url.scheme) else { throw CommunityError("NETWORK_UNAVAILABLE") }
+        var request = URLRequest(url: url); request.timeoutInterval = 15
+        let config = configuration.copy() as! URLSessionConfiguration
+        config.httpCookieStorage = nil; config.urlCredentialStorage = nil
+        let http = URLSession(configuration: config, delegate: CommentNoRedirect(), delegateQueue: nil)
+        defer { http.invalidateAndCancel() }
+        guard let (data, response) = try? await http.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200, data.count <= 262_144 else { throw CommunityError("NETWORK_UNAVAILABLE") }
+        return Self.plainText(String(decoding: data, as: UTF8.self))
+    }
+    public nonisolated static func plainText(_ html: String) -> String {
+        var text = html.replacingOccurrences(of: #"(?is)<(script|style)[^>]*>.*?</\1>"#, with: "", options: .regularExpression)
+        text = text.replacingOccurrences(of: #"(?i)<br\s*/?>|</(p|div|li|h[1-6]|tr)>"#, with: "\n", options: .regularExpression)
+        text = text.replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
+        for (entity, value) in [("&nbsp;", " "), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&#39;", "'"), ("&amp;", "&")] { text = text.replacingOccurrences(of: entity, with: value) }
+        return text.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\n\s*\n+"#, with: "\n\n", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    /// The current comment access token, for danmaku attribution only; never refreshed for it.
+    public func currentAccessToken() -> String? {
+        guard let tokens, Self.date(tokens.expiresAt) > Date().addingTimeInterval(30) else { return nil }
+        return tokens.accessToken
+    }
     public func mappingHeaders() async throws -> [String: String] {
         _ = try await discover(); return trusted ? embyHeaders : [:]
     }
@@ -110,6 +149,60 @@ public actor CommunityClient {
     }
     public func remove(commentID: String, itemID: String, channel: CommunityChannel) async throws {
         _ = try await request("/comments/\(Self.identifier(commentID))", method: "DELETE", itemID: itemID, channel: channel)
+    }
+    public func acceptTerms(version: String) async throws -> JSONValue {
+        do { return try await request("/me/terms", method: "POST", body: .object(["version": .string(version)]), channel: .publicCommunity) }
+        catch let error as CommunityError where error.code == "TERMS_OUTDATED" {
+            // A newer version must be read and agreed to again, never on the user's behalf.
+            capsUntil = .distantPast; _ = try? await discover(); throw error
+        }
+    }
+    /// The caller keeps `clientRequestID` for retries of the same report.
+    public func flag(commentID: String, reason: String, note: String = "", clientRequestID: String) async throws -> JSONValue {
+        guard note.unicodeScalars.count <= 500, UUID(uuidString: clientRequestID) != nil,
+              try await moderation()["flagReasons"].array?.contains(.string(reason)) == true else { throw CommunityError("INVALID_REQUEST") }
+        var body: [String: JSONValue] = ["reason": .string(reason), "clientRequestId": .string(clientRequestID.lowercased())]
+        if !note.isEmpty { body["note"] = .string(note) }
+        return try await request("/comments/\(Self.identifier(commentID))/flags", method: "POST", body: .object(body), channel: .publicCommunity)
+    }
+    public func block(authorID: String) async throws {
+        _ = try await request("/me/blocks/\(Self.identifier(authorID))", method: "PUT", channel: .publicCommunity)
+    }
+    public func unblock(authorID: String) async throws {
+        _ = try await request("/me/blocks/\(Self.identifier(authorID))", method: "DELETE", channel: .publicCommunity)
+    }
+    public func blocks(cursor: String? = nil) async throws -> JSONValue {
+        try await request("/me/blocks" + Self.pageQuery(cursor, limit: 20), channel: .publicCommunity)
+    }
+    /// Deletes the comment identity only; the Emby account is untouched.
+    public func deleteAccount(password: String? = nil) async throws {
+        let generation = epoch
+        let record = try await ready()
+        try ensure(generation)
+        let body: JSONValue = record.kind == "password" ? .object(["password": .string(password ?? ""), "confirm": .string("DELETE")]) : .object(["confirm": .string("DELETE")])
+        do { _ = try await raw("/me/delete", method: "POST", body: body, headers: ["Authorization": "Bearer " + record.accessToken]) }
+        catch let error as CommunityError where error.status != 401 && error.code != "NETWORK_UNAVAILABLE" { throw error }
+        catch {
+            try ensure(generation)
+            // A wrong password and an ended session both answer 401, and a lost response
+            // leaves the outcome open: ask /me with the same token, never resubmit or exchange.
+            var alive = false
+            do { _ = try await raw("/me", headers: ["Authorization": "Bearer " + record.accessToken]); alive = true }
+            catch let probe as CommunityError where probe.status == 401 {}
+            catch { throw CommunityError("DELETION_UNKNOWN") }
+            if alive { throw (error as? CommunityError)?.status == 401 ? CommunityError("DELETION_WRONG_PASSWORD", status: 401) : CommunityError("NETWORK_UNAVAILABLE") }
+            await forget(kind: record.kind); throw CommunityError("DELETION_UNKNOWN", status: 401)
+        }
+        await forget(kind: record.kind)
+    }
+    private func forget(kind: String) async {
+        epoch &+= 1
+        tokens = nil; loaded = true; authFlight?.cancel(); authFlight = nil; pendingSends = [:]; cooldown = .distantPast; left = kind == "emby"
+        try? await persist(left ? Data(#"{"left":true}"#.utf8) : nil)
+    }
+    public func rejoin() async throws {
+        left = false; try? await persist(nil)
+        _ = try await ready()
     }
     public func login(username: String, password: String) async throws {
         epoch &+= 1; let generation = epoch
@@ -182,9 +275,11 @@ public actor CommunityClient {
             let data = try? await store?.read()
             try ensure(generation)
             if let data, let saved = try? JSONDecoder().decode(CommunityCredentials.self, from: data), Self.valid(saved), saved.kind == (trusted ? "emby" : "password") { tokens = saved }
+            left = data.flatMap { try? JSONDecoder().decode(JSONValue.self, from: $0) }?["left"].bool == true
         }
         if let tokens, !force, Self.date(tokens.expiresAt) > Date().addingTimeInterval(30) { return tokens }
         if trusted {
+            guard !left else { throw CommunityError("COMMUNITY_LEFT") }
             try await save(raw("/auth/emby", method: "POST", body: .object([:]), headers: embyHeaders), kind: "emby", generation: generation)
         } else {
             guard !renewalFailed, let old = tokens, Self.date(old.refreshExpiresAt) > Date() else { throw CommunityError("LOGIN_REQUIRED") }
@@ -227,7 +322,7 @@ public actor CommunityClient {
         guard let url = URL(string: "http://\(hostname):18443/community/\(privateAPI ? "v1" : "v2")" + path) else { throw CommunityError("INVALID_REQUEST") }
         var request = URLRequest(url: url); request.httpMethod = method; request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
+        for (name, value) in clientHeaders.merging(headers, uniquingKeysWith: { $1 }) { request.setValue(value, forHTTPHeaderField: name) }
         if let body { request.httpBody = try JSONEncoder().encode(body); request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         guard (request.httpBody?.count ?? 0) <= 16384 else { throw CommunityError("INVALID_REQUEST") }
         let config = configuration.copy() as! URLSessionConfiguration

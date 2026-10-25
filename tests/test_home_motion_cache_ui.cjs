@@ -8,6 +8,8 @@ const routes={
 routes['/scroller.css']={type:'text/css',body:'.linked-scroller{height:300px;overflow:auto}'};
 routes['/backdrop.js']={path:path.join(root,'native/homeBackdrop.js')};if(!embedded)routes['/'].body=routes['/'].body.replace('<script src="/transitions.js">','<script src="/backdrop.js"></script><script src="/transitions.js">');
 withBrowser(routes,async({evaluate,call,url})=>{
+ const software=await withBrowser.softwareRenderer(evaluate);
+ if(software){console.log('SKIP: frame-precise motion needs a hardware GPU ('+software+')');process.exitCode=withBrowser.SKIP_CODE;return;}
  await evaluate('window.TigerestAmbientBackdrop?.dispose();true');
  await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
  assert.equal(await evaluate('typeof TigerestHomeTransitions.prewarm'),'function','current page can prewarm the expensive background');

@@ -40,7 +40,21 @@ import CryptoKit
     }
     // Same bounded retry as PC modules/http.lua: one retry after 1 s for
     // transient reads. A manual shared correction must never be replayed.
-    private func requestData(_ request: URLRequest, server: String, retry: Bool) async throws -> (Data,HTTPURLResponse) {
+    private func requestData(_ base: URLRequest, server: String, retry: Bool) async throws -> (Data,HTTPURLResponse) {
+        // Our own service records which client, and with a comment session which user,
+        // asked; other providers receive neither.
+        guard DanmakuProvider.managed(server) else { return try await send(base,server:server,retry:retry) }
+        var request=base
+        for (name,value) in host.clientHeaders { request.setValue(value,forHTTPHeaderField:name) }
+        guard let user=await host.communityAccessToken() else { return try await send(request,server:server,retry:retry) }
+        request.setValue(user,forHTTPHeaderField:"X-Tigerest-User-Token")
+        let result=try await send(request,server:server,retry:retry)
+        guard result.1.statusCode==401 else { return result }
+        // An expired comment session must not cost the danmaku: ask again anonymously.
+        request.setValue(nil,forHTTPHeaderField:"X-Tigerest-User-Token")
+        return try await send(request,server:server,retry:retry)
+    }
+    private func send(_ request: URLRequest, server: String, retry: Bool) async throws -> (Data,HTTPURLResponse) {
         let token=generation
         for attempt in 0...1 {
             guard token==generation,!Task.isCancelled,Date()>=(cooldowns[server] ?? .distantPast) else {throw CancellationError()}

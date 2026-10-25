@@ -18,11 +18,25 @@ final class NoRedirectSession: NSObject, URLSessionTaskDelegate {
     private(set) var session: JSONValue = .object([:])
     private(set) var trusted = "", mappingStatus = 0
     private var epoch: UInt64 = 0
+    // The comment session lives in the page; danmaku only borrows its access token as
+    // it passes through secure storage, and never refreshes it.
+    private var userToken: (value: String, expires: Date)?
     init(model: AppModel) { self.model = model }
-    func clear() { epoch &+= 1; tasks.values.forEach { $0.cancel() }; tasks.removeAll(); session = .object([:]); trusted = ""; mappingStatus = 0 }
+    func clear() { epoch &+= 1; tasks.values.forEach { $0.cancel() }; tasks.removeAll(); session = .object([:]); trusted = ""; mappingStatus = 0; userToken = nil }
     func setSession(_ value: JSONValue) -> Bool {
-        if value != session { epoch &+= 1; tasks.values.forEach { $0.cancel() }; tasks.removeAll(); session = value }
+        if value != session { epoch &+= 1; tasks.values.forEach { $0.cancel() }; tasks.removeAll(); session = value; userToken = nil }
         return !mappingHeaders.isEmpty
+    }
+    var accessToken: String? { userToken.flatMap { $0.expires > Date().addingTimeInterval(30) ? $0.value : nil } }
+    var clientHeaders: [String: String] {
+        ClientIdentity.headers(platform: UIDevice.current.userInterfaceIdiom == .pad ? "iPadOS" : "iOS",
+                               version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown")
+    }
+    private func remember(_ record: String) {
+        let value = try? JSONDecoder().decode(JSONValue.self, from: Data(record.utf8))
+        let formatter = ISO8601DateFormatter(); formatter.formatOptions.insert(.withFractionalSeconds)
+        let expiry = value?["expiresAt"].string.flatMap { formatter.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) }
+        if let token = value?["accessToken"].string, CommunityPolicy.safe(token), let expiry { userToken = (token, expiry) } else { userToken = nil }
     }
     var mappingHeaders: [String: String] {
         guard !CommunityPolicy.guid(trusted).isEmpty, CommunityPolicy.guid(session["serverId"].string ?? "") == CommunityPolicy.guid(trusted),
@@ -36,9 +50,9 @@ final class NoRedirectSession: NSObject, URLSessionTaskDelegate {
         let server = model.server?.baseURL.absoluteString ?? ""
         var result = ""
         switch operation {
-        case "read": result = store.read(server: server, account: context).flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        case "write": try store.write(Data(value.utf8), server: server, account: context)
-        case "remove": try store.write(nil, server: server, account: context)
+        case "read": result = store.read(server: server, account: context).flatMap { String(data: $0, encoding: .utf8) } ?? ""; remember(result)
+        case "write": try store.write(Data(value.utf8), server: server, account: context); remember(value)
+        case "remove": try store.write(nil, server: server, account: context); userToken = nil
         default: throw CoreError.invalidRequest
         }
         return .object(["ok": .bool(true), "value": .string(result)])
@@ -69,8 +83,10 @@ final class NoRedirectSession: NSObject, URLSessionTaskDelegate {
         var request = URLRequest(url: URL(string: target)!)
         request.httpMethod = value["method"].string
         request.setValue(image ? "image/png" : "application/json", forHTTPHeaderField: "Accept")
+        for (name, value) in clientHeaders { request.setValue(value, forHTTPHeaderField: name) }
         for (name, value) in value["headers"].object ?? [:] { request.setValue(value.string, forHTTPHeaderField: name) }
-        if ["POST", "PUT"].contains(request.httpMethod) { request.httpBody = Data((value["body"].string ?? "").utf8); request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type") }
+        // A bodiless PUT (blocking) sends neither {} nor a Content-Type.
+        if ["POST", "PUT"].contains(request.httpMethod), let body = value["body"].string, !body.isEmpty { request.httpBody = Data(body.utf8); request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type") }
         let (body, response) = try await data(request, limit: image ? 262144 : 2097152)
         try Task.checkCancellation()
         if path == "/capabilities" {

@@ -261,8 +261,28 @@ void loadRules()
   QJsonObject table;
   if (!g_activeConfigDir.isEmpty())
     table = QJsonDocument::fromJson(readBytes(QDir(g_activeConfigDir).filePath(OptionCacheName))).object();
+  const QJsonObject bundled = QJsonDocument::fromJson(readBytes(QStringLiteral(":/mpvconf/mpv-options.json"))).object();
   if (table.value(QStringLiteral("options")).toObject().isEmpty())
-    table = QJsonDocument::fromJson(readBytes(QStringLiteral(":/mpvconf/mpv-options.json"))).object();
+    table = bundled;
+  else
+  {
+    // Older mpv (e.g. distribution builds) lists only its native video filters
+    // in option-info, yet still bridges every libavfilter filter by name. Keep
+    // the bundled names valid so such a build does not reject hflip or fps.
+    QJsonObject options = table.value(QStringLiteral("options")).toObject();
+    QJsonObject vf = options.value(QStringLiteral("vf")).toObject();
+    QJsonArray choices = vf.value(QStringLiteral("choices")).toArray();
+    if (!choices.isEmpty())
+    {
+      for (const QJsonValue& name : bundled.value(QStringLiteral("options")).toObject()
+                                        .value(QStringLiteral("vf")).toObject().value(QStringLiteral("choices")).toArray())
+        if (!choices.contains(name))
+          choices.append(name);
+      vf.insert(QStringLiteral("choices"), choices);
+      options.insert(QStringLiteral("vf"), vf);
+      table.insert(QStringLiteral("options"), options);
+    }
+  }
   g_rules = MpvConf::Rules::fromJson(catalog, table);
   g_rulesLoaded = true;
 }

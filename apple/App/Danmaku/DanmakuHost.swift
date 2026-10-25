@@ -8,6 +8,9 @@ import AppleCore
     var cacheScope: String { get }
     var directory: URL { get }
     var mappingHeaders: [String: String] { get }
+    /// Sent only to our own danmaku service.
+    var clientHeaders: [String: String] { get }
+    func communityAccessToken() async -> String?
     func setting(_ section: String, _ key: String) -> JSONValue
     func setSetting(_ section: String, _ key: String, _ value: JSONValue) throws
     func data(_ request: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse)

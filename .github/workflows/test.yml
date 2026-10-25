@@ -1,10 +1,15 @@
 name: test
 
+env:
+  # The same Qt as the Windows release: the pages rely on Chromium features
+  # (:has(), dynamic viewport units) that Ubuntu's Qt 6.4 WebEngine lacks.
+  QT_VERSION: "6.9.3"
+
 on:
   pull_request:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   test:
@@ -19,16 +24,22 @@ jobs:
         sudo apt-get update
         sudo apt-get install --yes devscripts equivs ninja-build lcov xvfb xauth
         sudo mk-build-deps -i -r -t "apt-get --yes" debian/control
-        # Build-Depends do not install the QML plugins used when launching tests.
+        # Runtime libraries the Qt online build loads under xvfb.
         sudo apt-get install --yes \
-          qml6-module-qtquick qml6-module-qtqml \
-          qml6-module-qtwebengine qml6-module-qtwebchannel \
-          qml6-module-qtquick-controls qml6-module-qtquick-dialogs \
-          qml6-module-qtquick-window qml6-module-qtqml-workerscript \
-          qml6-module-qtquick-templates qml6-module-qt-labs-platform
+          libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+          libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 \
+          libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxkbfile1
+
+    # Ubuntu's Qt from debian/control stays installed but unused: CMake and the
+    # tests use this Qt (QTROOT, PATH and LD_LIBRARY_PATH from the action).
+    - name: Install Qt 6
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: "${{ env.QT_VERSION }}"
+        modules: "qtwebengine qtwebchannel qtpositioning"
 
     - name: Configure
-      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSE_STATIC_MPVQT=ON -DCOVERAGE=ON
+      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSE_STATIC_MPVQT=ON -DCOVERAGE=ON -DQTROOT="$QT_ROOT_DIR" -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
 
     - name: Build
       run: cmake --build build
@@ -43,7 +54,7 @@ jobs:
         lcov --capture --directory build --output-file coverage.info \
           --ignore-errors mismatch
         lcov --remove coverage.info \
-          '/usr/*' '*/external/*' '*/tests/*' '*/build/*' \
+          '/usr/*' '*/Qt/*' '*/external/*' '*/tests/*' '*/build/*' \
           --output-file coverage.info \
           --ignore-errors unused
         lcov --summary coverage.info 2>&1 | grep -v 'no data found' > coverage_summary.txt

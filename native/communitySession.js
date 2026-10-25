@@ -10,7 +10,11 @@
         TARGET_DELETED:'回复目标已删除，请重新选择。', IDEMPOTENCY_CONFLICT:'发送内容已变更，请重新发起。',
         MEDIA_ORDER_UNSUPPORTED:'此媒体的集序暂不支持公共讨论。', MEDIA_MAPPING_CONFLICT:'此媒体身份存在冲突，暂时无法打开讨论。',
         PASSWORD_LOGIN_UNAVAILABLE:'此账号使用 Emby 登录，请在 Emby 中管理密码。', INVALID_REQUEST:'提交格式无效，请检查后重试。',
-        USERNAME_TAKEN:'用户名已被使用，请换一个。', SERVER_NOT_ALLOWED:'此账号无法使用大河身份交换。'
+        USERNAME_TAKEN:'用户名已被使用，请换一个。', SERVER_NOT_ALLOWED:'此账号无法使用大河身份交换。',
+        TERMS_NOT_ACCEPTED:'发言前请先阅读并同意使用条款。', TERMS_OUTDATED:'使用条款已更新，请重新阅读并同意。',
+        CANNOT_FLAG_SELF:'不能举报自己的评论。', CANNOT_BLOCK_SELF:'不能屏蔽自己。', BLOCK_LIMIT:'屏蔽名单已满，请先解除部分屏蔽。',
+        CONTENT_REJECTED:'内容不符合社区规则，请修改后再试。', COMMENT_API_RETIRED:'专属评论已停止发言，请在公共评论中发表。',
+        COMMUNITY_LEFT:'你已注销评论身份。需要时可在「评论账号」中重新加入。'
     };
     const abort = () => Object.assign(new Error('请求已取消'), {name:'AbortError'});
     const fail = (code, status = 0) => Object.assign(new Error(errors[code] || '公共评论请求失败，请稍后重试。'), {code,status});
@@ -30,12 +34,25 @@
             const fingerprint=JSON.stringify(next);
             if(fingerprint===this.fingerprint)return false;
             this.generation++;for(const c of this.controllers)c.abort();this.controllers.clear();
-            this.emby=next;this.fingerprint=fingerprint;this.tokens=null;this.renewalError=null;this.flight=null;this.capFlight=null;this.loaded=false;this.persisted=false;
+            this.emby=next;this.fingerprint=fingerprint;this.tokens=null;this.renewalError=null;this.flight=null;this.capFlight=null;this.loaded=false;this.persisted=false;this.left=false;
             this.key=next?JSON.stringify([guid(next.serverId)||next.serverId,next.userId,next.address]):null;
             this.onTrust(null);this.onChange();return true;
         }
         trusted() { return !!(this.emby && this.caps?.enabled && this.caps.auth?.includes('emby-exchange') && guid(this.caps.embyExchangeServerId) && guid(this.emby.serverId)===guid(this.caps.embyExchangeServerId)); }
         check(g) {if(g!==this.generation)throw abort();}
+        // Compliance entries appear only where the service announces them.
+        moderation() {
+            const value=this.caps?.moderation;
+            return value&&typeof value==='object'?value:null;
+        }
+        terms() {
+            const terms=this.moderation()?.terms;
+            return typeof terms?.version==='string'&&terms.version&&/^https?:\/\//.test(terms.url||'')?terms:null;
+        }
+        canDeleteAccount(me) {
+            const kinds=this.moderation()?.accountDeletion?.authKinds;
+            return Array.isArray(kinds)&&kinds.includes(me?.account?.authKind);
+        }
         storage(operation,key,value) {
             const pending=this.storageQueue.then(()=>this.store[operation](key,value));
             this.storageQueue=pending.catch(()=>{});return pending;
@@ -133,10 +150,13 @@
                 this.loaded=true;let saved;
                 try{saved=JSON.parse(await this.storage('read',this.key));}catch(_){}
                 this.check(generation);
+                this.left=saved?.left===true;
                 if(validTokens(saved) && (this.trusted()?saved.kind==='emby':saved.kind==='password')){this.tokens=saved;this.persisted=true;this.onChange();}
             }
             if(this.tokens && !force && Date.parse(this.tokens.expiresAt)>this.now()+30000)return this.tokens;
             if(this.trusted()){
+                // A deleted identity is never exchanged again until the user asks to rejoin.
+                if(this.left)throw fail('COMMUNITY_LEFT');
                 const headers={'X-Emby-Token':this.emby.token,'X-Emby-Server-Id':this.emby.serverId,'X-Emby-User-Id':this.emby.userId};
                 return this.save(await this.raw('/auth/emby',{method:'POST',body:{},headers}),generation,'emby');
             }
@@ -166,11 +186,14 @@
             return this.save(data,generation,'password');
         }
         login(username,password) {return this.authenticate('/auth/login',{username,password});}
-        async register(username,displayName,password,repeated=password) {
+        async register(username,displayName,password,repeated=password,acceptedTermsVersion=null) {
             const invalid=message=>{throw Object.assign(fail('INVALID_REQUEST'),{message});};
             if(!/^[A-Za-z][A-Za-z0-9_.-]{2,31}$/.test(username))invalid('用户名需为 3–32 个字符，以英文字母开头，仅可包含英文字母、数字、_、.、-。');
             await this.discover();const name=this.validateDisplayName(displayName);this.validatePassword(password,repeated);
-            return this.authenticate('/auth/register',{username,displayName:name,password});
+            const terms=this.terms();
+            // Only the user's own tick sends the current version; the service refuses a missing one.
+            if(terms&&acceptedTermsVersion!==terms.version)invalid('请先阅读并勾选同意使用条款。');
+            return this.authenticate('/auth/register',{username,displayName:name,password,...(terms?{acceptedTermsVersion}:{})});
         }
         async request(path,options={}) {
             const generation=this.generation;let record;
@@ -198,6 +221,45 @@
                 token?this.raw('/auth/logout',{method:'POST',body:{},headers:{Authorization:'Bearer '+token.accessToken}}):Promise.resolve({})]);
             if(outcomes[0].status!=='fulfilled'||outcomes[0].value!==true)throw new Error('已退出当前会话，但系统凭据未能清除，请重试退出。');
             if(outcomes[1].status==='rejected')throw outcomes[1].reason;
+        }
+        async acceptTerms(version) {
+            try{return await this.request('/me/terms',{method:'POST',body:{version}});}
+            catch(error){
+                // A newer version must be read and agreed to again; never agree on the user's behalf.
+                if(error.code==='TERMS_OUTDATED'){this.capsUntil=0;try{await this.discover();}catch(_){}}
+                throw error;
+            }
+        }
+        async deleteAccount(password) {
+            await this.discover();
+            const record=await this.ready(),generation=this.generation,kind=record.kind;
+            let failure=null;
+            try{await this.raw('/me/delete',{method:'POST',body:kind==='password'?{password,confirm:'DELETE'}:{confirm:'DELETE'},headers:{Authorization:'Bearer '+record.accessToken}});}
+            catch(error){this.check(generation);failure=error;}
+            if(failure){
+                if(failure.status&&failure.status!==401)throw failure;
+                // A wrong password and an ended session both answer 401, and a lost
+                // response leaves the outcome open. Ask /me with the same token rather
+                // than resubmitting, refreshing or exchanging a new identity.
+                let alive=false;
+                try{await this.raw('/me',{headers:{Authorization:'Bearer '+record.accessToken}});alive=true;}
+                catch(probe){this.check(generation);if(probe.status!==401)throw Object.assign(fail('NETWORK_UNAVAILABLE'),{message:'暂时无法确认评论账号是否已注销，请稍后重新打开评论账号查看，不要重复提交。'});}
+                if(alive)throw Object.assign(fail(failure.status?'AUTH_INVALID':'NETWORK_UNAVAILABLE',failure.status),
+                    {message:failure.status?'密码不正确，评论账号没有注销。':'网络中断，评论账号没有注销，请重试。'});
+                await this.forget(kind);
+                throw Object.assign(fail('AUTH_REQUIRED',401),{message:'评论登录已失效，无法确认是否已注销。'+(kind==='emby'?'需要时可在「评论账号」中重新加入。':'请重新登录查看。')});
+            }
+            await this.forget(kind);return true;
+        }
+        async forget(kind) {
+            const key=this.key;
+            this.generation++;for(const c of this.controllers)c.abort();this.controllers.clear();
+            this.tokens=null;this.renewalError=null;this.flight=null;this.loaded=true;this.persisted=false;this.left=kind==='emby';this.onChange();
+            await (kind==='emby'?this.storage('write',key,JSON.stringify({left:true})):this.storage('remove',key)).catch(()=>{});
+        }
+        async rejoin() {
+            this.left=false;await this.storage('remove',this.key).catch(()=>{});this.onChange();
+            return this.ready();
         }
         async changeDisplayName(value) {
             await this.discover();

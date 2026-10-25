@@ -11,6 +11,8 @@ import AppleCore
     let directory: URL
     var mappingHeaders: [String: String]
     var http: URLSession
+    let clientHeaders = TVClient.headers
+    private let commentStore: TVCommentTokenStore?
     private let preferencesKey: String
     private let preferences: UserDefaults?
     private var values: [String: [String: JSONValue]]
@@ -32,6 +34,8 @@ import AppleCore
         preferencesKey = "tv.danmaku." + identity
         preferences = storageRoot == nil ? .standard : nil
         self.mappingHeaders = mappingHeaders
+        // Fixture profiles never read the real comment credentials.
+        commentStore = storageRoot == nil ? TVCommentTokenStore(session: session) : nil
         http = TVDanmakuNoRedirect.make()
         values = Self.defaults
         let saved = preferences?.data(forKey: preferencesKey) ?? (try? Data(contentsOf: directory.appending(path: "settings.json")))
@@ -47,6 +51,13 @@ import AppleCore
     }
 
     func setting(_ section: String, _ key: String) -> JSONValue { values[section]?[key] ?? .null }
+    /// The saved comment session's unexpired access token; danmaku never refreshes it.
+    func communityAccessToken() async -> String? {
+        guard let data = try? await commentStore?.read(), let saved = try? JSONDecoder().decode(CommunityCredentials.self, from: data) else { return nil }
+        let formatter = ISO8601DateFormatter(); formatter.formatOptions.insert(.withFractionalSeconds)
+        guard let expiry = formatter.date(from: saved.expiresAt) ?? ISO8601DateFormatter().date(from: saved.expiresAt), expiry > Date().addingTimeInterval(30) else { return nil }
+        return saved.accessToken
+    }
     func setSetting(_ section: String, _ key: String, _ value: JSONValue) throws {
         let valid = try policy.validate(section: section, key: key, value: value)
         guard Self.validProvider(section, key, valid) else { throw CoreError.invalidSetting }

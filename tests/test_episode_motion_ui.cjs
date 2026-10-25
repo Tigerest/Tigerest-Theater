@@ -16,6 +16,8 @@ const routes={
  '/transitions.js':{path:path.join(root,'native/homeTransitions.js')},'/motion.js':{path:path.join(root,'native/homeMotion.js')}
 };
 withBrowser(routes,async({evaluate,call})=>{
+ const software=await withBrowser.softwareRenderer(evaluate);
+ if(software){console.log('SKIP: frame-precise motion needs a hardware GPU ('+software+')');process.exitCode=withBrowser.SKIP_CODE;return;}
  await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
  await evaluate(`window.fixture={state:{params:{id:'series'},contextPath:'/item?id=series'},show(name,id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('hide',p.id!==name));this.state.params={id};this.state.contextPath='/item?id='+id;},
   route(name,id){return new Promise(resolve=>setTimeout(()=>{this.show(name,id);resolve();},120));}};
@@ -23,8 +25,12 @@ withBrowser(routes,async({evaluate,call})=>{
   document.querySelectorAll('.itemsContainer').forEach(list=>list.getItemFromElement=card=>({Id:card.dataset.id,Type:'Episode'}));
   TigerestHomeMotion.attach({router,pageJs:{replace:()=>{}},manager:{currentApiClient:()=>({serverId:()=> 'fixture',getCurrentUserId:()=> 'one'})},viewManager:{currentViewInfo:()=>fixture.state}});
   // Record the floating poster's first and last rectangles of each flight.
-  window.flights=[];new MutationObserver(records=>records.forEach(r=>r.addedNodes.forEach(added=>{const node=added.querySelector?.('.tigerest-motion-poster');if(!node)return;
-   const flight={first:node.getBoundingClientRect().toJSON(),last:null};flights.push(flight);
+  // Slow software rendering can drop the frame after the last sample: read the final
+  // rectangle again just before the flight layer is removed.
+  window.flights=[];const tracked=[],remove=Element.prototype.remove;
+  Element.prototype.remove=function(){for(const [flight,node] of tracked)if(node.isConnected&&this.contains(node))flight.last=node.getBoundingClientRect().toJSON();return remove.call(this);};
+  new MutationObserver(records=>records.forEach(r=>r.addedNodes.forEach(added=>{const node=added.querySelector?.('.tigerest-motion-poster');if(!node)return;
+   const flight={first:node.getBoundingClientRect().toJSON(),last:null};flights.push(flight);tracked.push([flight,node]);
    const sample=()=>{if(!node.isConnected)return;flight.last=node.getBoundingClientRect().toJSON();requestAnimationFrame(sample);};sample();}))).observe(document.body,{childList:true});
   true`);
  await evaluate(`Promise.all(Array.from(document.images,i=>i.decode().catch(()=>{})))`);
@@ -56,7 +62,7 @@ withBrowser(routes,async({evaluate,call})=>{
  const compact=await evaluate(`({metric:TigerestHomeTransitions.last,flight:flights.at(-1),target:document.querySelector('#episode .itemBackdrop').getBoundingClientRect().toJSON(),id:fixture.state.params.id})`);
  assert.equal(compact.id,'ep1');
  assert.ok(compact.metric.kind==='poster'&&!compact.metric.fallback&&compact.metric.landingErrorPx<2,'the thumbnail lands on the compact backdrop: '+JSON.stringify(compact.metric));
- assert.ok(near(compact.flight.last,compact.target)<2,'last poster frame covers the backdrop still');
+ assert.ok(near(compact.flight.last,compact.target)<2,'last poster frame covers the backdrop still: '+JSON.stringify({last:compact.flight.last,target:compact.target}));
  await evaluate('router.back()');
  const back=await evaluate(`({metric:TigerestHomeTransitions.last,flight:flights.at(-1),pressed:document.querySelector('#season [data-id="ep1"] img').getBoundingClientRect().toJSON(),
   leaks:document.querySelectorAll('.tigerest-motion-layer,.tigerest-motion-poster,[data-tigerest-poster-held]').length,id:fixture.state.params.id})`);

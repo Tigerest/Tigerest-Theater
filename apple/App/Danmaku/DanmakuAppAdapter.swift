@@ -8,6 +8,8 @@ import AppleCore
     var cacheScope: String { model.embySession["serverId"].string ?? model.server?.origin ?? "offline" }
     var directory: URL { model.profiles.directory }
     var mappingHeaders: [String: String] { model.community.mappingHeaders }
+    var clientHeaders: [String: String] { model.community.clientHeaders }
+    func communityAccessToken() async -> String? { model.community.accessToken }
     func setting(_ section: String, _ key: String) -> JSONValue { model.settings.get(section, key) }
     func setSetting(_ section: String, _ key: String, _ value: JSONValue) throws { try model.settings.set(section, key, value) }
     func data(_ request: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) { try await model.community.data(request, limit: limit) }

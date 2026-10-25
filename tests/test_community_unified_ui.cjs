@@ -46,9 +46,10 @@ withBrowser(routes,async({evaluate,call})=>{
  assert.equal(await evaluate(`publicCalls.includes('/topics/resolve')`),false,'trusted details resolve using the Emby item');
  assert.equal(await evaluate(`Array.from(document.querySelectorAll('#tigerest-community button')).some(b=>b.textContent==='管理删除')`),true,'moderation permissions survive automatic routing');
  assert.equal(await evaluate(`Array.from(document.querySelectorAll('#tigerest-community button')).some(b=>b.textContent==='上报问题'&&!b.hidden)`),true,'private report action remains available');
- await evaluate(`plugin.state.list.querySelector('button').click();plugin.state.input.value='回复公告';plugin.state.input.dispatchEvent(new Event('input'));plugin.state.send.click()`);
- await waitFor(`!plugin.state.busy&&!plugin.state.loading`);
- assert.deepEqual(await evaluate(`requests.filter(r=>r.path==='/comments/announcement/replies'&&r.method==='POST').map(r=>({body:r.body.body,replyToId:r.body.replyToId,item:r.headers['X-Tigerest-Item-Id']}))`),[{body:'回复公告',replyToId:'announcement',item:'announcement-item'}]);
+ // v1 no longer accepts posts: the original discussion stays readable, without a composer or replies.
+ assert.equal(await evaluate(`plugin.state.composer.hidden&&!plugin.state.readOnlyNote.hidden`),true,'the dedicated discussion is read-only');
+ assert.equal(await evaluate(`Array.from(plugin.state.list.querySelectorAll('button')).some(b=>b.textContent==='回复')`),false,'read-only discussions offer no reply');
+ assert.equal(await evaluate(`requests.some(r=>r.method==='POST'&&r.path!=='/topics/resolve')`),false);
  await evaluate(`plugin.openDiscussion({availability:'available',location:{embyServerId:emby.serverId(),itemId:'announcement-item',scope:'work',topicId:'original-topic',rootId:'announcement',commentId:'announcement-reply',canNavigate:true}})`);
  await waitFor(`!plugin.state.loading`);
  assert.equal(await evaluate(`document.querySelector('[data-comment-id="announcement-reply"]')?.classList.contains('tc-highlight')`),true,'notification anchors still locate the original reply');
@@ -63,5 +64,5 @@ withBrowser(routes,async({evaluate,call})=>{
  await waitFor(`!!document.querySelector('#tigerest-report-form')`);
  assert.equal(await evaluate(`plugin.messages.client.public===true`),false,'report action keeps the private message client');
  await evaluate(`plugin.destroy()`);
- console.log('unified trusted announcement detail, reply, notification anchor, moderation and report fixture passed');
+ console.log('unified trusted announcement detail, read-only discussion, notification anchor, moderation and report fixture passed');
 }).catch(error=>{console.error(error);process.exitCode=1;});

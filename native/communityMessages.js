@@ -14,7 +14,7 @@
     const time=value=>{
         const date=new Date(value);return Number.isNaN(date.getTime())?'':date.toLocaleString();
     };
-    const body=comment=>comment?.state==='visible'?(comment.body||''):'评论已删除';
+    const body=comment=>comment?.state==='visible'?(comment.body||''):comment?.state==='pending_review'?(comment.body??'内容待审核'):'评论已删除';
     const categories={playback_error:'播放错误',subtitle_missing:'字幕缺失',subtitle_error:'字幕错误',other:'其他问题'};
     const unavailableDiagnostics=Symbol('unavailable diagnostics bridge');
     // Qt invokes callbacks; Android may also return a Promise. Consume the first

@@ -49,6 +49,8 @@
     }
     // Emby's item page is .itemView; Jellyfin's is #itemDetailPage.
     const ITEM_VIEW='.itemView, .itemDetailPage';
+    const FLAG_REASONS={spam:'垃圾广告',harassment:'辱骂骚扰',sexual:'色情低俗',illegal:'违法违规',other:'其他'};
+    const openUrl=url=>window.NativeShell?.openUrl?window.NativeShell.openUrl(url):window.open(url,'_blank','noopener');
     const itemRoute=(id,serverId)=>window.TigerestServer?.itemRoute?.(id,serverId)??'/item?id='+encodeURIComponent(id)+'&serverId='+encodeURIComponent(serverId);
     class CommunityPlugin {
         constructor({connectionManager, events, appRouter}) {
@@ -159,7 +161,7 @@
             if(!this.available(session))return;
             this.account?.sync();
             const focus=this.pendingFocus?.itemId===String(item.Id)&&this.pendingFocus.sessionKey===JSON.stringify(session)?this.pendingFocus:null;
-            this.client=focus?.channel==='private'||!focus&&Client.supported(session)?this.privateClient:this.publicClient||this.privateClient;
+            this.client=focus?.channel==='private'?this.privateClient:this.publicClient||this.privateClient;
             if (!this.client.setContext(session, item.Id)) return;
             this.publicClient?.setMedia(item);
             installStyle();
@@ -208,6 +210,11 @@
                 this.avatarStatus(state);
             });this.avatarStatus(state);
             state.dialog = node('div');content.appendChild(state.dialog);
+            state.readOnlyNote=node('p','专属评论已停止发言。这部作品缺少可靠的 TMDB 信息，暂时无法在公共评论中讨论。','tc-muted');state.readOnlyNote.hidden=true;content.appendChild(state.readOnlyNote);
+            state.termsBox=node('div',null,'tc-dialog');state.termsBox.setAttribute('role','group');state.termsBox.setAttribute('aria-label','使用条款');state.termsBox.hidden=true;
+            state.termsBox.append(node('p','发言前请阅读并同意使用条款：对不当内容和辱骂行为零容忍，违规内容会被删除，违规账号会被禁言或封禁。你可以举报评论或屏蔽用户，举报会在 24 小时内处理。'),
+                button('阅读使用条款',()=>{const terms=this.account?.session.terms();if(terms)openUrl(terms.url);}),button('同意并继续',()=>this.acceptTerms(state)));
+            content.appendChild(state.termsBox);
             state.composer = node('form');
             state.replyLabel = node('div', '', 'tc-muted');state.composer.appendChild(state.replyLabel);
             state.cancelReply = button('取消回复', () => {state.reply=null;this.updateComposer(state);});state.composer.appendChild(state.cancelReply);
@@ -265,7 +272,7 @@
             if(!this.valid(state))return;
             this.publicClient.setContext(this.session(),state.item.Id);
             if(this.account.session.tokens)this.load(state,true);
-            else state.status.textContent='注册或登录评论账号后查看评论';
+            else state.status.textContent=this.account.session.left?'你已注销评论身份。需要时可在「评论账号」中重新加入。':'注册或登录评论账号后查看评论';
         }
         placePanel(state) {
             if(!this.valid(state))return;
@@ -332,21 +339,24 @@
             try {
                 if(this.account){
                     await this.account.session.discover();if(!this.valid(state)||version!==state.version)return;
+                    if(['Episode','Season'].includes(state.item.Type)&&!state.series&&state.item.SeriesId&&(state.channel==='public'||!state.channelResolved)){
+                        const result=await this.connectionManager.currentApiClient().getItems(this.session().userId,{Ids:state.item.SeriesId,Fields:window.TigerestServer?.fields?.('ProviderIds,DisplayOrder')??'ProviderIds,DisplayOrder',Limit:1});
+                        state.series=result.Items?.find(item=>String(item.Id)===String(state.item.SeriesId));
+                        if(!this.valid(state)||version!==state.version)return;
+                    }
                     if(!state.channelResolved){
-                        // v1 resolves trusted Emby items to the same canonical topics, with
-                        // private fallback and admin permissions. External users use v2.
-                        this.selectContext(state,Client.supported(this.session())?'private':'public',state.scope);
+                        // Every new comment goes to v2; trusted Emby users join it by exchange.
+                        // A trusted item without a reliable TMDB identity still shows its old
+                        // dedicated discussion, read-only, since v1 no longer accepts posts.
+                        let channel='public';
+                        if(Client.supported(this.session())){try{window.TigerestCommunityPublicClient.mediaIdentity(state.item,state.series,state.scope);}catch(_){channel='private';}}
+                        this.selectContext(state,channel,state.scope);
                         state.channelResolved=true;
                         pageKey=state.channel+':'+state.scope;
                         if(state.loadedKey!==pageKey)this.clearContent(state);
                     }
                     if(state.reportButton)state.reportButton.hidden=!Client.supported(this.session());
                     if(state.channel==='public'){
-                        if(['Episode','Season'].includes(state.item.Type)&&!state.series&&state.item.SeriesId){
-                            const result=await this.connectionManager.currentApiClient().getItems(this.session().userId,{Ids:state.item.SeriesId,Fields:window.TigerestServer?.fields?.('ProviderIds,DisplayOrder')??'ProviderIds,DisplayOrder',Limit:1});
-                            state.series=result.Items?.find(item=>String(item.Id)===String(state.item.SeriesId));
-                            if(!this.valid(state)||version!==state.version)return;
-                        }
                         this.publicClient.setMedia(state.item,state.series);
                         window.TigerestCommunityPublicClient.mediaIdentity(state.item,state.series,state.scope);
                     }
@@ -370,10 +380,13 @@
                 }
                 if(!this.valid(state)||version!==state.version)return;
                 state.me=me;state.topic=topic;state.page=page;state.pages.set(pageKey,page);state.loadedKey=pageKey;
+                const terms=state.channel==='public'?this.account?.session.terms():null;
+                state.termsRequired=!!terms&&me.termsAcceptedVersion!==terms.version;
                 state.topicLabel.textContent=(state.scope==='episode'?'当前发言对象：本集 · ':'当前发言对象：作品 · ')+(topic.title||state.item.Name||'');
                 this.adminButton(state);
                 this.renderRoots(state,data);
-                state.status.textContent=me.muted?'你已被禁言，可浏览评论和删除自己的评论。':('以 '+me.author.name+' 的身份发言');
+                // A completed report or block keeps its confirmation through the reload.
+                state.status.textContent=state.notice||(me.muted?'你已被禁言，可浏览评论和删除自己的评论。':('以 '+me.author.name+' 的身份发言'));state.notice=null;
                 if(anchor&&!missing){await this.focusComment(state,version,focus,data);if(!this.valid(state)||version!==state.version)return;}
                 if(missing||(focus?.commentId&&!anchor))state.status.textContent='目标评论已不可用，已显示当前讨论。';
             } catch(error) {if(version===state.version)this.showError(state,error);}
@@ -382,11 +395,15 @@
         updateComposer(state) {
             const length=Array.from(state.input.value.trim()).length;
             state.counter.textContent=length+' / 2000';
-            state.input.disabled=Boolean(!state.me || state.me.muted || state.loading || state.busy);
+            const readOnly=state.channel==='private';
+            state.composer.hidden=readOnly;state.readOnlyNote.hidden=!readOnly||!state.me;
+            state.termsBox.hidden=readOnly||!state.termsRequired;
+            for(const control of state.termsBox.querySelectorAll('button'))control.disabled=Boolean(state.loading||state.busy);
+            state.input.disabled=Boolean(!state.me || state.me.muted || state.termsRequired || readOnly || state.loading || state.busy);
             state.send.disabled=state.input.disabled || !state.topic || length<1 || length>2000;
             state.send.textContent=state.reply?'发送回复':'发表评论';
             state.cancelReply.hidden=!state.reply;
-            state.replyLabel.textContent=state.reply?'正在回复 @'+state.reply.author.name:'';
+            state.replyLabel.textContent=state.reply?'正在回复 @'+(state.reply.author?.name||'用户'):'';
             state.refresh.disabled=Boolean(state.loading||state.busy);
             for(const tab of state.tabs)tab.disabled=Boolean(state.busy);
             this.updatePagination(state);
@@ -436,8 +453,8 @@
         }
         showError(state,error) {
             if(!this.valid(state)||error.name==='AbortError')return;
-            const loginRequired=state.channel==='public'&&(error.status===401||['LOGIN_REQUIRED','AUTH_REQUIRED','AUTH_INVALID'].includes(error.code));
-            state.status.textContent=loginRequired?'注册或登录评论账号后查看评论':error.message+(error.requestId?'（请求编号：'+error.requestId+'）':'');
+            const loginRequired=state.channel==='public'&&(error.status===401||['LOGIN_REQUIRED','AUTH_REQUIRED','AUTH_INVALID','COMMUNITY_LEFT'].includes(error.code));
+            state.status.textContent=error.code==='COMMUNITY_LEFT'?error.message:loginRequired?'注册或登录评论账号后查看评论':error.message+(error.requestId?'（请求编号：'+error.requestId+'）':'');
             if(error.status===401||loginRequired){this.clearContent(state);state.input.value='';state.reply=null;state.drafts.clear();state.pages.clear();state.dialog.replaceChildren();this.client.pendingSend=null;this.updateComposer(state);}
         }
         async submit(state) {
@@ -452,6 +469,7 @@
                 if(!this.valid(state)||version!==state.version)return;
                 this.showError(state,error);
                 if(error.code==='TARGET_DELETED'){state.reply=null;deletedError=error;}
+                if(error.code==='TERMS_NOT_ACCEPTED'){state.termsRequired=true;state.retryAfterTerms=true;}
                 if(error.code==='USER_MUTED'){
                     try {state.me=await this.client.me();}catch(_){}
                 }
@@ -461,6 +479,20 @@
             if(await this.resumeFocus(state))return;
             if(sent)await this.load(state,true);
             else if(deletedError){await this.load(state,true);this.showError(state,deletedError);}
+        }
+        async acceptTerms(state) {
+            const terms=this.account?.session.terms();
+            if(!this.valid(state)||!terms||state.loading||state.busy)return;
+            const version=state.version;
+            state.busy=true;this.updateComposer(state);
+            let accepted=false;
+            try{const data=await this.account.session.acceptTerms(terms.version);if(!this.valid(state)||version!==state.version)return;
+                if(state.me)state.me.termsAcceptedVersion=data.termsAcceptedVersion;state.termsRequired=false;accepted=true;
+                state.status.textContent='已同意使用条款。';}
+            catch(error){if(version===state.version){this.showError(state,error);
+                if(error.code==='TERMS_OUTDATED')state.status.textContent='使用条款已更新，请重新阅读后再同意。';}}
+            finally{if(this.valid(state)&&version===state.version){state.busy=false;this.updateComposer(state);}}
+            if(accepted&&state.retryAfterTerms&&this.valid(state)&&version===state.version){state.retryAfterTerms=false;await this.submit(state);}
         }
         renderRoots(state,data) {
             this.clearAvatars(state);
@@ -531,16 +563,28 @@
         }
         card(state,comment,isReply=false) {
             const card=node('article',null,'tc-card');card.dataset.commentId=comment.id;
-            const header=node('div',null,'tc-header');header.appendChild(this.avatar(state,comment.author));
-            const names=node('div');names.appendChild(node('strong',comment.author.name));names.appendChild(node('div',time(comment.createdAt),'tc-muted'));header.appendChild(names);card.appendChild(header);
-            const text=comment.state==='visible'?(comment.replyToAuthor?'回复 @'+comment.replyToAuthor.name+'：\n':'')+(comment.body||''):'评论已删除';
-            card.appendChild(node('div',text,'tc-body'));
+            const author=comment.author,blocked=comment.state==='blocked_by_viewer';
+            const header=node('div',null,'tc-header');header.appendChild(this.avatar(state,author||{}));
+            const names=node('div');names.appendChild(node('strong',author?.name||(blocked?'已屏蔽的用户':'已注销用户')));names.appendChild(node('div',time(comment.createdAt),'tc-muted'));header.appendChild(names);card.appendChild(header);
+            const target=comment.replyToAuthor?'回复 @'+comment.replyToAuthor.name+'：\n':comment.replyToState==='blocked_by_viewer'?'回复已屏蔽用户：\n':'';
+            // Withheld text stays null: nothing from an older render or cache fills it in.
+            const text=comment.state==='visible'?target+(comment.body||''):comment.state==='pending_review'?(comment.body==null?'内容待审核':target+comment.body+'\n（内容待审核，仅你可见）'):blocked?'你已屏蔽此用户的评论':'评论已删除';
+            const body=node('div',text,'tc-body');card.appendChild(body);
+            if(comment.viewerFlagged&&comment.state==='visible'){
+                body.hidden=true;
+                const reveal=button('你已举报这条评论 · 显示内容',()=>{body.hidden=false;reveal.remove();});card.appendChild(reveal);
+            }
             const actions=node('div',null,'tc-actions');
-            if(comment.permissions?.canReply)actions.appendChild(button('回复',()=>{
+            const own=!!author&&author.id===state.me?.author?.id,moderation=state.channel==='public'?this.account?.session.moderation():null;
+            if(comment.permissions?.canReply&&comment.state==='visible'&&state.channel==='public')actions.appendChild(button('回复',()=>{
                 if(!this.valid(state)||state.loading||state.busy||state.me?.muted)return;
                 state.reply=comment;this.updateComposer(state);state.input.focus();state.composer.scrollIntoView({block:'nearest',behavior:'smooth'});
             }));
             if(comment.permissions?.canDelete)actions.appendChild(button('删除',()=>this.deleteDialog(state,comment,false)));
+            if(author&&!own&&['visible','pending_review'].includes(comment.state)){
+                if(Array.isArray(moderation?.flagReasons)&&moderation.flagReasons.length&&!comment.viewerFlagged)actions.appendChild(button('举报',()=>this.flagDialog(state,comment)));
+                if(moderation?.blocks===true)actions.appendChild(button('屏蔽',()=>this.blockDialog(state,author)));
+            }
             if(state.channel==='private'&&state.me?.isCommentAdmin){
                 if(comment.permissions?.canModerate)actions.appendChild(button('管理删除',()=>this.deleteDialog(state,comment,true)));
                 actions.appendChild(button('禁言',()=>this.muteDialog(state,comment.author)));
@@ -568,18 +612,18 @@
             const box=node('div',null,'tc-dialog');box.setAttribute('role','group');box.setAttribute('aria-label',title);box.appendChild(node('h3',title));
             state.dialog.replaceChildren(box);box.scrollIntoView({block:'nearest',behavior:'smooth'});return box;
         }
-        async mutation(state,operation,refresh=true) {
+        async mutation(state,operation,refresh=true,done='操作完成') {
             if(!this.valid(state)||state.loading||state.busy)return;
             const version=state.version;
             state.busy=true;this.updateComposer(state);
             let success=false;
-            try {await operation();if(!this.valid(state)||version!==state.version)return;state.dialog.replaceChildren();state.status.textContent='操作完成';success=true;}
+            try {await operation();if(!this.valid(state)||version!==state.version)return;state.dialog.replaceChildren();state.status.textContent=done;success=true;}
             catch(error){if(version===state.version)this.showError(state,error);}
             finally {if(this.valid(state)&&version===state.version){state.busy=false;this.updateComposer(state);}}
             if(!this.valid(state)||version!==state.version)return;
             if(success&&refresh)state.pages.delete(state.channel+':'+state.scope);
             if(await this.resumeFocus(state))return success;
-            if(success&&refresh){state.reply=null;await this.load(state,true);}
+            if(success&&refresh){state.reply=null;if(done!=='操作完成')state.notice=done;await this.load(state,true);}
             return success;
         }
         deleteDialog(state,comment,admin) {
@@ -595,6 +639,29 @@
                 if(admin&&!this.reason(state,reason.value))return;
                 return this.mutation(state,()=>admin?this.client.moderate(comment.id,scope.value,reason.value.trim()):this.client.remove(comment.id));
             }));box.appendChild(button('取消',()=>state.dialog.replaceChildren()));
+        }
+        flagDialog(state,comment) {
+            const reasons=(this.account?.session.moderation()?.flagReasons||[]).filter(reason=>typeof reason==='string');
+            const box=this.dialog(state,'举报这条评论');if(!box||!reasons.length)return;
+            const reason=node('select');reason.setAttribute('aria-label','举报原因');
+            for(const value of reasons)reason.appendChild(new Option(FLAG_REASONS[value]||value,value));
+            const note=node('textarea');note.placeholder='补充说明（可选，最多 500 字）';note.setAttribute('aria-label','补充说明');
+            box.append(reason,note,node('p','举报人不会透露给对方。管理员会在 24 小时内处理。','tc-muted'));
+            box.appendChild(button('提交举报',()=>{
+                const text=note.value.trim();
+                if(Array.from(text).length>500){state.status.textContent='补充说明最多 500 字。';return;}
+                // A retry of the same report reuses its UUID; a changed report gets a new one.
+                const key=JSON.stringify([comment.id,reason.value,text]);
+                if(state.flagAttempt?.key!==key)state.flagAttempt={key,id:Client.uuid()};
+                const attempt=state.flagAttempt;
+                return this.mutation(state,async()=>{await this.client.flag(comment.id,reason.value,text,attempt.id);if(state.flagAttempt===attempt)state.flagAttempt=null;},true,'已收到举报，管理员会在 24 小时内处理。');
+            }));box.appendChild(button('取消',()=>state.dialog.replaceChildren()));
+        }
+        blockDialog(state,author) {
+            const box=this.dialog(state,'屏蔽 @'+author.name+'？');if(!box)return;
+            box.appendChild(node('p','屏蔽后你将看不到 TA 的评论、回复和回复通知，对方不会收到提示。可在「评论账号」中解除屏蔽。'));
+            box.appendChild(button('确认屏蔽',()=>this.mutation(state,()=>this.client.block(author.id),true,'已屏蔽 @'+author.name+'。')));
+            box.appendChild(button('取消',()=>state.dialog.replaceChildren()));
         }
         reason(state,value) {
             const length=Array.from(value.trim()).length;
