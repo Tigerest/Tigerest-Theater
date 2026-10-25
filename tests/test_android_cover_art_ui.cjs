@@ -33,6 +33,7 @@ withBrowser(routes,async({evaluate,call})=>{
    await TigerestHomeTransitions.poster({source,findTarget:()=>document.querySelector('#detail:not(.hide) .detailImageContainer'),
     navigate:async()=>{home.classList.add('hide');document.body.classList.remove('tg-home-active');detail.classList.remove('hide');},
     landingKey:'cover-art-'+Math.random(),presetRect:{x:60,y:60,width:130,height:195}});
+   for(let i=0;i<8;i++)await new Promise(r=>requestAnimationFrame(r));
    const result={preparedArt:TigerestHomeTransitions.last.preparedArt,shown,leaks:document.querySelectorAll('.tigerest-motion-flight,[data-tigerest-poster-held]').length};
    detail.classList.add('hide');home.classList.remove('hide');document.body.classList.add('tg-home-active');return result;
   }};Promise.all([...document.images].map(i=>i.decode())).then(()=>true)`);

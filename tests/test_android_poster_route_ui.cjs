@@ -27,9 +27,11 @@ withBrowser(routes,async({evaluate,call})=>{
    await TigerestHomeTransitions.poster({source:document.querySelector('#source'),findTarget:()=>{const n=document.querySelector('#detail:not(.hide) .detailImageContainer');return n;},
     navigate:()=>{routedAt=performance.now()-start;return this.route(60);},landingKey:key,presetRect:preset});
    if(!${nativeAndroid})delete window.tigerestAndroidApi;
+   const landed={poster:!!document.querySelector('.tigerest-motion-poster'),held:document.querySelectorAll('[data-tigerest-poster-held]').length};
+   for(let i=0;i<8;i++)await new Promise(r=>requestAnimationFrame(r));
    const leaks=document.querySelectorAll('.tigerest-motion-layer,.tigerest-motion-flight,[data-tigerest-poster-held]').length;
    const detail=!document.querySelector('#detail').classList.contains('hide');this.home();
-   return {...TigerestHomeTransitions.last,routedAt,at300,leaks,detail};}};true`);
+   return {...TigerestHomeTransitions.last,routedAt,at300,landed,leaks,detail};}};true`);
  const done=m=>m.detail&&m.leaks===0&&!m.interrupted;
  // A predicted landing: the route starts once the veil covers the old page, mid-flight.
  const early=await evaluate('fixture.fly()');
@@ -37,6 +39,8 @@ withBrowser(routes,async({evaluate,call})=>{
  assert.ok(early.aim==='preset'&&early.routedAt<300,'Android changes the route once the old page is covered: '+JSON.stringify(early));
  assert.deepEqual(early.at300,{oldShown:false,routed:true,poster:true},'mid-flight the new page is behind the veil and the poster still flies');
  assert.ok(!early.fallback&&early.landingErrorPx<2&&early.landedMs<=700,'the poster lands on the real one by the deadline: '+JSON.stringify(early));
+ // Android draws the shown card a frame or two late: the poster stays over it briefly.
+ assert.ok(early.landed.poster&&early.landed.held===0,'the landed poster covers the shown card for a few frames: '+JSON.stringify(early.landed));
  assert.ok(early.quietWaitMs===undefined,'the page is revealed without waiting for a quiet page: '+JSON.stringify(early));
  // A stale prediction: the landed poster is corrected onto the real one, never faded out as late.
  const corrected=await evaluate('(()=>{const r=fixture.rect();return fixture.fly({preset:{...r,x:r.x+40,y:r.y-30}});})()');

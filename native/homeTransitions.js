@@ -317,13 +317,21 @@
     // A landed poster whose page artwork is still loading stays over it after
     // the transition has released input, then fades into the loaded image.
     // Scrolling, resizing, another transition or route hands over at once.
+    // With `frames`, a loaded card is shown at once and the poster stays over
+    // it for that many frames: Android draws a card a frame or two after the
+    // frame that shows it, and a poster removed at once left its place blank.
     let tail = null;
-    function handOver(job, flight, target) {
+    function handOver(job, flight, target, frames = 0) {
         dropTail();
         const t = {root: flight.root, target, page: page(), held: job.held.filter(h => h.owner === target), until: performance.now() + 5000};
         job.held = job.held.filter(h => h.owner !== target); job.layers = job.layers.filter(n => n !== flight.root);
         t.cut = () => dropTail();
         for (const type of ['scroll', 'wheel', 'resize']) addEventListener(type, t.cut, {capture: true, passive: true});
+        if (frames) {
+            t.held.splice(0).forEach(release);
+            const step = () => { if (tail === t) { if (--frames > 0) t.frame = requestAnimationFrame(step); else dropTail(); } };
+            tail = t; t.frame = requestAnimationFrame(step); return;
+        }
         const poll = () => {
             if (tail !== t) return;
             if (page() !== t.page) return dropTail();
@@ -334,7 +342,7 @@
     }
     function dropTail(fade = false) {
         const t = tail; if (!t) return;
-        tail = null; clearTimeout(t.timer);
+        tail = null; clearTimeout(t.timer); cancelAnimationFrame(t.frame);
         for (const type of ['scroll', 'wheel', 'resize']) removeEventListener(type, t.cut, {capture: true});
         // The image is opaque under the copy: skip its own fade-in.
         if (fade) for (const a of t.target.getAnimations?.() || []) if (Number.isFinite(a.effect?.getComputedTiming().endTime)) { try { a.finish(); } catch {} }
@@ -832,6 +840,7 @@
             freeze(flight);
             job.metric.artworkPending=!artworkReady(target);
             if (job.metric.artworkPending) handOver(job,flight,target);
+            else if (android()) handOver(job,flight,target,6);
             return result;
         }); },
         library({gallery,navigate,samePage = false}) { return run('library',async job => {
