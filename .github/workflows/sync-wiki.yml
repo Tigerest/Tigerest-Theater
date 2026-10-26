@@ -1,0 +1,47 @@
+name: sync-wiki
+
+# docs/wiki is the source of the GitHub wiki. Every push to main that touches it
+# replaces the wiki's pages with these files, so edits made on the wiki web page
+# are overwritten; change docs/wiki instead.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docs/wiki/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-wiki
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Push docs/wiki to the wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" "$RUNNER_TEMP/wiki"
+          # Mirror the folder: pages removed from docs/wiki leave the wiki too.
+          find "$RUNNER_TEMP/wiki" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R docs/wiki/. "$RUNNER_TEMP/wiki/"
+          subject="$(git log -1 --format=%s)"
+          cd "$RUNNER_TEMP/wiki"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The wiki already matches docs/wiki."
+            exit 0
+          fi
+          git diff --cached --stat
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit --quiet -m "Sync docs/wiki from ${GITHUB_SHA::7}: ${subject}"
+          git push origin HEAD
