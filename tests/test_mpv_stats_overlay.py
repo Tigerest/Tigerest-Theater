@@ -34,7 +34,6 @@ class StatsOverlayTests(unittest.TestCase):
         self.addCleanup(self.mpv.mpv_terminate_destroy, self.handle)
         opts = {'config': 'no', 'terminal': 'no', 'vo': 'null', 'ao': 'null',
                 'load-scripts': 'no', 'load-stats-overlay': 'no',
-                'script-opts': 'tigerest_stats_probe-plot_perfdata=yes',
                 'scripts': str(ROOT / 'tests/fixtures/tigerest_stats_probe.lua')}
         for key, value in opts.items():
             self.assertGreaterEqual(self.mpv.mpv_set_option_string(
@@ -87,7 +86,7 @@ class StatsOverlayTests(unittest.TestCase):
         self.assertIn('fixture shader pass', output)
         self.assertRegex(output, r'1200\s*/\s*800\s*/\s*2000')
 
-    def test_processing_graphs_still_render_with_ass_enabled(self):
+    def test_processing_graphs_render_by_default(self):
         output = self.render('detail')
         self.assertIn('fixture shader pass', output)
         self.assertIn('\\p1', output)
