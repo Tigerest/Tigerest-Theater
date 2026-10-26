@@ -907,6 +907,8 @@
 				<string>1,2</string>
 				<key>TIGEREST_DISTRIBUTION</key>
 				<string>github</string>
+				<key>CURRENT_PROJECT_VERSION</key>
+				<string>294</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -996,6 +998,8 @@
 				<string>1,2</string>
 				<key>TIGEREST_DISTRIBUTION</key>
 				<string>github</string>
+				<key>CURRENT_PROJECT_VERSION</key>
+				<string>294</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -1241,6 +1245,8 @@
 				<string>1,2</string>
 				<key>TIGEREST_DISTRIBUTION</key>
 				<string>github</string>
+				<key>CURRENT_PROJECT_VERSION</key>
+				<string>294</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>
@@ -1328,6 +1334,8 @@
 				<string>1,2</string>
 				<key>TIGEREST_DISTRIBUTION</key>
 				<string>github</string>
+				<key>CURRENT_PROJECT_VERSION</key>
+				<string>294</string>
 				<key>CODE_SIGN_STYLE</key>
 				<string>Automatic</string>
 				<key>SDKROOT</key>

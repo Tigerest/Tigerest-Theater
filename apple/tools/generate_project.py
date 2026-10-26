@@ -5,6 +5,10 @@ from pathlib import Path
 from sync_resources import sync
 ROOT = Path(__file__).resolve().parents[1]
 objects = {}
+def build_number(plist):
+    """The default build number: the release version without dots (2.9.4 -> 294).
+    TestFlight archives pass a later CURRENT_PROJECT_VERSION themselves."""
+    return plistlib.loads((ROOT/plist).read_bytes())['CFBundleShortVersionString'].replace('.','')
 def obj(key, isa, **fields):
     ident=hashlib.sha256(key.encode()).hexdigest()[:24].upper()
     objects[ident]={'isa':isa,**fields};return ident
@@ -55,7 +59,7 @@ def generate():
             ref=file(relative,'sourcecode.c.c' if path.suffix=='.c' else 'sourcecode.cpp.objcpp');files.append(ref);sources.append(obj(relative+'build','PBXBuildFile',fileRef=ref))
         ref=file('Generated/RifeModel','folder');files.append(ref);resources.append(obj('rife-model-resource','PBXBuildFile',fileRef=ref))
     phases=[obj('srcphase' ,'PBXSourcesBuildPhase',buildActionMask=2147483647,files=sources,runOnlyForDeploymentPostprocessing=0),obj('resphase','PBXResourcesBuildPhase',buildActionMask=2147483647,files=resources,runOnlyForDeploymentPostprocessing=0),obj('frameworkphase','PBXFrameworksBuildPhase',buildActionMask=2147483647,files=[obj(x+'link','PBXBuildFile',productRef=x) for x in libs],runOnlyForDeploymentPostprocessing=0)]
-    settings={'PRODUCT_NAME':'TigerestTheater','PRODUCT_BUNDLE_IDENTIFIER':'top.tigerest.theater.universal','INFOPLIST_FILE':'Config/Info.plist','SWIFT_VERSION':'5.0','IPHONEOS_DEPLOYMENT_TARGET':'26.0','TARGETED_DEVICE_FAMILY':'1,2','TIGEREST_DISTRIBUTION':'github','CODE_SIGN_STYLE':'Automatic','SDKROOT':'iphoneos','SUPPORTED_PLATFORMS':'iphoneos iphonesimulator','SUPPORTS_MACCATALYST':'NO','CLANG_ENABLE_MODULES':'YES','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks','ENABLE_USER_SCRIPT_SANDBOXING':'YES','GENERATE_INFOPLIST_FILE':'NO'}
+    settings={'PRODUCT_NAME':'TigerestTheater','PRODUCT_BUNDLE_IDENTIFIER':'top.tigerest.theater.universal','INFOPLIST_FILE':'Config/Info.plist','SWIFT_VERSION':'5.0','IPHONEOS_DEPLOYMENT_TARGET':'26.0','TARGETED_DEVICE_FAMILY':'1,2','TIGEREST_DISTRIBUTION':'github','CURRENT_PROJECT_VERSION':build_number('Config/Info.plist'),'CODE_SIGN_STYLE':'Automatic','SDKROOT':'iphoneos','SUPPORTED_PLATFORMS':'iphoneos iphonesimulator','SUPPORTS_MACCATALYST':'NO','CLANG_ENABLE_MODULES':'YES','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks','ENABLE_USER_SCRIPT_SANDBOXING':'YES','GENERATE_INFOPLIST_FILE':'NO'}
     if native_rife:
         include=['$(inherited)','$(SRCROOT)/Generated/NativeRIFE','$(SRCROOT)/Generated/NativeRIFE/mpv','$(SRCROOT)/Generated/NativeRIFE/mpv/filters','$(SRCROOT)/NativeRIFE','$(SRCROOT)/../src/player/interpolation']
         settings.update({'HEADER_SEARCH_PATHS':include,'HEADER_SEARCH_PATHS[sdk=iphoneos*]':include+['$(SRCROOT)/Generated/NativeRIFE/device'],'HEADER_SEARCH_PATHS[sdk=iphonesimulator*]':include+['$(SRCROOT)/Generated/NativeRIFE/simulator'],'CLANG_CXX_LANGUAGE_STANDARD':'c++17','CLANG_ENABLE_OBJC_ARC':'YES','GCC_C_LANGUAGE_STANDARD':'gnu11','OTHER_LDFLAGS':'$(inherited) -framework CoreML -framework Metal','SWIFT_ACTIVE_COMPILATION_CONDITIONS':'$(inherited) RIFE_NATIVE'})

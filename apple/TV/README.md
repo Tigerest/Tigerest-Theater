@@ -20,7 +20,7 @@ xcodebuild -project apple/TigerestTV.xcodeproj -scheme TigerestTV \
   -sdk appletvos -destination 'generic/platform=tvOS' CODE_SIGNING_ALLOWED=NO build
 ```
 
-Append `TIGEREST_DISTRIBUTION=testflight` for the TestFlight variant: it lists no dedicated server (its typed address still connects as one) and loads danmaku only through the configured danmaku servers.
+Append `TIGEREST_DISTRIBUTION=testflight` for the TestFlight variant: it lists no dedicated server (its typed address still connects as one) and loads danmaku only through the configured danmaku servers. `python3 apple/tools/testflight.py --platform tvos [--upload]` archives that variant with a fresh build number and exports or uploads it; it needs a paid Developer Program team (`--team` or `apple/Local.xcconfig`).
 
 For device installation, pair the Apple TV in Xcode, choose the existing Personal Team through local `apple/Local.xcconfig`, and build with signing enabled. The generator does not embed personal signing settings. Device provisioning, trust and a real login must be completed before claiming hardware playback validation.
 
