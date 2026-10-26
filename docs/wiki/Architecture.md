@@ -10,24 +10,24 @@ flowchart TB
     W["Windows<br/>Qt + libmpv"]
     M["Mac<br/>Qt + libmpv"]
     A["Android<br/>WebView + libmpv"]
-    P["iPad<br/>WKWebView + MPVKit"]
+    P["iPad / iPhone<br/>WKWebView + MPVKit"]
     T["Apple TV<br/>SwiftUI + MPVKit"]
   end
   E["你的 Emby／Jellyfin 服务器<br/>媒体库、账号、播放地址、进度"]
-  S["大河社区服务<br/>评论 · 消息 · 弹幕 · 一起看"]
-  G["GitHub Releases<br/>版本信息与安装包"]
+  S["大河社区服务<br/>评论 · 消息 · 弹幕 · 一起看 · 签名版本列表"]
+  G["GitHub Releases<br/>安装包；版本信息备用"]
   CDN["网盘 / CDN<br/>服务器 302 跳转时"]
   D["弹幕来源"]
   clients -->|"网页界面、接口、视频流"| E
-  clients -->|"评论、消息、弹幕、房间"| S
-  clients -->|"检查更新"| G
+  clients -->|"评论、消息、弹幕、房间、检查更新"| S
+  clients -->|"下载安装包（经加速镜像）；版本列表不可用时检查更新"| G
   E -.->|"302"| CDN
   S --> D
 ```
 
 - **客户端不带媒体，视频也不经过本项目的服务。** 播放器直接从你连接的 Emby 或 Jellyfin 服务器拉流；服务器把请求 302 跳转到网盘或 CDN 时，播放器跟着跳转。媒体库、账号权限和观看进度都由 Emby 管理。
 - **社区服务**是本项目自己维护的服务端，源码不随客户端公开。评论、消息、弹幕网关、共享弹幕匹配和一起看运行在同一个进程里，只处理文字、匹配关系和房间状态，不接触视频流。社区服务暂时不可用时，浏览和播放不受影响。
-- **更新检查**读取 GitHub Releases 的公开接口，安装包也从发行页下载。
+- **更新检查**先读社区服务签名的版本列表，连不上或验签失败时再读 GitHub Releases 的公开接口；安装包从 GitHub 发行页下载（经加速镜像），按 GitHub 给出的 SHA-256 核验。见下文[更新](#更新)。
 
 ## 代码在哪里
 
@@ -36,11 +36,11 @@ flowchart TB
 | 目录 | 内容 | 用于 |
 | --- | --- | --- |
 | `src/` | Qt / C++ 桌面程序：窗口、播放器组件、设置、更新器、评论桥、RIFE 控制 | Windows、Mac |
-| `native/` | 注入 Emby／Jellyfin 网页的扩展脚本：播放器插件、首页、评论、一起看、设置页、更新提示 | Windows、Mac、Android、iPad |
+| `native/` | 注入 Emby／Jellyfin 网页的扩展脚本：播放器插件、首页、评论、一起看、设置页、更新提示 | Windows、Mac、Android、iPad／iPhone |
 | `resources/mpv/` | 内置 MPV 配置和 Lua 插件：uosc 控制栏、uosc_danmaku 弹幕、画质菜单、播放统计 | Windows、Mac |
 | `android/` | Kotlin 应用：网页宿主、原生桥、播放器、手势、弹幕、更新 | Android |
-| `apple/Core/` | AppleCore Swift 包：Emby／Jellyfin 接口、首页数据、评论、弹幕匹配与排版、设置规则 | iPad、Apple TV |
-| `apple/App/` | iPad 应用：网页宿主、原生桥、播放器、下载、弹幕 | iPad |
+| `apple/Core/` | AppleCore Swift 包：Emby／Jellyfin 接口、首页数据、评论、弹幕匹配与排版、设置规则 | iPad／iPhone、Apple TV |
+| `apple/App/` | iPad／iPhone 通用应用：网页宿主、原生桥、播放器、下载、弹幕 | iPad／iPhone |
 | `apple/TV/` | Apple TV 的原生界面与播放 | Apple TV |
 | `apple/NativeRIFE/` | iPad 的 RIFE 视频滤镜 | iPad |
 
@@ -48,7 +48,7 @@ flowchart TB
 
 ## 共用的网页界面
 
-Windows、Mac、Android 和 iPad 的媒体库界面就是服务器自带的网页端：连接 Emby 时是 Emby 网页，连接 Jellyfin 时是 Jellyfin 网页。客户端打开服务器的 `web/index.html`，在页面自己的脚本运行之前注入本项目的扩展脚本。所以浏览、搜索、详情这些页面跟随服务器版本（Emby 兼容 4.8–4.10，Jellyfin 兼容 10.9–12.2，包括 12.2 的 Modern 与 Legacy 两种布局），而沉浸式首页、评论区、一起看、「Tigerest Theater 设置」分类和更新提示是扩展脚本加上去的。
+Windows、Mac、Android 和 iPad／iPhone 的媒体库界面就是服务器自带的网页端：连接 Emby 时是 Emby 网页，连接 Jellyfin 时是 Jellyfin 网页。客户端打开服务器的 `web/index.html`，在页面自己的脚本运行之前注入本项目的扩展脚本。所以浏览、搜索、详情这些页面跟随服务器版本（Emby 兼容 4.8–4.10，Jellyfin 兼容 10.9–12.2，包括 12.2 的 Modern 与 Legacy 两种布局），而沉浸式首页、评论区、一起看、「播放器设置」分组和更新提示是扩展脚本加上去的。
 
 两种网页加载扩展的方式不同：Emby 把功能注册成 AMD 模块（`embycompat.js`），Jellyfin 通过自己的 NativeShell 插件接口创建插件（`jellyfinPlugin.js`），并按地址里的 hash 而不是 Emby 的页面管理器切换视图。扩展脚本据此分别接入首页、转场和播放器；同一份播放器插件在两边都注册为 MPV 播放器。
 
@@ -71,9 +71,9 @@ flowchart TD
 | --- | --- | --- |
 | Windows / Mac | QtWebEngine（Chromium） | Qt WebChannel：C++ 组件直接注册成页面里的对象 |
 | Android | Android System WebView | 页面开始加载时注入脚本；用 WebMessageListener 收发 JSON 消息，由 androidBridge.js 包装成同样的 `window.api` |
-| iPad | WKWebView | 用 WKUserScript 注入脚本；用 WKScriptMessageHandler 接收、`callAsyncJavaScript` 回传，由 ipadBridge.js 包装成同样的 `window.api` |
+| iPad／iPhone | WKWebView | 用 WKUserScript 注入脚本；用 WKScriptMessageHandler 接收、`callAsyncJavaScript` 回传，由 ipadBridge.js 包装成同样的 `window.api` |
 
-原生层在启动时告诉页面本平台有哪些能力（能否下载、能否补帧、能否自动安装更新等），脚本据此显示或隐藏对应功能。Android 和 iPad 构建时从 `native/` 复制这些脚本，不另写一份。
+原生层在启动时告诉页面本平台有哪些能力（能否下载、能否补帧、能否自动安装更新等），脚本据此显示或隐藏对应功能。Android 和 iPad／iPhone 构建时从 `native/` 复制这些脚本，不另写一份。
 
 原生桥只接受当前服务器来源、主框架页面发来的消息。切换服务器或页面重新加载时，上一页还没完成的请求一律作废，旧页面的回复不会送到新页面。
 
@@ -164,7 +164,9 @@ flowchart TB
 - 切到后台时暂停播放。暂不提供后台播放、画中画、离线下载和 RIFE。
 - 应用内保留脱敏的诊断日志，「上报问题」时可以附带，不需要 ADB。
 
-### iPad
+### iPad / iPhone
+
+2.9.4 起同一个应用改为 iPhone／iPad 通用包（`universal.ipa`，应用标识 `top.tigerest.theater.universal`）。下文所说的 iPad 同样适用于 iPhone：网页在 iPhone 上按窄屏排版，竖屏播放器的控制栏分成时间和按钮两行。
 
 ```mermaid
 flowchart TB
@@ -186,7 +188,7 @@ flowchart TB
 - **HDR：** 屏幕的 EDR 余量大于 1（iPad Pro）时，MPV 打开色彩空间提示，播放图层允许 EDR，HDR10 与杜比视界以 10 位 PQ 输出；其他 iPad 色调映射到 SDR。开始播放时在画面上提示输出方式。
 - **音频：** 优先使用 MPV 的 avfoundation 输出（AVSampleBufferAudioRenderer），保留 5.1／7.1 的声道布局交给系统，AirPods 等设备可以做空间音频；以前的 RemoteIO 输出在这类线路上只拿到两个声道。音频会话声明多声道内容，耳机或 AirPlay 连接变化时重新协商声道数。
 - **键盘：** 接实体键盘时，方向键调音量、快进快退和按住倍速，空格播放／暂停；带修饰键的方向键保持系统作用。
-- **更新：** 应用内只检查和提示新版本。IPA 未签名，需要用自己的 Apple 身份签名安装，所以不能自动替换。
+- **更新：** 应用内只检查和提示新版本，版本信息同样先读社区服务签名的列表，连不上再问 GitHub。IPA 未签名，需要用自己的 Apple 身份签名安装，所以不能自动替换。
 
 ### Apple TV
 
@@ -338,7 +340,7 @@ flowchart TD
 
 ## 设置与配置档
 
-- 设置项定义在一份描述文件里：分类、默认值、取值范围和说明。网页里的「Tigerest Theater 设置」按这份描述生成，支持搜索、即时保存和恢复默认；设置值保存在原生层，Android 和 iPad 只显示本平台支持的项。
+- 设置项定义在一份描述文件里：分类、默认值、取值范围和说明。网页里的「播放器设置」分组和「媒体库设置」里的首页分类按这份描述生成，支持搜索、即时保存和恢复默认；设置值保存在原生层，Android 和 iPad／iPhone 只显示本平台支持的项。
 - 桌面每个配置档有独立的设置、网页数据、缓存、离线文件和日志；iPad 每个配置档有独立的网站数据。
 - 桌面只使用客户端目录中的一份 mpv.conf：头部和尾部管理区由 `MpvConfigManager` 在启动和相关设置变化时重写，中间的用户区由设置页编辑器修改。解析、校验和编辑在 `MpvConfDocument`，配置项归属（锁定、由其他设置页决定、RIFE 开启时暂停）定义在 `resources/mpvconf/options.json`。画质档由客户端按文件内容执行，保存后无需重启。
 
@@ -357,11 +359,11 @@ flowchart TD
   verify --> install["Windows 安装器或便携 ZIP<br/>Mac DMG · Android 系统安装器"]
 ```
 
-版本信息先向社区服务器要：服务器定时读取 GitHub 的发行列表，用 Ed25519 签名后提供给客户端，客户端用内置公钥验签，再检查数据新鲜度（最近一次读取 GitHub 不超过 72 小时）。连不上、10 秒内没有回应、被重定向、超过 2 MiB、验签失败或数据过期时，改为直接请求 GitHub 接口，用户看不到区别。这样多数用户不再占用 GitHub 的匿名额度，也不会再遇到「GitHub 请求受限」。签名只保证列表出自我们的服务器；安装包仍只从 GitHub 发行页（经加速镜像）下载，并按列表里的 SHA-256 核验。Windows 与 Mac 的验签代码在 `src/system/ReleaseFeed.cpp` 和 `Ed25519.cpp`，Android 在 `ReleaseFeed.kt` 和 `Ed25519.kt`；规则见 `docs/backend-app-release-feed.md`。iPad 暂时仍直接请求 GitHub。
+版本信息先向社区服务器要：服务器定时读取 GitHub 的发行列表，用 Ed25519 签名后提供给客户端，客户端用内置公钥验签，再检查数据新鲜度（最近一次读取 GitHub 不超过 72 小时）。连不上、10 秒内没有回应、被重定向、超过 2 MiB、验签失败或数据过期时，改为直接请求 GitHub 接口，用户看不到区别。这样多数用户不再占用 GitHub 的匿名额度，也不会再遇到「GitHub 请求受限」。签名只保证列表出自我们的服务器；安装包仍只从 GitHub 发行页（经加速镜像）下载，并按列表里的 SHA-256 核验。Windows 与 Mac 的验签代码在 `src/system/ReleaseFeed.cpp` 和 `Ed25519.cpp`，Android 在 `ReleaseFeed.kt` 和 `Ed25519.kt`，iPad／iPhone 在 AppleCore 的 `ReleaseFeed.swift`（用 CryptoKit 验签）；规则见 `docs/backend-app-release-feed.md`。
 
 安装包依次从 GitHub 下载加速镜像 `gh-proxy.com`、`ghproxy.net` 和 GitHub 原址下载。正在出数据的来源断线后先在原处续传；还没出数据就失败、返回错误状态、不受信任的跳转或长度不对时立刻换下一个。镜像只负责传输：大小和 SHA-256 只取自版本信息（GitHub 接口或社区服务器签名转发的原值），经镜像下载的文件校验不通过时丢弃，只从 GitHub 原址重新下载一次。两个镜像转发 GitHub 的 ETag，续传可以跨来源；gh-proxy.com 对超过约 512 MB 的文件不支持断点续传，会从头重新下载。Windows RIFE 扩展的下载使用同一组镜像，校验值来自客户端内置的扩展目录。
 
-发行页没有本平台安装包时，更新器直接跳过这个版本。Windows 与 Mac 共用同一个 C++ 更新器（`src/system/AppUpdater.cpp`）和网页更新窗口；Android 用 Kotlin 实现同样的规则。iPad 只检查和提示，不下载安装；Apple TV 没有应用内更新检查。
+发行页没有本平台安装包时，更新器直接跳过这个版本。Windows 与 Mac 共用同一个 C++ 更新器（`src/system/AppUpdater.cpp`）和网页更新窗口；Android 用 Kotlin 实现同样的规则。iPad／iPhone 只检查和提示，不下载安装；Apple TV 没有应用内更新检查。
 
 找到的发行连同它的说明保存在本机偏好设置里（Windows/Mac：配置目录的 `app-update-preferences.json`；Android：`app-updates` 偏好）。下次启动先用完整的发行规则重新核对这份记录，已安装或已忽略的版本不会显示；后台刷新失败时保留记录和弹窗，刷新结果变化时替换或删除记录。
 
@@ -388,8 +390,8 @@ flowchart TD
 | 平台 | 构建 | 自动测试 |
 | --- | --- | --- |
 | Windows | CMake + MSVC，Qt 6.9 与自建 QtWebEngine，Inno Setup 打包 | CTest：C++ 单元测试、扩展脚本测试、QtWebEngine 界面测试、真实 MPV 播放测试、安装包检查 |
-| Mac | 同一套 CMake 工程；打包时换入修补版 QtWebEngine | 同一套测试中适用于 Mac 的部分（2.9.3 共 83 项，含更新窗口界面测试）、打包检查 |
+| Mac | 同一套 CMake 工程；打包时换入修补版 QtWebEngine | 同一套测试中适用于 Mac 的部分（2.9.4 共 87 项，含更新窗口界面测试）、打包检查 |
 | Android | Gradle + Kotlin | JVM 单元测试、lint、签名和 16 KB 对齐检查 |
-| iPad、Apple TV | 由脚本生成 Xcode 工程，固定 MPVKit 版本 | AppleCore 的 Swift 测试、XCTest、Apple TV 遥控器界面测试、RIFE 调度测试、Metal 颜色转换与 swscale 的逐像素对照 |
+| iPad／iPhone、Apple TV | 由脚本生成 Xcode 工程，固定 MPVKit 版本 | AppleCore 的 Swift 测试、XCTest、Apple TV 遥控器界面测试、RIFE 调度测试、Metal 颜色转换与 swscale 的逐像素对照 |
 
-每次发行附带 `RELEASE-MANIFEST.json`（苹果三端为 `APPLE-RELEASE-MANIFEST.json`），记录来源提交、测试结果和验证范围；测试用模拟数据还是真实服务器、真实播放，分开记录。构建说明见仓库中的 [Windows](https://github.com/Tigerest/Tigerest-Theater/blob/main/dev/windows/README.md)、[macOS](https://github.com/Tigerest/Tigerest-Theater/blob/main/dev/macos/README.md)、[Android](https://github.com/Tigerest/Tigerest-Theater/blob/main/android/README.md)、[iPad](https://github.com/Tigerest/Tigerest-Theater/blob/main/docs/apple/INSTALL.md) 和 [Apple TV](https://github.com/Tigerest/Tigerest-Theater/blob/main/apple/TV/README.md)。
+每次发行附带 `RELEASE-MANIFEST.json`（苹果三端为 `APPLE-RELEASE-MANIFEST.json`），记录来源提交、测试结果和验证范围；测试用模拟数据还是真实服务器、真实播放，分开记录。构建说明见仓库中的 [Windows](https://github.com/Tigerest/Tigerest-Theater/blob/main/dev/windows/README.md)、[macOS](https://github.com/Tigerest/Tigerest-Theater/blob/main/dev/macos/README.md)、[Android](https://github.com/Tigerest/Tigerest-Theater/blob/main/android/README.md)、[iPad / iPhone](https://github.com/Tigerest/Tigerest-Theater/blob/main/docs/apple/INSTALL.md) 和 [Apple TV](https://github.com/Tigerest/Tigerest-Theater/blob/main/apple/TV/README.md)。

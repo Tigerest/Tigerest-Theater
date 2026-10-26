@@ -2,16 +2,16 @@
 
 ## 选择正确的包
 
-从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以 2.9.3 的文件名示例说明；安装步骤也适用于后续同类正式包。
+从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以 2.9.4 的文件名示例说明；安装步骤也适用于后续同类正式包。
 
 | 设备 | 包名 | 最低要求 |
 | --- | --- | --- |
-| Windows 安装版 | TigerestTheater-2.9.3-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
-| Windows 便携版 | TigerestTheater-2.9.3-x64.zip | 同上 |
-| Android | TigerestTheater-2.9.3-android.apk | Android 15+，arm64-v8a / x86_64 |
-| Apple Silicon Mac | TigerestTheater-2.9.3-arm64.dmg | macOS 26+，M 系列 |
+| Windows 安装版 | TigerestTheater-2.9.4-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
+| Windows 便携版 | TigerestTheater-2.9.4-x64.zip | 同上 |
+| Android | TigerestTheater-2.9.4-android.apk | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | TigerestTheater-2.9.4-arm64.dmg | macOS 26+，M 系列 |
 | iPad / iPhone | TigerestTheater-2.9.4-universal.ipa（2.9.3 及以前为 ipad.ipa） | iPadOS / iOS 26+，需要自行签名 |
-| Apple TV | TigerestTheater-2.9.3-tvos.ipa | tvOS 26+，需要自行签名 |
+| Apple TV | TigerestTheater-2.9.4-tvos.ipa | tvOS 26+，需要自行签名 |
 
 Windows 安装版适合日常使用，由安装器管理程序目录；便携版适合把程序与配置放在同一个文件夹。Mac 正式附件目前仅提供 Apple Silicon 版本。Android 的系统版本和处理器架构必须同时满足要求。iPad / iPhone 通用包和 Apple TV 的 IPA 是两个不同的设备包，不能互换。
 
@@ -73,7 +73,7 @@ IPA 不含作者的签名、设备名单或证书。应用内可以检查新版�
 
 ## 应用内更新
 
-Windows、Mac、Android 和 iPad 每次启动会在后台检查新正式版。只有版本更高且包含对应平台安装包时，右上角更新图标才显示红点。
+Windows、Mac、Android 和 iPad／iPhone 每次启动会在后台检查新正式版。只有版本更高且包含对应平台安装包时，右上角更新图标才显示红点。
 
 Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新窗口。检查在后台进行，不拖慢启动；如果你已经开始操作时检查才完成，这次不打扰，结果留到下次打开时立刻显示，同时在后台重新核对一次。
 
@@ -88,24 +88,24 @@ Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新
 
 下载支持暂停和继续；退出后再次检查同一版本可以续传。网络中断会自动重连，连续多次没有新进度后才显示失败。服务器文件变化、无法续传或缓存损坏时，客户端会重新下载。
 
-下载完成后会核验大小和 SHA-256，校验值只取自 GitHub 官方接口，镜像只负责传输；经镜像下载的文件校验不通过时，自动改从 GitHub 原址重新下载一次。Windows 安装版从 2.9.4 起自动安装：大河影院会自己关闭，装好后自动重新打开，不用手动关掉旧版；装在「所有用户」目录时会出现一次系统权限提示，选「是」即可（从更早版本升级时仍是升级向导）。便携版打开 ZIP 后仍需退出并替换程序；Mac 打开 DMG 后替换应用。Android 从 2.9.4 起直接交给系统安装，系统会弹出安装提示，第一次还需要允许大河影院安装应用；安装时应用会被系统关闭，装好后从桌面重新打开（Android 不允许应用在更新后自己启动）。如果正在播放，自动安装会等播放结束。完成下载不等于安装完成。iPad 只提示新版本，需要按上面的方法重新签名安装；Apple TV 没有应用内更新检查。
+下载完成后会核验大小和 SHA-256，校验值只取自 GitHub 官方接口，镜像只负责传输；经镜像下载的文件校验不通过时，自动改从 GitHub 原址重新下载一次。Windows 安装版从 2.9.4 起自动安装：大河影院会自己关闭，装好后自动重新打开，不用手动关掉旧版；装在「所有用户」目录时会出现一次系统权限提示，选「是」即可（从更早版本升级时仍是升级向导）。便携版打开 ZIP 后仍需退出并替换程序；Mac 打开 DMG 后替换应用。Android 从 2.9.4 起直接交给系统安装，系统会弹出安装提示，第一次还需要允许大河影院安装应用；安装时应用会被系统关闭，装好后从桌面重新打开（Android 不允许应用在更新后自己启动）。如果正在播放，自动安装会等播放结束。完成下载不等于安装完成。iPad／iPhone 只提示新版本，需要按上面的方法重新签名安装；Apple TV 没有应用内更新检查。
 
 早期 Windows 版本的内置更新若始终下载失败，请手动下载当前安装包并覆盖安装一次。暂时无法检查更新不会阻止浏览或播放。
 
 ## 核对 SHA-256
 
-发行页有两份校验清单：Windows 和 Android 的文件在 `TigerestTheater-2.9.3-SHA256SUMS.txt`，Mac、iPad 和 Apple TV 的文件在 `TigerestTheater-2.9.3-APPLE-SHA256SUMS.txt`。先找到文件名对应的摘要，再与本机结果对照。
+发行页有两份校验清单：Windows 和 Android 的文件在 `TigerestTheater-2.9.4-SHA256SUMS.txt`，Mac、iPad／iPhone 和 Apple TV 的文件在 `TigerestTheater-2.9.4-APPLE-SHA256SUMS.txt`。先找到文件名对应的摘要，再与本机结果对照。
 
 Windows PowerShell 示例：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.3-x64.exe'
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.4-x64.exe'
 ```
 
 macOS 终端示例：
 
 ```sh
-shasum -a 256 ~/Downloads/TigerestTheater-2.9.3-arm64.dmg
+shasum -a 256 ~/Downloads/TigerestTheater-2.9.4-arm64.dmg
 ```
 
 摘要应完全相同，大小写不影响比较。如果不同，重新下载该文件；不要使用校验失败的包继续更新。

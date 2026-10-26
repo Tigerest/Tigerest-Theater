@@ -1,6 +1,6 @@
 # Tigerest Theater 使用教程
 
-这里是 EMBY 大河版的中文使用说明，对应 2.9.4（Windows 与 Android 为 2.9.4；Mac、iPad 与 Apple TV 的 2.9.4 在 Mac 上构建验证后补充到同一发行页）。客户端支持 Windows、Apple Silicon Mac、Android、iPad 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
+这里是 EMBY 大河版的中文使用说明，对应 2.9.4，五个平台均已发布。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
 
 ## 第一次使用
 
@@ -14,13 +14,13 @@
 
 | 任务 | 页面内容 |
 | --- | --- |
-| [安装与更新](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation) | 系统要求、安装版与便携版、iPad 与 Apple TV 签名安装、覆盖更新、SHA-256 |
+| [安装与更新](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation) | 系统要求、安装版与便携版、iPad／iPhone 与 Apple TV 签名安装、覆盖更新、SHA-256 |
 | [服务器与登录](https://github.com/Tigerest/Tigerest-Theater/wiki/Server) | 地址格式、反向代理路径、切换服务器、媒体权限、两种账号 |
 | [一起看](https://github.com/Tigerest/Tigerest-Theater/wiki/Watch-Together) | 创建和加入房间、一起开始、同步方式、换片、房主操作 |
 | [公共评论与头像](https://github.com/Tigerest/Tigerest-Theater/wiki/Community) | 注册、修改昵称和密码、发言与回复、头像同步 |
 | [消息与私人报错](https://github.com/Tigerest/Tigerest-Theater/wiki/Messages-and-Reports) | 回复、我的发言、报错、日志附件、修复通知与已读状态 |
 | [弹幕匹配与纠正](https://github.com/Tigerest/Tigerest-Theater/wiki/Danmaku) | 自动匹配、手动选集、共享校准、来源屏蔽与偏移 |
-| [播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback) | 设置入口、首页媒体夹、声音、画质、快捷键、Android 与 iPad 手势 |
+| [播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback) | 设置入口、首页媒体夹、声音、画质、快捷键、Android 与 iPad／iPhone 手势 |
 | [字幕](https://github.com/Tigerest/Tigerest-Theater/wiki/Subtitles) | 选轨、外置字幕、时间偏移、样式与 ASS 特效 |
 | [RIFE 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE) | Windows 扩展、Mac 与 iPad 内置补帧、目标帧率、性能检查 |
 | [下载与离线媒体](https://github.com/Tigerest/Tigerest-Theater/wiki/Downloads) | 下载任务、离线播放、数据保留与权限 |
@@ -33,10 +33,10 @@
 
 - **更新下载与安装：** 「直接下载」先走 GitHub 加速镜像，下完仍按 GitHub 的 SHA-256 核对；Windows 安装版点「安装更新」后自动关闭、安装并重新打开；Android 下载后直接交给系统安装。检查更新改为先问社区服务器（签名验证），连不上再问 GitHub。见[安装与更新](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation#应用内更新)。
 - **一份可以直接改的 mpv.conf（Windows 与 Mac）：** 在「设置 → 播放器设置 → MPV 画质与插件」下方的编辑器里修改，保存后立即生效；原来的配置模式、「高级」页和 `user-overrides.conf` 不再使用，升级时旧内容备份到「旧版自定义配置备份.txt」。见[自定义 mpv.conf](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#自定义-mpvconfwindows-与-mac)。
-- **设置菜单：** 左侧菜单分成「播放器设置」和「媒体库设置」两组（Windows、Mac 与 Android）。
-- **海报转场（Windows 与 Mac）：** 点海报后直接飞向详情页，页面按时出现时约 0.6–0.7 秒落地；返回海报墙时不再出现空行。Windows 重启后第一次转场也不用再等着色器编译。
+- **设置菜单：** 左侧菜单分成「播放器设置」和「媒体库设置」两组（Windows、Mac 与 Android；iPad／iPhone 的设置页也一样分组）。
+- **海报转场（Windows、Mac 与 Android）：** 点海报后直接飞向详情页，页面按时出现时约 0.6–0.7 秒落地；返回海报墙时不再出现空行。Windows 重启后第一次转场也不用再等着色器编译。Android 10 月 24 日更新的安装包让海报先落地再打开新页面，飞行途中不再卡顿，并换上黑金 Tigerest 图标。
 - **弹幕不遮字幕：** 底部弹幕改为滚动显示，画面底部 20% 留给字幕（Windows、Mac、iPad 与 Apple TV）。
-- **iPad 与 iPhone：** iPad 版改为 iPhone／iPad 通用；转屏后画面正确铺满；开着 RIFE 持续掉帧时会提示。
+- **iPad 与 iPhone：** iPad 版改为 iPhone／iPad 通用包 `universal.ipa`，作为新应用安装（见[安装与更新](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation#ipad--iphone)）；转屏后画面正确铺满；开着 RIFE 持续掉帧时会提示；海报转场改用桌面流程，约 0.6 秒落地；从屏幕左边缘右滑即可返回上一层。
 - **Apple TV：** 返回键先收起控制栏；海报墙可以排序和搜索，并显示观看进度；文字字幕放大约 15%。
 
 ## 2.9.3 更新了什么
@@ -75,11 +75,11 @@
 
 2.6.1 起 Windows 网页界面按屏幕刷新率运行，并新增 iPad 客户端；2.7.0 起首页「继续观看」按观看记录排序，兼容 Emby 4.8–4.10 和 .strm 媒体库，并补充了 Apple TV 首版。完整记录见[更新记录](https://github.com/Tigerest/Tigerest-Theater/blob/main/CHANGELOG.md)。
 
-**已知问题：** 部分 Windows 高刷新率环境下，窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.4 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。
+**已知问题：** 部分 Windows 高刷新率环境下，窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.4 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户暂时无法发表或回复评论，下一个版本改用新接口后恢复。
 
 ## 各平台功能范围
 
-| 功能 | Windows | Apple Silicon Mac | Android | iPad | Apple TV |
+| 功能 | Windows | Apple Silicon Mac | Android | iPad / iPhone | Apple TV |
 | --- | --- | --- | --- | --- | --- |
 | Emby／Jellyfin 浏览、MPV 播放、弹幕、公共评论 | 支持 | 支持 | 支持 | 支持 | 支持，原生电视界面；公共评论需已有账号 |
 | HDR 直接输出 | 自动开启系统 HDR，HDR10 输出 | 支持 HDR 的屏幕上输出 | 支持 HDR 的屏幕上输出 | 支持 HDR 的屏幕上输出 | 未专门适配 |
