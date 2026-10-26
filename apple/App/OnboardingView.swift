@@ -23,9 +23,12 @@ struct OnboardingView: View {
                             Divider()
                         }
                         Text("添加服务器").font(.title2)
-                        Button("连接大河李斯特专属 EMBY 服务器") { choose("tigerest"); beginConnection() }
-                            .buttonStyle(.borderedProminent).controlSize(.large)
-                        Text("已有大河专属服务器权限，可直接使用服务器账号登录。").foregroundStyle(.secondary)
+                        // TestFlight builds list no server of their own; a typed dedicated address is still recognised.
+                        if !Distribution.testFlight {
+                            Button("连接大河李斯特专属 EMBY 服务器") { choose("tigerest"); beginConnection() }
+                                .buttonStyle(.borderedProminent).controlSize(.large)
+                            Text("已有大河专属服务器权限，可直接使用服务器账号登录。").foregroundStyle(.secondary)
+                        }
                         Button("连接自建 Emby / Jellyfin 服务器") { choose("custom") }
                             .buttonStyle(.bordered).controlSize(.large)
                         Text("连接你自己搭建或获授权使用的 Emby 或 Jellyfin 服务器。").foregroundStyle(.secondary)
@@ -90,7 +93,8 @@ struct OnboardingView: View {
     private func beginConnection(record: ServerHistory.Record? = nil) {
         cancelConnection(); connecting = true; failure = ""; activeCard = record?.key
         // The attempt owns these values even if the user chooses another option.
-        let submittedMode = record?.mode ?? mode, submittedAddress = record?.address ?? address, submittedReplacement = replacing
+        let chosenMode = record?.mode ?? mode, submittedAddress = record?.address ?? address, submittedReplacement = replacing
+        let submittedMode = Distribution.testFlight && chosenMode == "custom" && ServerPresets.bundled.contains(typed: submittedAddress) ? "tigerest" : chosenMode
         connectionTask = Task {
             do {
                 if submittedMode == "tigerest" { try await model.connectDedicated(replacing: submittedReplacement) }

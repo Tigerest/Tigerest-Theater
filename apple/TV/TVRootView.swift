@@ -249,9 +249,11 @@ struct TVLoginView: View {
                 } else {
                     TVServerListView(model: model)
                     Text("连接服务器").font(.title.bold())
-                    modeButton("专属服务器", subtitle: "自动选择可用线路", symbol: "sparkles.tv", mode: .dedicated)
-                        .accessibilityIdentifier("tv.mode.dedicated")
-                        .focused($focused, equals: "dedicated")
+                    if !Distribution.testFlight {
+                        modeButton("专属服务器", subtitle: "自动选择可用线路", symbol: "sparkles.tv", mode: .dedicated)
+                            .accessibilityIdentifier("tv.mode.dedicated")
+                            .focused($focused, equals: "dedicated")
+                    }
                     modeButton("自建服务器", subtitle: "输入你的 Emby 或 Jellyfin 服务器地址", symbol: "server.rack", mode: .selfHosted)
                         .accessibilityIdentifier("tv.mode.selfHosted")
                         .focused($focused, equals: "selfHosted")
@@ -261,12 +263,14 @@ struct TVLoginView: View {
         }
         .padding(.horizontal, 30)
         .frame(maxHeight: .infinity)
-        .onAppear { focused = model.serverMode == nil ? "dedicated" : model.serverMode == .selfHosted ? "server" : "username" }
+        .onAppear { focused = model.serverMode == nil ? firstMode : model.serverMode == .selfHosted ? "server" : "username" }
         .onChange(of: model.serverMode) { _, mode in
             password = ""
-            focused = mode == nil ? "dedicated" : mode == .selfHosted ? "server" : "username"
+            focused = mode == nil ? firstMode : mode == .selfHosted ? "server" : "username"
         }
     }
+
+    private var firstMode: String { Distribution.testFlight ? "selfHosted" : "dedicated" }
 
     private func modeButton(_ title: String, subtitle: String, symbol: String, mode: TVServerMode) -> some View {
         Button { model.selectServer(mode) } label: {

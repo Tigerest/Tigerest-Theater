@@ -159,7 +159,9 @@ final class TVAppModel: ObservableObject {
             error = "请输入用户名。"
             return
         }
-        let mode = serverMode!, submittedURL = serverURL, replacing = editingServerKey
+        let submittedURL = serverURL, replacing = editingServerKey
+        // TestFlight builds list no dedicated server; its typed address still connects as one.
+        let mode: TVServerMode = Distribution.testFlight && serverMode == .selfHosted && ServerPresets.bundled.contains(typed: submittedURL) ? .dedicated : serverMode!
         let id = beginRequest()
         do {
             let server: String
