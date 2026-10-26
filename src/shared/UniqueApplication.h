@@ -30,14 +30,15 @@ public:
     {
       QVariantMap map = message.toMap();
       if (map.contains("command") && map.value("command").toString() == "appStart")
-        emit otherApplicationStarted();
+        emit otherApplicationStarted(map.value("files").toStringList());
     });
 
     if (!m_server->listen())
       throw FatalException("Failed to listen to uniqueApp socket: " + m_server->errorString());
   }
 
-  bool ensureUnique()
+  // A later launch hands its local files to the running instance.
+  bool ensureUnique(const QStringList& files = {})
   {
     auto socket = new LocalJsonClient(m_socketName, this);
     socket->connectToServer();
@@ -55,6 +56,8 @@ public:
 
     QVariantMap m;
     m.insert("command", "appStart");
+    if (!files.isEmpty())
+      m.insert("files", files);
     socket->sendMessage(m);
     socket->waitForBytesWritten(2000);
 
@@ -64,7 +67,7 @@ public:
     return false;
   }
 
-  Q_SIGNAL void otherApplicationStarted();
+  Q_SIGNAL void otherApplicationStarted(const QStringList& files);
 
 private:
   LocalJsonServer* m_server;

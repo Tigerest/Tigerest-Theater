@@ -702,6 +702,30 @@ def test_offline_download_cleanup() -> None:
             "reopened offline library does not receive download updates")
 
 
+def test_local_player_file_types() -> None:
+    media = read("src/system/LocalMedia.cpp")
+    listed = re.search(r"static const QStringList extensions\{(.*?)\};", media, re.S)
+    require(listed is not None, "LocalMedia::videoExtensions() list not found")
+    extensions = re.findall(r'"([a-z0-9]+)"', listed.group(1))
+    installer = read("bundle/win/JellyfinDesktop.iss.in")
+    registered = re.search(r"#dim VideoExtensions\[(\d+)\] \{(.*?)\}", installer)
+    require(registered is not None, "installer does not register video file types")
+    require(int(registered.group(1)) == len(extensions) and
+            re.findall(r'"([a-z0-9]+)"', registered.group(2)) == extensions,
+            "installer Open-with file types differ from LocalMedia::videoExtensions()")
+    require(r'ValueData: """{app}\{#MyAppExeName}"" ""%1"""' in installer,
+            "Open-with command does not pass the file to the client")
+    system = read("src/system/SystemComponent.cpp")
+    require('":/web-client/extension/localPlayer.js"' in system, "localPlayer.js is not injected")
+    # Android and iPad bundle offline.js without the local player.
+    apple = read("apple/tools/sync_resources.py")
+    android = read("android/app/src/main/java/top/tigerest/theater/WebHost.kt")
+    if "localPlayer" not in apple or '"localPlayer.js"' not in android:
+        offline = read("native/offline.js")
+        require("if (window.tigerestPlayLocalMedia) return window.tigerestPlayLocalMedia(" in offline,
+                "offline playback requires localPlayer.js, which Android/iPad do not bundle")
+
+
 def test_windows_delay_load_targets_final_executable() -> None:
     cmake = read("src/CMakeLists.txt")
     delay_library_calls = [
@@ -869,6 +893,7 @@ def main() -> int:
         test_brand_assets,
         test_settings_ui,
         test_offline_download_cleanup,
+        test_local_player_file_types,
         test_windows_delay_load_targets_final_executable,
         test_windows_packages_bundle_runtime_locally,
         test_windows_portable_runtime_bundle_contract,

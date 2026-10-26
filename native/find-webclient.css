@@ -26,7 +26,7 @@ button:disabled { opacity: .55; cursor: default; }
 #connect-button:hover:not(:disabled) { background: #f0c675; }
 .text-button { display: block; padding: 8px 0; background: none; border: 0; color: #b8afa2; font-size: 14px; }
 .text-button:hover { color: #f0c675; }
-#offline-button { margin: 16px auto 0; }
+#client-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 28px; margin-top: 16px; }
 .connection-progress { display: flex; align-items: center; gap: 10px; min-height: 30px; color: #c6b99f; font-size: 13px; overflow-wrap: anywhere; }
 #spinner { display: inline-block; flex-shrink: 0; width: 18px; height: 18px; border: 2px solid #5a4b32; border-top-color: #e4b258; border-radius: 50%; animation: spin .8s linear infinite; }
 #connection-error { color: #f0aaa0; background: #402625; border-radius: 8px; padding: 12px; line-height: 1.7; font-size: 14px; overflow-wrap: anywhere; }

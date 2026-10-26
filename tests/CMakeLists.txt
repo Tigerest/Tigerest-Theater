@@ -14,6 +14,11 @@ target_link_libraries(test_appupdater PRIVATE Qt6::Core Qt6::Network Qt6::Test)
 add_test(NAME test_appupdater COMMAND test_appupdater)
 target_compile_definitions(test_appupdater PRIVATE FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
+add_executable(test_local_media test_local_media.cpp ../src/system/LocalMedia.cpp)
+target_include_directories(test_local_media PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_local_media PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME test_local_media COMMAND test_local_media)
+
 add_executable(test_release_feed test_release_feed.cpp ../src/system/ReleaseFeed.cpp ../src/system/Ed25519.cpp)
 target_include_directories(test_release_feed PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(test_release_feed PRIVATE FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")

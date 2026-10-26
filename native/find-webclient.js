@@ -312,6 +312,8 @@ el('address').addEventListener('keydown', event => {
     }
 });
 el('offline-button').addEventListener('click', () => window.tigerestOpenOfflineLibrary());
+el('local-files-button').addEventListener('click', () => window.tigerestOpenLocalFiles?.());
+el('settings-button').addEventListener('click', () => window.tigerestOpenMpvSettings?.('main'));
 document.addEventListener('keydown', event => {
     if (committingSelection && event.key === 'Escape') { event.preventDefault(); return; }
     if (event.key === 'Escape' && listConnecting) {
@@ -331,6 +333,9 @@ document.addEventListener('keydown', event => {
     await window.apiPromise;
     el('choose-tigerest').disabled = el('choose-custom').disabled = false;
     el('cancel-switch-button').hidden = !explicitChoice || window.history.length < 2;
+    el('local-files-button').hidden = !window.tigerestLocalPlayerAvailable?.();
+    // Before a server page there is no other way into the desktop settings.
+    el('settings-button').hidden = !window.tigerestOpenMpvSettings || !!window.tigerestAndroidApi || !!window.tigerestIPadApi;
     if (window.tigerestAndroidApi?.system?.editServerAddress) {
         el('address').readOnly = true;
         el('address').setAttribute('aria-haspopup', 'dialog');
@@ -343,6 +348,13 @@ document.addEventListener('keydown', event => {
         return window.tigerestServerSelectionFailed();
     }
     if (explicitChoice) return showChoices();
+    // Opened with a video file, the client is a local player: no server
+    // connects until the user chooses one.
+    if (await window.api.system.startedWithLocalFiles?.()) {
+        showChoices();
+        el('choice-description').textContent = '正在作为本地播放器使用，没有连接媒体服务器。需要媒体库时，请选择要连接的服务器。';
+        return;
+    }
     if (!['tigerest', 'custom'].includes(mode)) return showChoices();
     main.serverConnectionMode = mode;
     showManualConnection(saved);

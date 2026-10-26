@@ -1165,6 +1165,17 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
         .tgs-search:focus { border-color: #ffbe38; }
         .tgs-body { min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
         .tgs-category-select { max-width: 240px; }
+        .tgs-with-nav .tgs-body { grid-template-columns: 240px minmax(0, 1fr); }
+        .tgs-with-nav .tgs-category-select { display: none; }
+        .tgs-nav { min-height: 0; overflow-y: auto; padding: 24px 12px 32px clamp(12px, 2vw, 32px); border-right: 1px solid rgba(255,255,255,.08); }
+        .tgs-nav-title { margin: 20px 12px 8px; color: #aaa; font-size: 13px; font-weight: 500; }
+        .tgs-nav-title:first-child { margin-top: 0; }
+        .tgs-nav-item {
+            display: block; box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px 12px; color: inherit;
+            background: none; border: 0; border-radius: 3px; text-align: left; font: inherit; font-size: 15px; cursor: pointer;
+        }
+        .tgs-nav-item:hover { background: rgba(255,255,255,.06); }
+        .tgs-nav-item.active { color: #ffbe38; background: rgba(255,190,56,.1); }
         .tgs-content { min-width: 0; overflow-y: auto; padding: 30px clamp(20px, 4vw, 56px) 48px; scrollbar-gutter: stable; }
         .tgs-section { display: none; max-width: 760px; margin: 0 auto 32px; }
         .tgs-section.active { display: block; }
@@ -1231,6 +1242,9 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
             .tgs-section-head h2 { font-size: 22px; }
             .tgs-reset { margin-left: 0; padding-left: 0; }
             .tgs-footer { padding: 12px 20px; }
+            .tgs-with-nav .tgs-body { grid-template-columns: minmax(0, 1fr); }
+            .tgs-with-nav .tgs-nav { display: none; }
+            .tgs-with-nav .tgs-category-select { display: block; }
         }
         /* Emby does not center .readOnlyContent here, so wide windows left half the page empty. */
         .tigerest-settings-host { width: 100%; max-width: 1200px; margin-left: auto; margin-right: auto; }
@@ -1295,6 +1309,40 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
         }
         header.insertBefore(categorySelect, search);
         categorySelect.addEventListener('change', () => { search.value = ''; activate(categorySelect.value); applySearch(); });
+    }
+
+    // On the desktop the categories stand beside the page in the server
+    // settings menu's groups: the player's first, then the library's. Narrow
+    // windows keep the selector, grouped the same way.
+    const navButtons = new Map();
+    if (categorySelect && !window.tigerestAndroidApi && !window.tigerestIPadApi) {
+        dialog.classList.add('tgs-with-nav');
+        const nav = element('nav', 'tgs-nav');
+        nav.setAttribute('aria-label', '设置分类');
+        const navGroups = [
+            [TIGEREST_PLAYER_SETTINGS_TITLE, TIGEREST_PLAYER_SETTINGS.map(key => orderedSections.find(entry => entry.key === key)).filter(Boolean)],
+            [TIGEREST_LIBRARY_SETTINGS_TITLE, orderedSections.filter(entry => !TIGEREST_PLAYER_SETTINGS.includes(entry.key))]
+        ];
+        categorySelect.replaceChildren();
+        for (const [title, entries] of navGroups) {
+            if (!entries.length) continue;
+            nav.appendChild(element('h3', 'tgs-nav-title', title));
+            const options = element('optgroup');
+            options.label = title;
+            for (const entry of entries) {
+                const button = element('button', 'tgs-nav-item', entry.title);
+                button.type = 'button';
+                button.dataset.section = entry.key;
+                button.addEventListener('click', () => { search.value = ''; activate(entry.key); applySearch(); });
+                nav.appendChild(button);
+                navButtons.set(entry.key, button);
+                const option = element('option', '', entry.title);
+                option.value = entry.key;
+                options.appendChild(option);
+            }
+            categorySelect.appendChild(options);
+        }
+        body.insertBefore(nav, content);
     }
 
     const footer = element('div', 'tgs-footer');
@@ -1408,6 +1456,11 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
         headingTitle.textContent = tigerestSettingsGroupTitle(section);
         sessionStorage.setItem('tigerestSettingsTab', section);
         if (categorySelect) categorySelect.value = section;
+        for (const [key, button] of navButtons) {
+            button.classList.toggle('active', key === section);
+            if (key === section) button.setAttribute('aria-current', 'page');
+            else button.removeAttribute('aria-current');
+        }
         for (const [key, group] of groups) {
             group.classList.toggle('active', key === section);
             group.setAttribute('aria-hidden', String(key !== section));
@@ -1958,6 +2011,7 @@ function openClientMenu(anchor) {
     item('播放器设置（MPV）', () => window.tigerestOpenMpvSettings('mpv'), android ? '' : 'Ctrl+,');
     item('客户端设置', () => window.tigerestOpenMpvSettings('main'));
     if (!android && window.tigerestOpenOfflineLibrary) item('下载与离线媒体', () => window.tigerestOpenOfflineLibrary());
+    if (window.tigerestLocalPlayerAvailable?.()) item('打开本地视频', () => window.tigerestOpenLocalFiles(), 'Ctrl+O');
     document.body.appendChild(menu);
     // Below the button, inside the viewport; a button moved into a compact
     // overflow menu has no box, so use the top-right corner then.
@@ -2045,6 +2099,10 @@ function installMpvSettingsEntry() {
         if ((event.ctrlKey || event.metaKey) && event.key === ',') {
             event.preventDefault();
             openTigerestSettings();
+        } else if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'o' &&
+                   window.tigerestLocalPlayerAvailable?.()) {
+            event.preventDefault();
+            window.tigerestOpenLocalFiles();
         }
     }, true);
 }

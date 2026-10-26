@@ -187,6 +187,20 @@ withBrowser({
  assert.equal(await evaluate('document.querySelector("#tigerest-settings-overlay [role=dialog]")?.getAttribute("aria-modal")'),'true');
  await evaluate(`(()=>{const select=document.querySelector('.tgs-category-select');select.value='danmaku';select.dispatchEvent(new Event('change'))})()`);
  assert.equal(await evaluate('document.querySelector(".tgs-section.active").dataset.section'),'danmaku','standalone fallback can still select a category');
+ // Without a server menu (offline, Jellyfin) the desktop dialog lists the
+ // categories beside the page in the server menu's groups and order.
+ const standaloneNav=()=>evaluate(`(()=>{const nav=document.querySelector('#tigerest-settings-overlay .tgs-nav'),select=document.querySelector('.tgs-category-select');
+  return {nav:nav.getClientRects().length>0,select:select.getClientRects().length>0,groups:[...nav.querySelectorAll('.tgs-nav-title')].map(node=>node.textContent),
+   items:[...nav.querySelectorAll('.tgs-nav-item')].map(node=>node.dataset.section),current:nav.querySelector('[aria-current=page]')?.dataset.section,
+   options:[...select.querySelectorAll('optgroup')].map(group=>group.label+':'+[...group.children].map(option=>option.value).join(',')),
+   title:document.getElementById('tgs-settings-title').textContent,active:document.querySelector('.tgs-section.active').dataset.section};})()`);
+ assert.deepEqual(await standaloneNav(),{nav:true,select:false,groups:['播放器设置','媒体库设置'],items:['main','video','audio','subtitles','mpv','danmaku','home'],
+  current:'danmaku',options:['播放器设置:main,video,audio,subtitles,mpv,danmaku','媒体库设置:home'],title:'播放器设置',active:'danmaku'},'desktop dialog groups its categories beside the page');
+ await evaluate(`document.querySelector('.tgs-nav-item[data-section="home"]').click()`);
+ assert.deepEqual(await standaloneNav().then(({current,title,active})=>({current,title,active})),{current:'home',title:'媒体库设置',active:'home'},'side menu opens a category');
+ await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+ assert.deepEqual(await standaloneNav().then(({nav,select})=>({nav,select})),{nav:false,select:true},'narrow dialog keeps the selector');
+ await call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
  assert.equal(await evaluate('!!document.querySelector("#tigerest-settings-overlay")'),false);
  assert.equal(await evaluate('document.activeElement.id'),'origin','fallback closes and restores focus');

@@ -21,6 +21,7 @@
 
 #include "shared/Names.h"
 #include "system/SystemComponent.h"
+#include "system/LocalMedia.h"
 #include "Paths.h"
 #include "core/ProfileManager.h"
 #include "player/PlayerComponent.h"
@@ -158,6 +159,8 @@ int main(int argc, char *argv[])
                        {"fullscreen",               "Start in fullscreen"},
                        {"disable-gpu",              "Disable QtWebEngine gpu accel"},
                        {"ignore-certificate-errors", "Ignore certificate errors"}});
+    parser.addPositionalArgument("files", "Local video files to play without a media server.", "[files...]");
+    QStringList localFiles;
 
     auto scaleOption = QCommandLineOption("scale-factor", "Set to a integer or default auto which controls" \
                                                           "the scale (DPI) of the desktop interface.");
@@ -222,6 +225,7 @@ int main(int argc, char *argv[])
       // native Windows command line. Chromium flags are appended only for the
       // final QApplication, so they cannot disable that native decoding here.
       parser.process(core.arguments());
+      localFiles = LocalMedia::filesFromArguments(parser.positionalArguments(), QDir::currentPath());
 
       // Detect portable mode while QCoreApplication exists (needed for applicationDirPath)
       Paths::detectAndEnablePortableMode();
@@ -506,7 +510,7 @@ int main(int argc, char *argv[])
 #endif
 
     UniqueApplication* uniqueApp = new UniqueApplication(&app);
-    if (!uniqueApp->ensureUnique())
+    if (!uniqueApp->ensureUnique(localFiles))
     {
       Log::Cleanup();
       return EXIT_SUCCESS;
@@ -524,6 +528,7 @@ int main(int argc, char *argv[])
     // early since most everything else relies on it
     //
     ComponentManager::Get().initialize();
+    SystemComponent::Get().openLocalFiles(localFiles, true);
 
     // Rotate temp log to main log file and rotate old logs
     Log::RotateLog();
@@ -618,8 +623,9 @@ int main(int argc, char *argv[])
       WindowManager::Get().initializeWindow(window);
 
       // Handle other app focus by raising window
-      QObject::connect(uniqueApp, &UniqueApplication::otherApplicationStarted, []() {
+      QObject::connect(uniqueApp, &UniqueApplication::otherApplicationStarted, [](const QStringList& files) {
         WindowManager::Get().raiseWindow();
+        SystemComponent::Get().openLocalFiles(files);
       });
     });
 #ifdef Q_OS_WIN
