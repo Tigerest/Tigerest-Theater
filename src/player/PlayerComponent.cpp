@@ -1298,6 +1298,10 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       m_playbackError.clear();
       m_lastPositionUpdate = 0.0;
       m_audioOutputWarningShown = false;
+      // A file mpv switches to by itself (a uosc directory entry, a dropped
+      // file) follows an END_FILE that hid the window, and a VO kept across
+      // the switch reports no vo-configured change to show it again.
+      m_windowVisible = m_voConfigured;
       // An in-scene Render API target must be visible before VO reconfigure
       // can finish; native windows can wait for the actual VO readiness.
       emit windowVisible(!m_nativeVideoOutput || m_windowVisible);
@@ -1465,6 +1469,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       else if (strcmp(prop->name, "vo-configured") == 0)
       {
         int state = prop->format == MPV_FORMAT_FLAG ? *static_cast<int*>(prop->data) : 0;
+        m_voConfigured = state;
         m_windowVisible = state;
         emit windowVisible(m_inPlayback && (!m_nativeVideoOutput || m_windowVisible));
       }

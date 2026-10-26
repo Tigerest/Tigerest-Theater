@@ -6,8 +6,11 @@
     // Windows only for now; the Mac build adds its file handling separately.
     const available = () => !!(window.api?.system?.isWindows && window.api.system.chooseLocalFiles &&
         !window.tigerestAndroidApi && !window.tigerestIPadApi);
-    let queue = [];
-    let current = null;
+    // The files in play order and the one playing. uosc lists them through the
+    // web player's queue property, so its list, previous and next come back
+    // here: a file mpv opened by itself would bypass the local playback state.
+    let entries = [];
+    let index = -1;
     let active = false;
     let advancing = false;
     // Like the web player's: leaving playback restores the window state from
@@ -30,8 +33,20 @@
         setTimeout(() => toast.remove(), 5000);
     }
 
-    function load(entry) {
-        current = entry;
+    const itemPrefix = 'local-';
+    const itemId = i => itemPrefix + i;
+
+    function publishQueue() {
+        const player = window.api.player;
+        player.setWebPlaylist?.(entries.map((entry, i) => ({PlaylistItemId: itemId(i), Id: itemId(i), Name: entry.title})),
+            index >= 0 ? itemId(index) : '');
+        player.notifyQueueChange?.(index >= 0 && index < entries.length - 1, index > 0);
+    }
+
+    function load(i) {
+        index = i;
+        const entry = entries[i];
+        publishQueue();
         window.api.player.load(entry.url, {autoplay: true, startMilliseconds: 0}, {
             type: 'video',
             localPlayback: true,
@@ -40,10 +55,16 @@
         }, null, null);
     }
 
+    // An entry chosen in the uosc list, or the previous / next one.
+    function select(i) {
+        if (active && Number.isInteger(i) && i >= 0 && i < entries.length && i !== index) load(i);
+    }
+
     function finish() {
         active = advancing = false;
-        queue = [];
-        current = null;
+        entries = [];
+        index = -1;
+        publishQueue();
         window.api.player.setVideoOnlyMode(false);
         if (windowSession) {
             windowSession = false;
@@ -66,12 +87,12 @@
             await new Promise(resolve => setTimeout(resolve, 50));
     }
 
-    async function play(entries) {
-        if (!entries?.length) return;
+    async function play(list, start = 0) {
+        if (!list?.length) return;
         await window.apiPromise;
         await endServerPlayback();
         document.getElementById('tigerest-local-toast')?.remove();
-        queue = entries.slice(1);
+        entries = list.slice();
         active = true;
         advancing = false;
         if (!windowSession && window.api.window) {
@@ -79,12 +100,12 @@
             window.api.window.beginPlaybackSession();
         }
         window.api.player.setVideoOnlyMode(true);
-        load(entries[0]);
+        load(Math.min(Math.max(0, Number(start) || 0), entries.length - 1));
     }
 
     async function takeRequested() {
-        const entries = await window.api.system.takeLocalFiles();
-        if (entries?.length) await play(entries);
+        const request = await window.api.system.takeLocalFiles();
+        if (request?.items?.length) await play(request.items, request.start);
     }
 
     window.tigerestLocalPlayerAvailable = available;
@@ -95,12 +116,12 @@
     window.apiPromise.then(api => {
         const player = api.player;
         if (player?.stopped) {
-            player.finished.connect(() => { if (active) advancing = queue.length > 0; });
+            player.finished.connect(() => { if (active) advancing = index < entries.length - 1; });
             player.stopped.connect(() => {
                 if (!active) return;
                 if (advancing) {
                     advancing = false;
-                    load(queue.shift());
+                    load(index + 1);
                 } else {
                     finish();
                 }
@@ -109,11 +130,23 @@
             // message ("loading failed") says less than the file's name.
             player.error.connect(() => {
                 if (!active) return;
-                notify(current?.title ? `无法播放「${current.title}」。` : '无法播放这个文件。');
-                if (queue.length) load(queue.shift());
+                const title = entries[index]?.title;
+                notify(title ? `无法播放「${title}」。` : '无法播放这个文件。');
+                if (index < entries.length - 1) load(index + 1);
                 else finish();
             });
         }
+        // PlayerComponent turns a uosc list choice into "playlist-item:<id>";
+        // media keys send previous / next.
+        const choice = 'playlist-item:' + itemPrefix;
+        api.input?.hostInput?.connect(actions => {
+            for (const action of actions || []) {
+                if (typeof action !== 'string') continue;
+                if (action.startsWith(choice)) select(Number(action.slice(choice.length)));
+                else if (action === 'next') select(index + 1);
+                else if (action === 'previous') select(index - 1);
+            }
+        });
         if (!api.system?.localFilesRequested) return;
         api.system.localFilesRequested.connect(takeRequested);
         takeRequested();

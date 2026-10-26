@@ -19,6 +19,9 @@ QStringList dialogFilters();
 QStringList filesFromArguments(const QStringList& arguments, const QString& workingDirectory);
 // A batch in file-name order, numbers compared by value ("第2集" before "第10集").
 QStringList sorted(QStringList files);
+// The videos in a file's folder in that order, including the file itself even
+// when its extension is not listed: one opened episode lists its season.
+QStringList folderVideos(const QString& file);
 // What the page plays: {url, title, fileName} for each file.
 QVariantList playlist(const QStringList& files);
 }

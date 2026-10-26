@@ -41,6 +41,21 @@ private slots:
                                  QStringLiteral("D:/b/第2集.mkv"), QStringLiteral("D:/b/第10集.mkv")}));
   }
 
+  void folderListsTheOtherEpisodes()
+  {
+    QTemporaryDir root;
+    QDir dir(root.path());
+    dir.mkdir("ep 5.mkv");
+    const QString first = touch(dir, QStringLiteral("ep 1.mkv"));
+    const QString second = touch(dir, QStringLiteral("ep 2.mp4"));
+    const QString tenth = touch(dir, QStringLiteral("ep 10.MKV"));
+    const QString opened = touch(dir, QStringLiteral("ep 3.xyz"));
+    touch(dir, QStringLiteral("ep 4.txt"));
+    // Folders and other files stay out; the opened file stays in whatever it is.
+    QCOMPARE(LocalMedia::folderVideos(opened), QStringList({first, second, opened, tenth}));
+    QCOMPARE(LocalMedia::folderVideos(second), QStringList({first, second, tenth}));
+  }
+
   void playlistEncodesEveryCharacter()
   {
     QTemporaryDir root;

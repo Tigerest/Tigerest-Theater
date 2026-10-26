@@ -548,6 +548,8 @@ if(Node_EXECUTABLE)
                    ${CMAKE_CURRENT_SOURCE_DIR}/test_home_registration.js)
   add_test(NAME test_offline_downloads
            COMMAND ${Node_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test_offline_downloads.js)
+  add_test(NAME test_local_player
+           COMMAND ${Node_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test_local_player.js)
   add_test(NAME test_watch_together
            COMMAND ${Node_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test_watch_together_client.js
                    ${CMAKE_CURRENT_SOURCE_DIR}/test_watch_together_sync.js)

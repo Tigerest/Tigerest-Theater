@@ -98,9 +98,10 @@ public:
 
   // Local video files from the command line, a later launch or the file
   // dialog. Launches arriving together (Explorer starts one per selected file)
-  // form one batch; the page takes it once the batch is complete.
+  // form one batch; the page takes it once the batch is complete, as
+  // {items, start}. A single file plays within its folder's videos.
   void openLocalFiles(const QStringList& files, bool atStartup = false);
-  Q_INVOKABLE QVariantList takeLocalFiles();
+  Q_INVOKABLE QVariantMap takeLocalFiles();
   Q_INVOKABLE bool startedWithLocalFiles() const { return m_startedWithLocalFiles; }
   Q_INVOKABLE bool chooseLocalFiles();
   Q_SIGNAL void localFilesRequested();

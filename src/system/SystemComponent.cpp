@@ -208,14 +208,17 @@ void SystemComponent::openLocalFiles(const QStringList& files, bool atStartup)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-QVariantList SystemComponent::takeLocalFiles()
+QVariantMap SystemComponent::takeLocalFiles()
 {
   // A batch still gathering launches is announced by localFilesRequested.
   if (m_localFilesBatch.isActive() || m_localFiles.isEmpty())
     return {};
-  const QVariantList entries = LocalMedia::playlist(LocalMedia::sorted(m_localFiles));
+  const bool single = m_localFiles.size() == 1;
+  const QStringList files = single ? LocalMedia::folderVideos(m_localFiles.first()) : LocalMedia::sorted(m_localFiles);
+  const QString first = single ? m_localFiles.first() : files.first();
   m_localFiles.clear();
-  return entries;
+  return {{"items", LocalMedia::playlist(files)},
+          {"start", qMax(0, int(files.indexOf(first)))}};
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

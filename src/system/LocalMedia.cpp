@@ -64,6 +64,22 @@ QStringList sorted(QStringList files)
   return files;
 }
 
+QStringList folderVideos(const QString& file)
+{
+  const QFileInfo opened(file);
+  QStringList patterns;
+  for (const QString& extension : videoExtensions())
+    patterns << QStringLiteral("*.") + extension;
+  QStringList files{QDir::toNativeSeparators(opened.absoluteFilePath())};
+  for (const QFileInfo& entry : opened.absoluteDir().entryInfoList(patterns, QDir::Files))
+  {
+    const QString path = QDir::toNativeSeparators(entry.absoluteFilePath());
+    if (!files.contains(path, Qt::CaseInsensitive))
+      files << path;
+  }
+  return sorted(files);
+}
+
 QVariantList playlist(const QStringList& files)
 {
   QVariantList entries;

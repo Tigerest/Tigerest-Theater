@@ -430,6 +430,8 @@ private:
   bool m_paused;
   bool m_playbackActive;
   bool m_windowVisible;
+  // mpv's last reported vo-configured; END_FILE hides the window without it.
+  bool m_voConfigured = false;
   bool m_videoPlaybackActive;
   bool m_inPlayback;
   bool m_nativeVideoReady = false;
