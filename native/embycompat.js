@@ -327,14 +327,15 @@
         });
 
         defineModule('tigerest/input.js', [
-            'inputManager', 'playbackManager'
-        ], function (inputManager, playbackManager) {
+            'inputManager', 'playbackManager', 'connectionManager'
+        ], function (inputManager, playbackManager, connectionManager) {
             const NativeInputPlugin = window._inputPlugin;
             return class TigerestInputPlugin extends NativeInputPlugin {
                 constructor() {
                     super({
                         inputManager: moduleValue(inputManager),
-                        playbackManager: moduleValue(playbackManager)
+                        playbackManager: moduleValue(playbackManager),
+                        connectionManager: moduleValue(connectionManager)
                     });
                 }
             };

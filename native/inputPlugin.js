@@ -14,7 +14,7 @@ const remap = {
 }
 
 class inputPlugin {
-    constructor({ inputManager, playbackManager }) {
+    constructor({ inputManager, playbackManager, connectionManager }) {
         this.name = 'Input Plugin';
         this.type = 'input';
         this.id = 'inputPlugin';
@@ -77,13 +77,67 @@ class inputPlugin {
             };
             this.streamingBitrateSignal.connect(this.onStreamingBitrateRequested);
 
+            // Emby queues a single episode when playback starts from a series'
+            // next-up item. The episode list then offers the rest of its
+            // season; choosing one starts that episode as Emby's new queue.
+            const seasonItemPrefix = 'season-episode:';
+            let season = {key: '', episodes: []};
+            const loneEpisode = (playlist) => {
+                const item = playlist.length === 1 ? playlist[0] : null;
+                return item?.Type === 'Episode' && item.SeriesId ? item : null;
+            };
+            const seasonKey = (episode) => [episode.ServerId, episode.SeriesId, episode.SeasonId || ''].join('/');
+            const loadSeason = (playlist, loaded) => {
+                const episode = loneEpisode(playlist);
+                if (!episode || season.key === seasonKey(episode)) return;
+                const apiClient = connectionManager?.getApiClient?.(episode);
+                if (!apiClient) return;
+                const key = seasonKey(episode);
+                const query = {UserId: apiClient.getCurrentUserId(), IsMissing: false, IsVirtualUnaired: false};
+                if (episode.SeasonId) query.SeasonId = episode.SeasonId;
+                season = {key, episodes: []};
+                Promise.resolve().then(() => apiClient.getEpisodes(episode.SeriesId, query)).then(result => {
+                    if (season.key !== key) return;
+                    season.episodes = (result?.Items || []).filter(entry => entry?.Id && entry.LocationType !== 'Virtual')
+                        .map(({Id, Name, IndexNumber, ParentIndexNumber}) => ({Id, Name, IndexNumber, ParentIndexNumber}));
+                    loaded();
+                }).catch(error => {
+                    console.error('PlayerMedia: season episode list failed:', error);
+                });
+            };
+            // The offered season with the queued episode under its queue
+            // identity, or null while Emby's own queue is the list.
+            const seasonEntries = (playlist) => {
+                const episode = loneEpisode(playlist);
+                if (!episode || season.key !== seasonKey(episode) || !season.episodes.some(entry => entry.Id === episode.Id)) return null;
+                return season.episodes.map(entry => Object.assign({}, entry,
+                    {PlaylistItemId: entry.Id === episode.Id ? episode.PlaylistItemId : seasonItemPrefix + entry.Id}));
+            };
+            const seasonPosition = (entries) => entries.findIndex(entry => !entry.PlaylistItemId.startsWith(seasonItemPrefix));
+
             const selectPlaylistItem = (id) => {
                 const player = playbackManager._currentPlayer;
                 const playlist = playbackManager._playQueueManager?.getPlaylist() || [];
-                if (!player || typeof id !== 'string' || !playlist.some(item => item.PlaylistItemId === id)) return;
-                Promise.resolve().then(() => playbackManager.setCurrentPlaylistItem(id, player)).catch(error => {
+                if (!player || typeof id !== 'string') return;
+                if (playlist.some(item => item.PlaylistItemId === id)) {
+                    Promise.resolve().then(() => playbackManager.setCurrentPlaylistItem(id, player)).catch(error => {
+                        console.error('PlayerMedia: episode selection failed:', error);
+                    });
+                    return;
+                }
+                const episode = id.startsWith(seasonItemPrefix) ? seasonEntries(playlist)?.find(entry => entry.PlaylistItemId === id) : null;
+                if (!episode) return;
+                Promise.resolve().then(() => playbackManager.play({ids: [episode.Id], serverId: playlist[0].ServerId, fullscreen: true})).catch(error => {
                     console.error('PlayerMedia: episode selection failed:', error);
                 });
+            };
+            // Previous / next move through the offered season as well.
+            const stepSeason = (delta) => {
+                const entries = seasonEntries(playbackManager._playQueueManager?.getPlaylist() || []);
+                const target = entries?.[seasonPosition(entries) + delta];
+                if (!target) return false;
+                selectPlaylistItem(target.PlaylistItemId);
+                return true;
             };
             if ((api.system.isAndroid || api.system.isIPad) && api.input.playlistItemRequested) {
                 api.input.playlistItemRequested.connect(selectPlaylistItem);
@@ -93,6 +147,8 @@ class inputPlugin {
                 actions.forEach(action => {
                     if (typeof action === 'string' && action.startsWith('playlist-item:')) {
                         selectPlaylistItem(action.slice('playlist-item:'.length));
+                    } else if ((action === 'next' || action === 'previous') && stepSeason(action === 'next' ? 1 : -1)) {
+                        // Moved within the offered season.
                     } else if (action === 'shuffle') {
                         playbackManager.setQueueShuffleMode('Shuffle');
                     } else if (action === 'sorted') {
@@ -129,11 +185,13 @@ class inputPlugin {
 
                     const rawPlaylist = playbackManager._playQueueManager?.getPlaylist();
                     const playlist = Array.isArray(rawPlaylist) ? rawPlaylist : [];
+                    loadSeason(playlist, updateQueueState);
+                    const offered = seasonEntries(playlist);
 
                     if (typeof api.player.setWebPlaylist === 'function') {
                         // Emby owns the streams and queue order. Native controls need
                         // only identity and labels, not full media/source metadata.
-                        const items = playlist.map(({PlaylistItemId, Id, Name, IndexNumber, ParentIndexNumber}) =>
+                        const items = (offered || playlist).map(({PlaylistItemId, Id, Name, IndexNumber, ParentIndexNumber}) =>
                             ({PlaylistItemId, Id, Name, IndexNumber, ParentIndexNumber}));
                         const currentId = playbackManager.getCurrentPlaylistItemId() || '';
                         const snapshot = JSON.stringify([items, currentId]);
@@ -146,6 +204,12 @@ class inputPlugin {
                     const currentIndex = playbackManager._playQueueManager?.getCurrentPlaylistIndex();
                     if (currentIndex === undefined || currentIndex === null || currentIndex < 0) {
                         api.player.notifyQueueChange(false, false);
+                        return;
+                    }
+
+                    if (offered) {
+                        const position = seasonPosition(offered);
+                        api.player.notifyQueueChange(position < offered.length - 1, position > 0);
                         return;
                     }
 

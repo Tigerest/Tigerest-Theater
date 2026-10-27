@@ -24,6 +24,7 @@ Windows 已在分支 `claude/windows-local-player` 完成本地播放器，作�
 | `uosc_danmaku/main.lua`、`uosc.conf` | 本地播放不自动加载弹幕，弹幕菜单入口提示「本地播放不加载弹幕」；弹幕按钮用 `<!user-data/tigerest/local-playback>` 隐藏 |
 | `native/localPlayer.js`（新） | 播放列表与当前位置、停止服务器播放、`setVideoOnlyMode`、`beginPlaybackSession`/`endPlaybackSession`、错误提示。列表通过 `setWebPlaylist` 交给 uosc（`local-N` 作为 `PlaylistItemId`），uosc 的选择经 `tigerest-playlist-item` → `hostInput` 的 `playlist-item:local-N` 回到这里加载；`next`/`previous` 动作（任务栏、媒体键）也在列表里切换 |
 | `native/offline.js` | 桌面上离线下载改走 `tigerestPlayLocalMedia`；没有 localPlayer.js 的包（Android、iPad）仍按原方式直接加载 |
+| `native/inputPlugin.js`、`embycompat.js` | 服务器播放选集：Emby 从剧集页「播放」（NextUp）开始时队列里只有这一集。队列只有一集、且是有 `SeriesId` 的单集时，用 `connectionManager.getApiClient(item).getEpisodes(SeriesId, {SeasonId, …})` 读这一季（去掉 `Virtual`），交给 `setWebPlaylist`：当前集用 Emby 的 `PlaylistItemId`，其他集用 `season-episode:<Id>`。选这些集、`next`/`previous` 动作调用 `playbackManager.play({ids, serverId, fullscreen: true})`；队列多于一集时照旧用 Emby 的队列。Android、iPad 共用这份脚本，原生选集列表也会列出整季 |
 | `native/find-webclient.*` | 选择页按钮；带文件启动不自动连接 |
 | `native/nativeshell.js` | 独立设置窗口在桌面改为左侧分组菜单（播放器设置在前、媒体库设置在后，窄窗口用分组下拉）；客户端菜单「打开本地视频」；快捷键 |
 
@@ -53,6 +54,7 @@ Windows 已在分支 `claude/windows-local-player` 完成本地播放器，作�
 - 离线媒体：下载好的视频有声音和字幕，停止后回到原来的页面。
 - 设置：选择页「设置」能打开完整设置；左侧分组菜单可切换，窗口变窄后改成下拉。
 - iPad / iPhone 不受影响：离线媒体仍走原生离线库，正常播放。
+- 服务器选集：在剧集页点「播放」（继续看下一集），uosc 播放列表列出这一季并标出当前集；选别的集、上一个／下一个都换集且有画面，换集后列表仍能继续选（这一季，或 Emby 排好的多集队列）。iPad 的选集列表同样检查一次。
 
 ## Windows 的验证结果
 
@@ -71,6 +73,7 @@ Windows 已在分支 `claude/windows-local-player` 完成本地播放器，作�
   - `test_local_player`（列表发布、列表选择、媒体键、播完接下一个、最后一个结束、过期选择）、`test_local_media` 的同文件夹列表用例通过。`test_server_onboarding_webengine` 在 24 次运行里有 2 次在切换服务器时因页面导航与 CDP 调用竞争而失败，单独重跑 20 次全部通过，改动前的构建 5 次通过；判断为间歇性问题，和本改动无关的依据是失败点不经过本地播放代码。
 - 安装器：`ISCC` 编译通过，预处理结果含 24 个扩展名的 `OpenWithProgids`。没有在本机实际安装安装包，「打开方式」菜单的注册没有在资源管理器里实测。
 - 没有用真实服务器验证「播放服务器视频时打开本地文件」的停止上报，只按代码路径实现。
+- 服务器选集：对照日志确认 2.9.4 同样会出现只有一集的队列（从剧集页「播放」或单集详情页开始），不是本分支引入的。`test_emby_season_list`（只有一集时读整季、列表与当前集、选集和上一个／下一个开始新队列、完整队列时交回 Emby、换季重新读取、电影不受影响）通过；还没有在真实服务器上播放验证。
 
 ## 还没做
 
