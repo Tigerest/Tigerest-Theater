@@ -30,7 +30,7 @@ final class NoRedirectSession: NSObject, URLSessionTaskDelegate {
     var accessToken: String? { userToken.flatMap { $0.expires > Date().addingTimeInterval(30) ? $0.value : nil } }
     var clientHeaders: [String: String] {
         ClientIdentity.headers(platform: UIDevice.current.userInterfaceIdiom == .pad ? "iPadOS" : "iOS",
-                               version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown")
+                               version: AppVersion.current)
     }
     private func remember(_ record: String) {
         let value = try? JSONDecoder().decode(JSONValue.self, from: Data(record.utf8))
@@ -79,7 +79,7 @@ final class NoRedirectSession: NSObject, URLSessionTaskDelegate {
     }
     private func fetch(_ value: JSONValue) async throws -> JSONValue {
         let path = value["path"].string!, image = value["responseType"].string == "image"
-        let target = path == "/mapping-capabilities" ? "http://nas.tigerest.top:18443/api/tigerest/v1/danmaku/capabilities" : "http://nas.tigerest.top:18443/community/v2" + path
+        let target = TigerestService.remoteOrigin + (path == "/mapping-capabilities" ? "/api/tigerest/v1/danmaku/capabilities" : "/community/v2" + path)
         var request = URLRequest(url: URL(string: target)!)
         request.httpMethod = value["method"].string
         request.setValue(image ? "image/png" : "application/json", forHTTPHeaderField: "Accept")

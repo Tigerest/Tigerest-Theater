@@ -5,7 +5,7 @@ import Security
 
 /// Self-reported build details for the comment and danmaku services.
 enum TVClient {
-    static let headers = ClientIdentity.headers(platform: "tvOS", version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown")
+    static let headers = ClientIdentity.headers(platform: "tvOS", version: AppVersion.current)
 }
 
 actor TVCommentTokenStore: CommunityTokenStore {

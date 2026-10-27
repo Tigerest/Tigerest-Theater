@@ -43,7 +43,7 @@ import CryptoKit
     private func requestData(_ base: URLRequest, server: String, retry: Bool) async throws -> (Data,HTTPURLResponse) {
         // Our own service records which client, and with a comment session which user,
         // asked; other providers receive neither.
-        guard DanmakuProvider.managed(server) else { return try await send(base,server:server,retry:retry) }
+        guard DanmakuProvider.own(server) else { return try await send(base,server:server,retry:retry) }
         var request=base
         for (name,value) in host.clientHeaders { request.setValue(value,forHTTPHeaderField:name) }
         guard let user=await host.communityAccessToken() else { return try await send(request,server:server,retry:retry) }

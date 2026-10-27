@@ -11,10 +11,18 @@ struct TVSessionStore {
     }
 
     func loadState() throws -> ServerSessionHistory {
-        if let data = try read(account: "server-state") { return try JSONDecoder().decode(ServerSessionHistory.self, from: data) }
-        let old = try read(account: "session").map { try JSONDecoder().decode(EmbySession.self, from: $0) }
-        let mode = old.flatMap { try? ServerAddress($0.serverURL) }.map { ServerPresets.bundled.contains($0) ? "tigerest" : "custom" } ?? "custom"
-        return ServerSessionHistory(current: old, mode: mode)
+        var state: ServerSessionHistory
+        if let data = try read(account: "server-state") { state = try JSONDecoder().decode(ServerSessionHistory.self, from: data) }
+        else {
+            let old = try read(account: "session").map { try JSONDecoder().decode(EmbySession.self, from: $0) }
+            let mode = old.flatMap { try? ServerAddress($0.serverURL) }.map {
+                ServerPresets.bundled.contains($0) || TigerestService.movedEmby($0.baseURL.absoluteString) != nil ? "tigerest" : "custom"
+            } ?? "custom"
+            state = ServerSessionHistory(current: old, mode: mode)
+        }
+        // Saved on the old public address: moved and stored before anything connects.
+        if state.moveDedicated() { try writeState(state) }
+        return state
     }
     private func writeState(_ state: ServerSessionHistory) throws {
         // One Keychain write commits history and the active session together.

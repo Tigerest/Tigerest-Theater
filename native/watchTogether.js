@@ -96,7 +96,8 @@
     function platform() {
         const system = window.api?.system;
         if (window.tigerestAndroidApi || system?.isAndroid === true) return 'Android';
-        if (window.jmpInfo?.platform === 'ipad') return 'iPadOS';
+        // The Apple app runs the iPad scripts on iPhone too; its bootstrap names the device.
+        if (window.jmpInfo?.platform === 'ipad') return window.jmpInfo.devicePlatform === 'iOS' ? 'iOS' : 'iPadOS';
         if (system?.isMacos === true) return 'macOS';
         return 'Windows';
     }
@@ -189,7 +190,7 @@
             events?.on(playbackManager, 'playbackstart', this.onStart);
             events?.on(playbackManager, 'playbackstop', this.onStop);
             this.onVisibility = () => {
-                if (['Android', 'iPadOS'].includes(platform())) this.sync?.suspend(document.hidden);
+                if (['Android', 'iPadOS', 'iOS'].includes(platform())) this.sync?.suspend(document.hidden);
                 if (!document.hidden) { this.connection?.wake(); this.checkSession(); }
             };
             document.addEventListener('visibilitychange', this.onVisibility);
@@ -473,7 +474,7 @@
             // Any speed other than 1x bypasses RIFE frame interpolation for the
             // whole item; iPad temporarily bypasses and warms again. With RIFE on,
             // offsets are fixed by held seeks only on these platforms.
-            sync.rateCorrection = !(window.jmpInfo?.settings?.video?.aiRife === true && ['Windows', 'macOS', 'iPadOS'].includes(platform()));
+            sync.rateCorrection = !(window.jmpInfo?.settings?.video?.aiRife === true && ['Windows', 'macOS', 'iPadOS', 'iOS'].includes(platform()));
             sync.attach(itemId);
             this.readPosition();
         }

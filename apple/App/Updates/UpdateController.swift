@@ -12,7 +12,7 @@ import AppleCore
     private let currentVersion:String
     init(model:AppModel) {
         self.model=model
-        currentVersion=Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "unknown"
+        currentVersion=AppVersion.current
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
             defaults=UserDefaults(suiteName:"TigerestUITestUpdates")!
         } else {defaults = .standard}
