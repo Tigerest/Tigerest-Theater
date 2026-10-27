@@ -194,6 +194,19 @@ extension WebHostTests {
         XCTAssertEqual(result.label, "音量保留校验通过")
     }
 
+    @MainActor func testBootstrapNamesTheBuildAndTheDevice() {
+        let app = makeApplication(); app.launchArguments = ["--ui-testing", "-TigerestPlaybackGesturesSeen", "YES"]; app.launch()
+        app.buttons["连接自建 Emby / Jellyfin 服务器"].tap()
+        let field = app.textFields["服务器地址"]; field.tap(); field.typeText(fixtureURL)
+        app.buttons["连接服务器"].tap()
+        XCTAssertTrue(app.staticTexts["桥接校验通过"].waitForExistence(timeout: 20))
+        app.buttons["验证构建号"].tap()
+        let result = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "构建号校验通过", "构建号失败")).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 10))
+        let device = UIDevice.current.userInterfaceIdiom == .phone ? "iOS" : "iPadOS"
+        XCTAssertTrue(result.label.hasPrefix("构建号校验通过 ") && result.label.hasSuffix(" " + device), result.label)
+    }
+
     @MainActor func testControlledBridgePlaybackAndDownload() {
         let app=makeApplication();app.launchArguments=["--ui-testing", "-TigerestPlaybackGesturesSeen", "YES"];app.launch()
         app.buttons["连接自建 Emby / Jellyfin 服务器"].tap()
