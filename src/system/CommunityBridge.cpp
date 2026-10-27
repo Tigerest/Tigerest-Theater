@@ -30,7 +30,7 @@ QUrl sourceUrl(const QVariantMap& session,bool image){
   const auto address=session.value("address").toString();const auto user=session.value("userId").toString();
   QUrl url(address,QUrl::StrictMode);
   if(address.size()>4096||!url.isValid()||!QStringList{"http","https"}.contains(url.scheme())||url.host().isEmpty()||url.authority().contains('@')||url.hasQuery()||url.hasFragment()||
-      (url.host().compare("nas.tigerest.top",Qt::CaseInsensitive)==0&&url.port(url.scheme()=="https"?443:80)==18443)||
+      (url.host().compare("nas.tigerest.top",Qt::CaseInsensitive)==0&&QList<int>{18443,18446}.contains(url.port(url.scheme()=="https"?443:80)))||
       !safeHeader(session.value("token").toString())||!QRegularExpression("^[A-Za-z0-9_-]{1,128}$").match(user).hasMatch())return {};
   auto path=url.path();if(path.contains('\\')||path.contains("//")||path.split('/').contains("..")||path.split('/').contains("."))return {};
   while(path.endsWith('/'))path.chop(1);
@@ -69,7 +69,7 @@ bool restrictFile(const QString& path) {
 }
 }
 
-CommunityBridge::CommunityBridge(QObject* parent):QObject(parent),m_network(this) {}
+CommunityBridge::CommunityBridge(QObject* parent,const QString& origin):QObject(parent),m_origin(origin),m_network(this) {}
 QVariantMap CommunityBridge::clientHeaders(){
   // Printable ASCII only; these name the build, never a device or a person.
   const auto clean=[](QString value,int limit){value.remove(QRegularExpression("[^\\x20-\\x7e]"));return value.trimmed().left(limit);};
@@ -114,7 +114,7 @@ void CommunityBridge::request(const QString& id,const QVariantMap& data) {
     m_mappingCapabilitiesRequest=id;
     if(m_mappingCapabilitiesStatus!=0){m_mappingCapabilitiesStatus=0;refreshMappingAuth();}
   }
-  QNetworkRequest req(QUrl(path=="/mapping-capabilities"?"http://nas.tigerest.top:18443/api/tigerest/v1/danmaku/capabilities":"http://nas.tigerest.top:18443/community/v2"+path));
+  QNetworkRequest req(QUrl(m_origin+(path=="/mapping-capabilities"?QStringLiteral("/api/tigerest/v1/danmaku/capabilities"):"/community/v2"+path)));
   req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::ManualRedirectPolicy);
   req.setAttribute(QNetworkRequest::CookieLoadControlAttribute,QNetworkRequest::Manual);
   req.setAttribute(QNetworkRequest::CookieSaveControlAttribute,QNetworkRequest::Manual);

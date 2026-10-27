@@ -16,7 +16,7 @@
     // Connect. Record the server the user chose so its own sign-in opens.
     function chosenServer() {
         const localAddress = 'http://192.168.5.150:8095';
-        const remoteAddress = 'http://nas.tigerest.top:8095';
+        const remoteAddress = 'https://nas.tigerest.top:18445';
         if (window.location.origin === localAddress || window.location.origin === remoteAddress) return () => ({
             Id: '62526c3bf747439c99327ddec5fed4a8',
             Name: 'TIGEREST-NAS',

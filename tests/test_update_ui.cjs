@@ -170,6 +170,17 @@ withBrowser({
  assert.ok(await evaluate('document.querySelector("#tigerest-update-dialog").textContent.includes("桥接请求失败")'),'Android Promise rejection must reach the visible error instead of callback(false) hiding it');
  await evaluate(`emit({status:'available',currentVersion:'2.5.0',version:'2.5.0'})`);
  assert.equal(await evaluate('document.querySelector("[data-update-dot]").hidden'),true,'same version is not actionable');
+ await evaluate(`emit({status:'available',currentVersion:'2.5.0',version:'2.5.0.1'})`);
+ assert.equal(await evaluate('document.querySelector("[data-update-dot]").hidden'),false,'a fix release is newer than its base version');
+ await evaluate(`emit({status:'available',currentVersion:'2.5.0.1',version:'2.5.0'})`);
+ assert.equal(await evaluate('document.querySelector("[data-update-dot]").hidden'),true,'the base version is older than its fix release');
+ await evaluate(`emit({status:'available',currentVersion:'2.5.0.1',version:'2.5.0.10'})`);
+ assert.equal(await evaluate('document.querySelector("[data-update-dot]").hidden'),false,'fix numbers compare numerically');
+ // The build number sits under the version, and is left out when the native side has none.
+ await evaluate(`window.jmpInfo={buildNumber:'2090501 · 1a2b3c4d'};emit({status:'current',version:'',currentVersion:'2.5.0.1'});TigerestUpdate.check()`);
+ assert.ok(await evaluate('document.querySelector("#tigerest-update-dialog").textContent.includes("当前版本 2.5.0.1\\n构建号 2090501 · 1a2b3c4d")'),'the update page shows the build number');
+ await evaluate(`delete window.jmpInfo;emit({status:'current'})`);
+ assert.ok(await evaluate('!document.querySelector("#tigerest-update-dialog").textContent.includes("构建号")'),'no build number line without one');
  // New documents: a check finishing after the user acts waits for the next launch,
  // where the remembered (cached) release prompts even after an early keypress.
  const relaunch=async()=>{

@@ -33,7 +33,7 @@ class DanmakuRepository(private val context: Context,private val settings: Setti
     private var itemKey = ""
     private val cache = File(context.filesDir,"danmaku-history").apply { mkdirs() }
     private var item = JSONObject()
-    private fun base(): String = settings.string("danmaku","apiServer").takeIf { it.isNotBlank() }?.let { ServerAddress.base(it).trimEnd('/') } ?: if(settings.string("main","userWebClient").contains("192.168.5.150")) "http://192.168.5.150:18443" else "http://nas.tigerest.top:18443"
+    private fun base(): String = settings.string("danmaku","apiServer").takeIf { it.isNotBlank() }?.let { ServerAddress.base(it).trimEnd('/') } ?: if(settings.string("main","userWebClient").contains("192.168.5.150")) SharedDanmakuMapping.LAN_ORIGIN else SharedDanmakuMapping.REMOTE_ORIGIN
     private fun fetch(path: String,origin: String = base()): JSONObject {
         val wait=sharedMapping.retryAfter(origin);check(wait==0L){"弹幕接口请求过于频繁，请 $wait 秒后重试"}
         val url = origin+path

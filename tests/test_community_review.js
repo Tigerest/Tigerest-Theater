@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const emby={serverId:'62526c3bf747439c99327ddec5fed4a8',userId:'user',token:'fixture',address:'http://nas.tigerest.top:8095'};
+const emby={serverId:'62526c3bf747439c99327ddec5fed4a8',userId:'user',token:'fixture',address:'https://nas.tigerest.top:18445'};
 function context(){
  const c={URL,URLSearchParams,AbortController,setTimeout,clearTimeout,crypto:require('node:crypto').webcrypto,fetch,addEventListener(){}};c.window=c;
  for(const f of ['communityClient','communitySession','communityPublicClient','communityAccount','communityMessages','communityPlugin'])vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../native/'+f+'.js'),'utf8'),c);

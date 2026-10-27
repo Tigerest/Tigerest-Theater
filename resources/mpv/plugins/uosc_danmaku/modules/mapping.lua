@@ -41,7 +41,7 @@ end
 
 local function trusted(server)
     server = resolve_api_server(server)
-    return server == 'http://nas.tigerest.top:18443' or server == 'http://192.168.5.150:18443'
+    return server == TIGEREST_REMOTE_API or server == TIGEREST_LOCAL_API
 end
 
 function mapping_retry_after(server)
@@ -92,14 +92,16 @@ function mapping_record_rate_limit(server, retry)
     server = resolve_api_server(server)
     local until_time = math.max(cooldown[server] or 0, mp.get_time() + retry_seconds(retry))
     -- Both addresses reach the same NAS and share its request budget.
-    cooldown['http://nas.tigerest.top:18443'] = until_time
-    cooldown['http://192.168.5.150:18443'] = until_time
+    cooldown[TIGEREST_REMOTE_API] = until_time
+    cooldown[TIGEREST_LOCAL_API] = until_time
 end
 
 local function request(server, source, selection, token, callback)
     if not current(token) then return end
     local revision = selection_revision
-    if not trusted(server) or not source or (cooldown[server] or 0) > mp.get_time() then callback(nil); return end
+    if not trusted(server) or not source then callback(nil); return end
+    server = resolve_api_server(server)
+    if (cooldown[server] or 0) > mp.get_time() then callback(nil); return end
     local auth_file = selection and private_header_file() or nil
     if selection and not auth_file then callback(nil); return end
     local body = {source = source, comment = {withRelated = true, chConvert = tonumber(options.chConvert) or 0}}

@@ -8,8 +8,8 @@ function load(){
  return c;
 }
 const guid='62526c3bf747439c99327ddec5fed4a8';
-const emby={serverId:guid,userId:'u1',token:'EMBY-PRIVATE',address:'http://nas.tigerest.top:8095'};
-const terms={version:'2026-10-24',url:'http://nas.tigerest.top:18443/community/v2/terms',contact:'mailto:owner@example.com'};
+const emby={serverId:guid,userId:'u1',token:'EMBY-PRIVATE',address:'https://nas.tigerest.top:18445'};
+const terms={version:'2026-10-24',url:'https://nas.tigerest.top:18446/community/v2/terms',contact:'mailto:owner@example.com'};
 const moderation={flagReasons:['spam','harassment','sexual','illegal','other'],blocks:true,accountDeletion:{authKinds:['password','emby']},terms};
 const caps={enabled:true,auth:['password','emby-exchange'],embyExchangeServerId:guid,registrationEnabled:true,mediaIdentity:'tmdb-aired',moderation};
 function tokens(id='1'){return {accessToken:'access'+id,refreshToken:'refresh'+id,tokenType:'Bearer',expiresAt:new Date(9999999999999).toISOString(),refreshExpiresAt:new Date(9999999999999).toISOString(),author:{id:'author',name:'Tester'}};}

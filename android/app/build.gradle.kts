@@ -1,4 +1,12 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
+// MAJOR.MINOR.PATCH, plus a fourth number (1-99) for an Android-only fix such as 2.9.5.1.
+val appVersion = "2.9.5"
+val versionParts = appVersion.split('.').map(String::toInt)
+check(versionParts.size in 3..4 && versionParts.drop(1).take(2).all { it in 0..99 } && versionParts.getOrElse(3) { 1 } in 1..99) { "Invalid app version $appVersion" }
+// The commit this build comes from, shown with the version on the update page.
+val gitRevision = runCatching {
+    providers.exec { commandLine("git", "rev-parse", "--short=8", "HEAD"); isIgnoreExitValue = true }.standardOutput.asText.get().trim()
+}.getOrDefault("").takeIf { it.matches(Regex("[0-9a-f]+")) } ?: ""
 android {
     namespace = "top.tigerest.theater"
     compileSdk = 36
@@ -6,8 +14,10 @@ android {
         applicationId = "top.tigerest.theater"
         minSdk = 35
         targetSdk = 36
-        versionCode = 2090500
-        versionName = "2.9.5"
+        // Two digits for each number after the first: 2.9.5 is 2090500, 2.9.5.1 is 2090501.
+        versionCode = versionParts[0] * 1_000_000 + versionParts[1] * 10_000 + versionParts[2] * 100 + versionParts.getOrElse(3) { 0 }
+        versionName = appVersion
+        buildConfigField("String", "GIT_REVISION", "\"$gitRevision\"")
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

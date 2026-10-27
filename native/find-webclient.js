@@ -1,6 +1,6 @@
 const DEFAULT_LOCAL_SERVER_IP = '192.168.5.150';
 const DEFAULT_LOCAL_SERVER = `http://${DEFAULT_LOCAL_SERVER_IP}:8095/`;
-const DEFAULT_REMOTE_SERVER = 'http://nas.tigerest.top:8095/';
+const DEFAULT_REMOTE_SERVER = 'https://nas.tigerest.top:18445/';
 const descriptions = {
     tigerest: '连接大河李斯特专属 EMBY 服务器。服务器访问权限及说明详见 B站充电页面。',
     custom: '连接你自己搭建的 Emby 或 Jellyfin 服务器。本应用只是播放器，不包含服务器，也不提供自建服务器的影视资源。',
@@ -70,7 +70,9 @@ function normalizeServer(input) {
 function isTigerestDefaultServer(server) {
     try {
         const url = new URL(normalizeServer(server));
-        return url.port === '8095' && [DEFAULT_LOCAL_SERVER_IP, 'nas.tigerest.top'].includes(url.hostname);
+        // A profile saved before the HTTPS address still counts, so it moves to the new one.
+        return url.hostname === DEFAULT_LOCAL_SERVER_IP ? url.port === '8095'
+            : url.hostname === 'nas.tigerest.top' && ['8095', '18445'].includes(url.port);
     } catch { return false; }
 }
 

@@ -17,6 +17,13 @@ QUrl mirror(const QJsonObject& links, const QString& key, const QString& pattern
   const QString url = links.value(key).toString();
   return QUrl(QRegularExpression(pattern).match(url).hasMatch() ? url : QString::fromLatin1(fallback));
 }
+// MAJOR.MINOR.PATCH, plus a fourth number (1-99) for a fix release such as 2.9.5.1.
+// A missing fourth number is 0, so 2.9.5 sorts before 2.9.5.1.
+const QString VersionPattern("(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})(?:\\.([1-9][0-9]?))?");
+QVersionNumber versionOf(const QRegularExpressionMatch& match)
+{
+  return QVersionNumber({match.captured(1).toInt(), match.captured(2).toInt(), match.captured(3).toInt(), match.captured(4).toInt()});
+}
 }
 
 QList<QUrl> downloadSources(const Candidate& candidate)
@@ -26,11 +33,11 @@ QList<QUrl> downloadSources(const Candidate& candidate)
 
 Candidate select(const QJsonArray& releases, const QString& currentVersion, Package package)
 {
-  const QRegularExpression currentPattern("^v?(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})(-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$");
-  const QRegularExpression stablePattern("^v(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})$");
+  const QRegularExpression currentPattern("^v?" + VersionPattern + "(-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$");
+  const QRegularExpression stablePattern("^v" + VersionPattern + "$");
   const auto currentMatch = currentPattern.match(currentVersion);
   if (!currentMatch.hasMatch()) return {};
-  const QVersionNumber current(currentMatch.captured(1).toInt(), currentMatch.captured(2).toInt(), currentMatch.captured(3).toInt());
+  const QVersionNumber current = versionOf(currentMatch);
   const QString suffix = package == Package::WindowsInstaller ? "x64.exe" :
     package == Package::WindowsPortable ? "x64.zip" : package == Package::MacArm64 ? "arm64.dmg" : QString();
   if (suffix.isEmpty()) return {};
@@ -44,8 +51,8 @@ Candidate select(const QJsonArray& releases, const QString& currentVersion, Pack
     const QString tag = release.value("tag_name").toString();
     const auto match = stablePattern.match(tag);
     if (!match.hasMatch()) continue;
-    const QVersionNumber version(match.captured(1).toInt(), match.captured(2).toInt(), match.captured(3).toInt());
-    if (version < current || (version == current && currentMatch.captured(4).isEmpty()) ||
+    const QVersionNumber version = versionOf(match);
+    if (version < current || (version == current && currentMatch.captured(5).isEmpty()) ||
         (!bestVersion.isNull() && version <= bestVersion)) continue;
     const QString name = "TigerestTheater-" + tag.mid(1) + "-" + suffix;
     const QString download = "https://github.com/Tigerest/Tigerest-Theater/releases/download/" + tag + "/" + name;

@@ -18,7 +18,7 @@ withBrowser(routes,async({evaluate})=>{
   comment('blocked',{state:'blocked_by_viewer',body:null,author:null,replies:[comment('reply',{rootId:'blocked',replyToId:'blocked',replyToState:'blocked_by_viewer',body:'回复内容'})]})
  ];
  const caps={enabled:true,auth:['password','emby-exchange'],embyExchangeServerId:'62526c3bf747439c99327ddec5fed4a8',registrationEnabled:true,mediaIdentity:'tmdb-aired',
-  moderation:{flagReasons:['spam','harassment','sexual','illegal','other'],blocks:true,accountDeletion:{authKinds:['password','emby']},terms:{version:'2026-10-24',url:'http://nas.tigerest.top:18443/community/v2/terms',contact:'mailto:owner@example.com'}}};
+  moderation:{flagReasons:['spam','harassment','sexual','illegal','other'],blocks:true,accountDeletion:{authKinds:['password','emby']},terms:{version:'2026-10-24',url:'https://nas.tigerest.top:18446/community/v2/terms',contact:'mailto:owner@example.com'}}};
  window.api={system:{communityResponse:{connect:f=>listener=f},communityCancel(){},communitySetEmbySession(s,cb){cb(true)},
   communityCredential(op,k,v,cb){if(op==='write')saved[k]=v;if(op==='remove')delete saved[k];cb({ok:true,value:saved[k]||''})},
   communityRequest(id,r){calls.push(r);const p=r.path,body=r.body?JSON.parse(r.body):null;let status=200,data;
@@ -36,7 +36,7 @@ withBrowser(routes,async({evaluate})=>{
    else data={items:[],nextCursor:null,unreadCount:0};
    setTimeout(()=>listener(id,{status,body:JSON.stringify(status<400?{data}:{error:{code:data}}),headers:{}}),0);}}};
  window.opened=[];window.NativeShell={openUrl:url=>opened.push(url)};
- window.emby={serverId:()=> '62526c3bf747439c99327ddec5fed4a8',getCurrentUserId:()=> 'u1',accessToken:()=> 'EMBY-TOKEN',serverAddress:()=> 'http://nas.tigerest.top:8095'};
+ window.emby={serverId:()=> '62526c3bf747439c99327ddec5fed4a8',getCurrentUserId:()=> 'u1',accessToken:()=> 'EMBY-TOKEN',serverAddress:()=> 'https://nas.tigerest.top:18445'};
  window.plugin=new _communityPlugin({connectionManager:{currentApiClient:()=>emby}});
  document.querySelector('.itemView').dispatchEvent(new CustomEvent('itemshow',{bubbles:true,detail:{item:{Id:'movie',Type:'Movie',Name:'大河影片',ProviderIds:{Tmdb:'42'}}}}));`);
  await waitFor(`plugin.state?.topic&&!plugin.state.loading`);
@@ -45,7 +45,7 @@ withBrowser(routes,async({evaluate})=>{
  // Terms gate: composing waits for the user's own consent.
  assert.equal(await evaluate(`!plugin.state.termsBox.hidden&&plugin.state.input.disabled`),true,'unaccepted terms disable the composer');
  await click('阅读使用条款');
- assert.deepEqual(await evaluate(`opened`),['http://nas.tigerest.top:18443/community/v2/terms']);
+ assert.deepEqual(await evaluate(`opened`),['https://nas.tigerest.top:18446/community/v2/terms']);
  assert.equal(await evaluate(`calls.some(c=>c.path==='/me/terms')`),false,'reading never agrees');
  await click('同意并继续');
  await waitFor(`plugin.state.termsBox.hidden&&!plugin.state.busy`);

@@ -85,17 +85,18 @@
         }
         static setTrustedServer(id) { WatchClient.trustedServerId = id; }
         // Same host rule as the comment service: the LAN Emby address uses
-        // the LAN service, every other trusted address the public host.
+        // the LAN service over HTTP, every other trusted address the public
+        // service over HTTPS (an HTTPS Emby page cannot reach plain HTTP).
         setSession(session) {
             const next = WatchClient.supported(session) ? {...session} : null;
             const key = next ? JSON.stringify(next) : '';
             if (key !== this.key) {
                 this.key = key;
                 this.context = next;
-                const host = next ? (WatchClient.hostOverride || (new URL(next.address).hostname === '192.168.5.150'
-                    ? '192.168.5.150:18443' : 'nas.tigerest.top:18443')) : null;
-                this.base = host ? 'http://' + host + '/watch/v1' : null;
-                this.socketUrl = host ? 'ws://' + host + '/watch/v1/socket' : null;
+                const origin = next ? (new URL(next.address).hostname === '192.168.5.150'
+                    ? 'http://192.168.5.150:18443' : 'https://nas.tigerest.top:18446') : null;
+                this.base = origin ? origin + '/watch/v1' : null;
+                this.socketUrl = origin ? origin.replace(/^http/, 'ws') + '/watch/v1/socket' : null;
             }
             return Boolean(this.context);
         }

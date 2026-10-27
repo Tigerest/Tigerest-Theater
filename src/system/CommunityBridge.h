@@ -11,7 +11,8 @@ class CommunityBridge : public QObject
 {
   Q_OBJECT
 public:
-  explicit CommunityBridge(QObject* parent = nullptr);
+  // Our public service; tests pass a plain HTTP origin served by a fixture.
+  explicit CommunityBridge(QObject* parent = nullptr, const QString& origin = QStringLiteral("https://nas.tigerest.top:18446"));
   void request(const QString& id, const QVariantMap& request);
   void sourceAvatar(const QString& id, const QVariantMap& session);
   void cancel(const QString& id);
@@ -28,6 +29,7 @@ signals:
 private:
   void refreshMappingAuth();
   void fetchSourceAvatar(const QString& id, const QVariantMap& session, bool image, qint64 deadline);
+  const QString m_origin;
   QNetworkAccessManager m_network;
   QHash<QString,QPointer<QNetworkReply>> m_pending;
   QSet<QString> m_sourceIds;

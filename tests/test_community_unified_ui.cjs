@@ -31,7 +31,7 @@ withBrowser(routes,async({evaluate,call})=>{
   else if(r.path==='/me')respond({author:fixtureAuthor,isCommentAdmin:false});
   else respond({items:[],nextCursor:null,unreadCount:0});
  }}};
- window.emby={serverId:()=> '62526c3bf747439c99327ddec5fed4a8',getCurrentUserId:()=> 'fixture-user',accessToken:()=> 'fixture-emby',serverAddress:()=> 'http://nas.tigerest.top:8095'};
+ window.emby={serverId:()=> '62526c3bf747439c99327ddec5fed4a8',getCurrentUserId:()=> 'fixture-user',accessToken:()=> 'fixture-emby',serverAddress:()=> 'https://nas.tigerest.top:18445'};
  window.plugin=new _communityPlugin({connectionManager:{currentApiClient:()=>emby},appRouter:{show:async route=>{window.lastRoute=route;}}});
  document.querySelector('.itemView').dispatchEvent(new CustomEvent('itemshow',{bubbles:true,detail:{item:{Id:'announcement-item',Type:'Movie',Name:'公告影片'}}}));
  `);

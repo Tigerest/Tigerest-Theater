@@ -18,4 +18,7 @@ object ServerAddress {
         val uri = URI(base(input))
         return "${uri.scheme}://${uri.rawAuthority}"
     }
+    /** The dedicated server's public address is HTTPS from 2.9.5; a profile saved on the old one moves to it. */
+    fun movedDedicated(saved: String, mode: String): String? =
+        if (mode != "custom" && runCatching { origin(saved) }.getOrNull() == "http://nas.tigerest.top:8095") "https://nas.tigerest.top:18445/" else null
 }

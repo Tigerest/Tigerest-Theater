@@ -20,18 +20,18 @@ class SharedDanmakuMappingTest {
         },{authorization.legacyCredential{privateReads++;"fixture-legacy"}},sessionHeaders={authorization.headers.takeIf{it.isNotEmpty()}})
         for(code in listOf(0,200,401,403,503)){
             authorization=CommunityBridgePolicy.mappingAuthorization(session,trusted,code)
-            assertEquals(MappingResult.Kind.SKIPPED,mapping.select("http://nas.tigerest.top:18443",metadata(),"99","99000005",7){true}.kind)
+            assertEquals(MappingResult.Kind.SKIPPED,mapping.select("https://nas.tigerest.top:18446",metadata(),"99","99000005",7){true}.kind)
         }
         authorization=CommunityBridgePolicy.mappingAuthorization(session,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",404)
-        assertEquals(MappingResult.Kind.SKIPPED,mapping.select("http://nas.tigerest.top:18443",metadata(),"99","99000005",7){true}.kind)
+        assertEquals(MappingResult.Kind.SKIPPED,mapping.select("https://nas.tigerest.top:18446",metadata(),"99","99000005",7){true}.kind)
         assertEquals(0,privateReads);assertTrue(sent.isEmpty())
         authorization=CommunityBridgePolicy.mappingAuthorization(session,trusted,404)
-        assertEquals(MappingResult.Kind.HIT,mapping.lookup("http://nas.tigerest.top:18443",metadata(),7){true}.kind)
+        assertEquals(MappingResult.Kind.HIT,mapping.lookup("https://nas.tigerest.top:18446",metadata(),7){true}.kind)
         assertNull(sent.single());assertEquals(0,privateReads)
-        assertEquals(MappingResult.Kind.HIT,mapping.select("http://nas.tigerest.top:18443",metadata(),"99","99000005",7){true}.kind)
+        assertEquals(MappingResult.Kind.HIT,mapping.select("https://nas.tigerest.top:18446",metadata(),"99","99000005",7){true}.kind)
         assertEquals(mapOf("Authorization" to "Bearer fixture-legacy"),sent.last());assertEquals(1,privateReads)
         session.remove("mappingAuth");authorization=CommunityBridgePolicy.mappingAuthorization(session,trusted,200)
-        assertEquals(MappingResult.Kind.HIT,mapping.select("http://nas.tigerest.top:18443",metadata(),"99","99000005",7){true}.kind)
+        assertEquals(MappingResult.Kind.HIT,mapping.select("https://nas.tigerest.top:18446",metadata(),"99","99000005",7){true}.kind)
         assertEquals("fixture-emby",sent.last()!!["X-Emby-Token"]);assertFalse(sent.last()!!.containsKey("Authorization"));assertEquals(1,privateReads)
     }
     @Test fun manualSelectionInvalidatesPendingAutoLookupWithinSamePlayback() {
@@ -43,12 +43,12 @@ class SharedDanmakuMappingTest {
             if(JSONObject(body).has("selection")) MappingHttpResponse(200,hit().apply { getJSONObject("match").put("origin","manual").put("episodeId","55555") }.toString())
             else { entered.countDown(); check(release.await(3,TimeUnit.SECONDS)); MappingHttpResponse(200,hit().toString()) }
         }, { "private-fixture-token" })
-        val thread = Thread { automatic.set(mapping.lookup("http://nas.tigerest.top:18443",metadata(),autoToken,requests::isCurrent)) }
+        val thread = Thread { automatic.set(mapping.lookup("https://nas.tigerest.top:18446",metadata(),autoToken,requests::isCurrent)) }
         thread.start()
         try {
             assertTrue(entered.await(3,TimeUnit.SECONDS))
             val selectionToken = requests.manualSelection(autoToken)!!
-            val selected = mapping.select("http://nas.tigerest.top:18443",metadata(),"tmdb-55","55555",selectionToken,requests::isCurrent)
+            val selected = mapping.select("https://nas.tigerest.top:18446",metadata(),"tmdb-55","55555",selectionToken,requests::isCurrent)
             assertEquals(MappingResult.Kind.HIT,selected.kind)
             release.countDown(); thread.join(3000)
             assertFalse(thread.isAlive)
@@ -71,7 +71,7 @@ class SharedDanmakuMappingTest {
         val mapping = SharedDanmakuMapping({ _, body, credential ->
             assertNull(credential); calls.add(JSONObject(body)); MappingHttpResponse(200, hit().toString())
         }, { "private-fixture-token" })
-        val result = mapping.lookup("http://nas.tigerest.top:18443", metadata(), 7) { it == 7L }
+        val result = mapping.lookup("https://nas.tigerest.top:18446", metadata(), 7) { it == 7L }
         assertEquals(MappingResult.Kind.HIT, result.kind)
         assertEquals(1, calls.size)
         assertFalse(calls[0].has("selection"))
@@ -98,40 +98,40 @@ class SharedDanmakuMappingTest {
     @Test fun missingCredentialThirdPartyUnknownSeasonAndSpecialsNeverPostSelections() {
         var requests = 0
         val mapping = SharedDanmakuMapping({ _, _, _ -> requests++; MappingHttpResponse(503, "{}") }, { null })
-        assertEquals(MappingResult.Kind.SKIPPED, mapping.select("http://nas.tigerest.top:18443",metadata(),"99","99000005",7) { true }.kind)
-        for (origin in listOf("https://api.dandanplay.net", "http://nas.tigerest.top.evil:18443", "http://u:p@nas.tigerest.top:18443", "http://nas.tigerest.top:18443/path")) {
+        assertEquals(MappingResult.Kind.SKIPPED, mapping.select("https://nas.tigerest.top:18446",metadata(),"99","99000005",7) { true }.kind)
+        for (origin in listOf("https://api.dandanplay.net", "https://nas.tigerest.top.evil:18446", "https://u:p@nas.tigerest.top:18446", "https://nas.tigerest.top:18446/path", "http://nas.tigerest.top:18443", "http://nas.tigerest.top:18446")) {
             assertEquals(MappingResult.Kind.SKIPPED,mapping.lookup(origin,metadata(),7) { true }.kind)
         }
-        for (season in listOf(-1,0,1.5,1001)) assertEquals(MappingResult.Kind.SKIPPED,mapping.lookup("http://nas.tigerest.top:18443",metadata(season),7) { true }.kind)
+        for (season in listOf(-1,0,1.5,1001)) assertEquals(MappingResult.Kind.SKIPPED,mapping.lookup("https://nas.tigerest.top:18446",metadata(season),7) { true }.kind)
         val unknown = metadata().apply { remove("ParentIndexNumber") }
-        assertEquals(MappingResult.Kind.SKIPPED,mapping.lookup("http://nas.tigerest.top:18443",unknown,7) { true }.kind)
+        assertEquals(MappingResult.Kind.SKIPPED,mapping.lookup("https://nas.tigerest.top:18446",unknown,7) { true }.kind)
         assertEquals(0, requests)
     }
 
     @Test fun staleSelectionsAreRejectedBeforeTransportAndLookupResponsesAfterTransport() {
         var current = 8L; var requests = 0
         val mapping = SharedDanmakuMapping({ _, _, _ -> requests++; current = 9; MappingHttpResponse(200,hit().toString()) }, { "private-fixture-token" })
-        assertEquals(MappingResult.Kind.STALE,mapping.select("http://nas.tigerest.top:18443",metadata(),"99","99000005",7) { it == current }.kind)
+        assertEquals(MappingResult.Kind.STALE,mapping.select("https://nas.tigerest.top:18446",metadata(),"99","99000005",7) { it == current }.kind)
         assertEquals(0,requests)
-        assertEquals(MappingResult.Kind.STALE,mapping.lookup("http://nas.tigerest.top:18443",metadata(),8) { it == current }.kind)
+        assertEquals(MappingResult.Kind.STALE,mapping.lookup("https://nas.tigerest.top:18446",metadata(),8) { it == current }.kind)
         assertEquals(1,requests)
     }
 
     @Test fun failuresDoNotClaimSaveAndRetryAfterSuppressesPostsAcrossPlaybackChanges() {
         var time = 1000L; var requests = 0
         val mapping = SharedDanmakuMapping({ _, _, _ -> requests++; MappingHttpResponse(429,"{}","120") }, { "private-fixture-token" }, { time })
-        assertEquals(MappingResult.Kind.RATE_LIMITED,mapping.select("http://nas.tigerest.top:18443",metadata(),"99","99000005",7) { true }.kind)
+        assertEquals(MappingResult.Kind.RATE_LIMITED,mapping.select("https://nas.tigerest.top:18446",metadata(),"99","99000005",7) { true }.kind)
         assertEquals(MappingResult.Kind.RATE_LIMITED,mapping.lookup("http://192.168.5.150:18443",metadata(2,4),8) { true }.kind)
         assertEquals(1,requests)
         time += 120001
-        mapping.lookup("http://nas.tigerest.top:18443",metadata(2,5),9) { true }
+        mapping.lookup("https://nas.tigerest.top:18446",metadata(2,5),9) { true }
         assertEquals(2,requests)
     }
 
     @Test fun malformedOversizedAndUnmatchedResponsesUseLegacyFallback() {
         for (body in listOf("{}", "{\"success\":true,\"matched\":false}", "x".repeat(16*1024*1024+1), hit().apply { getJSONObject("match").put("episodeId","https://evil") }.toString())) {
             val mapping = SharedDanmakuMapping({ _, _, _ -> MappingHttpResponse(200,body) }, { null })
-            assertEquals(MappingResult.Kind.FAILED,mapping.lookup("http://nas.tigerest.top:18443",metadata(),1) { true }.kind)
+            assertEquals(MappingResult.Kind.FAILED,mapping.lookup("https://nas.tigerest.top:18446",metadata(),1) { true }.kind)
         }
     }
     @Test fun sourceAndRetryLimitsDoNotGuessOrWrap() {

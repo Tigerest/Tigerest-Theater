@@ -12,7 +12,7 @@ function load() {
     return context;
 }
 const lan = {serverId: '62526c3bf747439c99327ddec5fed4a8', userId: 'user1', token: 'test-only-token', address: 'http://192.168.5.150:8095'};
-const remote = {...lan, address: 'http://nas.tigerest.top:8095'};
+const remote = {...lan, address: 'https://nas.tigerest.top:18445'};
 const plain = value => JSON.parse(JSON.stringify(value));
 const json = (status, body, headers = {}) => new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json', ...headers}});
 
@@ -26,9 +26,9 @@ test('REST uses the comment service host rule, exact bodies and Emby identity he
     assert.equal(calls[0].url, 'http://192.168.5.150:18443/watch/v1/health');
     assert.equal(calls[0].options.headers['X-Emby-Token'], undefined, 'health is anonymous');
     client.setSession(remote);
-    assert.equal(client.socketUrl, 'ws://nas.tigerest.top:18443/watch/v1/socket');
+    assert.equal(client.socketUrl, 'wss://nas.tigerest.top:18446/watch/v1/socket');
     await client.createRoom({itemId: 12, mediaSourceId: 's', positionMs: 1500.7, clientRequestId: 'r', clientId: 'c'});
-    assert.equal(calls[1].url, 'http://nas.tigerest.top:18443/watch/v1/rooms');
+    assert.equal(calls[1].url, 'https://nas.tigerest.top:18446/watch/v1/rooms');
     assert.equal(calls[1].options.method, 'POST');
     assert.equal(calls[1].options.headers['Content-Type'], 'application/json');
     assert.equal(calls[1].options.headers['X-Emby-Server-Id'], lan.serverId);
@@ -42,7 +42,7 @@ test('REST uses the comment service host rule, exact bodies and Emby identity he
     await client.ticket('room-1', 'c');
     assert.deepEqual(JSON.parse(calls[3].options.body), {clientId: 'c'});
     await client.leave('room-1');
-    assert.equal(calls[4].url, 'http://nas.tigerest.top:18443/watch/v1/rooms/room-1/leave');
+    assert.equal(calls[4].url, 'https://nas.tigerest.top:18446/watch/v1/rooms/room-1/leave');
     assert.equal(client.setSession({...lan, serverId: 'other'}), false);
     await assert.rejects(client.me(), error => error.code === 'AUTH_REQUIRED');
     assert.equal(calls.length, 5, 'other servers never receive tokens');

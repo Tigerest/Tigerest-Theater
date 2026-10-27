@@ -15,6 +15,11 @@ class CoreTest {
             assertThrows(IllegalArgumentException::class.java) { ServerAddress.base(url) }
         }
     }
+    @Test fun dedicatedProfileOnTheOldPublicAddressMovesToHttps() {
+        for (mode in listOf("tigerest", "")) assertEquals("https://nas.tigerest.top:18445/", ServerAddress.movedDedicated("http://nas.tigerest.top:8095/web/index.html", mode))
+        assertNull(ServerAddress.movedDedicated("http://nas.tigerest.top:8095/", "custom"))
+        for (saved in listOf("http://192.168.5.150:8095/", "https://nas.tigerest.top:18445/", "")) assertNull(ServerAddress.movedDedicated(saved, "tigerest"))
+    }
     @Test fun replacedSessionRejectsLateEndAndPausePreservesTime() {
         val state = PlaybackState()
         val old = state.begin("old"); val current = state.begin("new")

@@ -77,10 +77,11 @@
         if (!state.version || !['available','ready','error'].includes(state.status)) return false;
         if (state.status === 'error' && !(state.size > 0)) return false;
         // Native release selection is authoritative; reject stale/equal version snapshots too.
-        const parts = value => /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(value || ''))?.slice(1).map(Number);
+        // A fourth number marks a fix release (2.9.5.1); without one it is 0.
+        const parts = value => /^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$/.exec(String(value || ''))?.slice(1).map(part => Number(part || 0));
         const current=parts(state.currentVersion), next=parts(state.version);
         if (!current || !next) return state.version !== state.currentVersion;
-        for (let index=0;index<3;index++) { if (next[index] !== current[index]) return next[index] > current[index]; }
+        for (let index=0;index<4;index++) { if (next[index] !== current[index]) return next[index] > current[index]; }
         return false;
     }
     function mountEntry() {
@@ -170,7 +171,9 @@
             status === 'installing' ? state.autoRestart ? '大河影院马上会自动关闭，装好后自动重新打开。如果出现系统权限提示，请选择「是」。' : '请按系统提示完成更新。取消后可再次安装。' :
             status === 'available' ? `${state.resumable?`已保留 ${transfer}，可继续下载。`:`大小约 ${(Number(state.size||0)/1048576).toFixed(1)} MB。`}下载校验完成后将${state.installLabel || '打开安装程序'}。` :
             status === 'error' && state.resumable ? `已保留 ${transfer}，重试会继续下载。` : '';
-        details.textContent = [version,message,state.error].filter(Boolean).join('\n');
+        // The build this client was made from, so a test package can be told apart.
+        const build = typeof global.jmpInfo?.buildNumber === 'string' && global.jmpInfo.buildNumber ? `构建号 ${global.jmpInfo.buildNumber}` : '';
+        details.textContent = [version,build,message,state.error].filter(Boolean).join('\n');
         notes.textContent = String(state.notes || '').slice(0,20000);
         notes.hidden = !notes.textContent || ['checking','current','downloading'].includes(status);
         progress.hidden = status !== 'downloading'; progress.value=percent;

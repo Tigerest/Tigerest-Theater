@@ -51,7 +51,7 @@ withBrowser(routes, async ({evaluate,call}) => {
                 if(hold?.(record))return new Promise(resolve=>{window.pending={record,release:()=>resolve(Response.json({data}))};});
                 return Response.json({data});
             };
-            const api={serverId:()=> '62526c3bf747439c99327ddec5fed4a8',getCurrentUserId:()=> 'user',accessToken:()=>token,serverAddress:()=> 'http://nas.tigerest.top:8095'};
+            const api={serverId:()=> '62526c3bf747439c99327ddec5fed4a8',getCurrentUserId:()=> 'user',accessToken:()=>token,serverAddress:()=> 'https://nas.tigerest.top:18445'};
             window.TigerestCommunityAccount=undefined; window.TigerestCommunityClient.trustedServerId=undefined; window.plugin=new window._communityPlugin({connectionManager:{currentApiClient:()=>api},events:{on:()=>{},off:()=>{}},appRouter:{show:async()=>{}}});
             window.show=(id='episode')=>view.dispatchEvent(new CustomEvent('itemshow',{bubbles:true,detail:{item:{Id:id,Type:'Episode',Name:'剧集'}}}));
             window.click=label=>{const b=Array.from(plugin.state.panel.querySelectorAll('button')).find(b=>b.textContent===label&&!b.hidden);check(b,'missing button '+label);b.click();};

@@ -105,7 +105,7 @@ test('a saved address from before the list appears once, and the dedicated serve
     const p = page({ saved: 'https://old.example/emby/', mode: 'custom', switching: true });
     await settle();
     assert.deepEqual(p.cards().map(card => [card.key, card.current]), [['custom:https://old.example/emby/', true]]);
-    const dedicated = page({ saved: 'http://nas.tigerest.top:8095/', mode: 'tigerest', switching: true });
+    const dedicated = page({ saved: 'https://nas.tigerest.top:18445/', mode: 'tigerest', switching: true });
     await settle();
     assert.equal(dedicated.element('saved-servers').hidden, true);
     assert.equal(dedicated.element('tigerest-current').hidden, false);
@@ -204,9 +204,9 @@ test('choosing the dedicated server while a saved card connects drops the card a
     answerB(); await card; await settle();
     assert.equal(commits.length, 0, 'the card answer never commits, least of all as the dedicated server');
     lookup(false); await dedicated; await settle();
-    assert.deepEqual(commits.map(args => args.slice(0, 2)), [['http://nas.tigerest.top:8095/', 'tigerest']]);
+    assert.deepEqual(commits.map(args => args.slice(0, 2)), [['https://nas.tigerest.top:18445/', 'tigerest']]);
     assert.deepEqual(history.parse(commits[0][3]).map(server => [server.mode, server.address]),
-        [['tigerest', 'http://nas.tigerest.top:8095/'], ['custom', 'https://b.example/'], ['custom', 'https://a.example/']]);
+        [['tigerest', 'https://nas.tigerest.top:18445/'], ['custom', 'https://b.example/'], ['custom', 'https://a.example/']]);
 });
 
 test('adding a server while a saved card connects drops the card answer', async () => {
@@ -327,8 +327,8 @@ test('exclusive server choice tries LAN first only on that subnet, then the publ
     await settle();
     await p.element('choose-tigerest').emit('click');
     await settle();
-    assert.deepEqual(p.requests, ['http://192.168.5.150:8095/', 'http://nas.tigerest.top:8095/']);
-    assert.equal(p.settings.main.userWebClient, 'http://nas.tigerest.top:8095/');
+    assert.deepEqual(p.requests, ['http://192.168.5.150:8095/', 'https://nas.tigerest.top:18445/']);
+    assert.equal(p.settings.main.userWebClient, 'https://nas.tigerest.top:18445/');
 });
 
 test('hover and keyboard focus expose the appropriate server explanation', async () => {
@@ -344,7 +344,15 @@ test('asynchronous native subnet result false uses the public dedicated server o
     const p = page({ lan: Promise.resolve(false) });
     await settle();
     await p.element('choose-tigerest').emit('click');
-    assert.deepEqual(p.requests, ['http://nas.tigerest.top:8095/']);
+    assert.deepEqual(p.requests, ['https://nas.tigerest.top:18445/']);
+});
+
+test('a dedicated profile saved on the old public address reconnects over HTTPS', async () => {
+    const p = page({ saved: 'http://nas.tigerest.top:8095/' });
+    await settle();
+    assert.deepEqual(p.requests, ['https://nas.tigerest.top:18445/']);
+    assert.equal(p.settings.main.userWebClient, 'https://nas.tigerest.top:18445/');
+    assert.equal(p.settings.main.serverConnectionMode, 'tigerest');
 });
 
 test('returning to choices during native subnet lookup cannot start a stale connection', async () => {

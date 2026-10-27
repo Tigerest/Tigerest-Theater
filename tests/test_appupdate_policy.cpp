@@ -44,6 +44,21 @@ private slots:
     QVERIFY(!select({release("1.9.0")}, "2.0.0-dev", Package::WindowsInstaller).valid());
     QVERIFY(!select({release("2.0.0")}, "unknown", Package::WindowsInstaller).valid());
   }
+  void readsFixReleases()
+  {
+    // A fourth number marks a fix release; 2.9.5 and 2.9.5.0 are the same version.
+    const auto fix = select({release("2.9.5"), release("2.9.5.1"), release("2.9.4.9")}, "2.9.5", Package::WindowsInstaller);
+    QCOMPARE(fix.version, "2.9.5.1");
+    QCOMPARE(fix.fileName, "TigerestTheater-2.9.5.1-x64.exe");
+    QCOMPARE(select({release("2.9.5.2"), release("2.9.5.10"), release("2.9.6")}, "2.9.5.1", Package::WindowsInstaller).version, "2.9.6");
+    QCOMPARE(select({release("2.9.5.2"), release("2.9.5.10")}, "2.9.5.1", Package::WindowsInstaller).version, "2.9.5.10");
+    QVERIFY(!select({release("2.9.5"), release("2.9.5.1")}, "2.9.5.1", Package::WindowsInstaller).valid());
+    QVERIFY(select({release("2.9.5.1")}, "2.9.5.1-dev", Package::WindowsInstaller).valid());
+    for (const char* bad : {"2.9.5.0", "2.9.5.100", "2.9.5.01", "2.9.5.1.1"})
+      QVERIFY2(!select({release(bad)}, "2.9.5", Package::WindowsInstaller).valid(), bad);
+    // A fix published for another platform only is not offered here.
+    QVERIFY(!select({release("2.9.5.1", "android.apk")}, "2.9.5", Package::WindowsInstaller).valid());
+  }
   void choosesExactPlatformPackage()
   {
     QJsonArray versions{release("2.0.0"), release("2.1.0", "arm64.dmg"), release("2.2.0", "x64.zip"), release("2.3.0", "arm64.apk")};

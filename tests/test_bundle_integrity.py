@@ -420,7 +420,7 @@ def test_mpv_bundle() -> None:
 def test_default_server_seed() -> None:
     compat = read("native/embycompat.js")
     require("192.168.5.150:8095" in compat, "internal default server is missing")
-    require("nas.tigerest.top:8095" in compat, "public default server is missing")
+    require("nas.tigerest.top:18445" in compat, "public default server is missing")
     # Both server records: the fixed Tigerest one and the one for a server
     # chosen during first run.
     seed_start = compat.index("function chosenServer()")

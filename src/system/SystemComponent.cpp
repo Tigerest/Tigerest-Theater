@@ -1107,6 +1107,10 @@ QString SystemComponent::getNativeShellScript()
   QJsonObject clientData;
   clientData.insert("deviceName", QJsonValue::fromVariant(SettingsComponent::Get().getClientName()));
   clientData.insert("version", QJsonValue::fromVariant(Version::GetVersionString()));
+  // Shown on the update page so a test package can be told apart.
+  QStringList buildNumber{Version::GetBuildRevision(), Version::GetBuildDate()};
+  buildNumber.removeAll(QString());
+  clientData.insert("buildNumber", buildNumber.join(QString(" ") + QChar(0x00B7) + " "));
   clientData.insert("userAgent", QJsonValue::fromVariant(getUserAgent()));
   clientData.insert("scriptPath", QJsonValue::fromVariant("file:///" + path));
   clientData.insert("homeArtPath", "qrc:///web-client/extension/home-art");
