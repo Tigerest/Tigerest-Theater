@@ -53,7 +53,9 @@ QStringList filesFromArguments(const QStringList& arguments, const QString& work
 
 QStringList sorted(QStringList files)
 {
-  QCollator collator;
+  // The C locale compares code points and ignores numeric mode, which would put
+  // episode 10 before episode 2.
+  QCollator collator(QLocale().language() == QLocale::C ? QLocale(QLocale::English) : QLocale());
   collator.setNumericMode(true);
   collator.setCaseSensitivity(Qt::CaseInsensitive);
   std::stable_sort(files.begin(), files.end(), [&collator](const QString& a, const QString& b) {

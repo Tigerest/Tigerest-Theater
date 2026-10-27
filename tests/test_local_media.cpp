@@ -41,6 +41,17 @@ private slots:
                                  QStringLiteral("D:/b/第2集.mkv"), QStringLiteral("D:/b/第10集.mkv")}));
   }
 
+  void sortsNaturallyInTheCLocale()
+  {
+    // Linux CI runs in the C locale, where QCollator compares code points and
+    // ignores numeric mode.
+    const QLocale previous;
+    QLocale::setDefault(QLocale::c());
+    const QStringList files = LocalMedia::sorted({QStringLiteral("D:/ep 10.mkv"), QStringLiteral("D:/ep 2.mkv")});
+    QLocale::setDefault(previous);
+    QCOMPARE(files, QStringList({QStringLiteral("D:/ep 2.mkv"), QStringLiteral("D:/ep 10.mkv")}));
+  }
+
   void folderListsTheOtherEpisodes()
   {
     QTemporaryDir root;
