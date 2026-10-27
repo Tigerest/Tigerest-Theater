@@ -40,6 +40,7 @@
 
 #ifdef Q_OS_MAC
 #include "PFMoveApplication.h"
+#include <QFileOpenEvent>
 #endif
 
 #if defined(Q_OS_MAC) || defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD)
@@ -131,6 +132,57 @@ void ShowLicenseInfo()
   QByteArray contents = licenses.readAll();
   printf("%.*s\n", static_cast<int>(contents.size()), contents.data());
 }
+
+#ifdef Q_OS_MAC
+/////////////////////////////////////////////////////////////////////////////////////////
+// Finder hands files over with an Apple Event, not argv, and opens them in the
+// running process instead of starting a second one. Files that arrive while the
+// client is launching are startup files, so the server picker does not connect;
+// they wait until the components exist. Later files play in the running window.
+class LocalFileOpenFilter : public QObject
+{
+public:
+  explicit LocalFileOpenFilter(QGuiApplication* app) : QObject(app)
+  {
+    app->installEventFilter(this);
+    // AppKit delivers the launch documents before the application first becomes active.
+    connect(app, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+      if (state == Qt::ApplicationActive)
+        m_launching = false;
+    });
+  }
+  void componentsReady()
+  {
+    m_ready = true;
+    SystemComponent::Get().openLocalFiles(m_pending, true);
+    m_pending.clear();
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override
+  {
+    if (event->type() != QEvent::FileOpen)
+      return QObject::eventFilter(watched, event);
+    const QString file = static_cast<QFileOpenEvent*>(event)->file();
+    if (file.isEmpty())
+      return QObject::eventFilter(watched, event);
+    if (!m_ready)
+      m_pending << file;
+    else
+    {
+      if (!m_launching)
+        WindowManager::Get().raiseWindow();
+      SystemComponent::Get().openLocalFiles({file}, m_launching);
+    }
+    return true;
+  }
+
+private:
+  bool m_ready = false;
+  bool m_launching = true;
+  QStringList m_pending;
+};
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////
 QStringList g_qtFlags = {
@@ -494,6 +546,10 @@ int main(int argc, char *argv[])
 #ifdef Q_OS_WIN
     ThreadSampler::startFromEnvironment();
 #endif
+#ifdef Q_OS_MAC
+    // Before anything that can run the event loop (the move-to-Applications alert).
+    auto* fileOpenFilter = new LocalFileOpenFilter(&app);
+#endif
 
 #if defined(Q_OS_WIN) 
     // Setting window icon on OSX will break user ability to change it
@@ -540,6 +596,9 @@ int main(int argc, char *argv[])
     //
     ComponentManager::Get().initialize();
     SystemComponent::Get().openLocalFiles(localFiles, true);
+#ifdef Q_OS_MAC
+    fileOpenFilter->componentsReady();
+#endif
 
     // Rotate temp log to main log file and rotate old logs
     Log::RotateLog();

@@ -3,8 +3,8 @@
 // side gathers the files from the command line, a later launch ("Open with" in
 // Explorer) or the file dialog; downloaded offline media plays the same way.
 (function () {
-    // Windows only for now; the Mac build adds its file handling separately.
-    const available = () => !!(window.api?.system?.isWindows && window.api.system.chooseLocalFiles &&
+    // The desktop clients: Windows and the Mac, which receives Finder's files itself.
+    const available = () => !!((window.api?.system?.isWindows || window.api?.system?.isMacos) && window.api.system.chooseLocalFiles &&
         !window.tigerestAndroidApi && !window.tigerestIPadApi);
     // The files in play order and the one playing. uosc lists them through the
     // web player's queue property, so its list, previous and next come back

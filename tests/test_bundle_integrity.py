@@ -715,6 +715,24 @@ def test_local_player_file_types() -> None:
             "installer Open-with file types differ from LocalMedia::videoExtensions()")
     require(r'ValueData: """{app}\{#MyAppExeName}"" ""%1"""' in installer,
             "Open-with command does not pass the file to the client")
+    # The Mac lists the same extensions as a Viewer that never claims the default
+    # player; every extension also has a content type the document types name.
+    import plistlib
+    info = plistlib.loads(read("bundle/osx/Info.plist.in").encode())
+    documents = info.get("CFBundleDocumentTypes", [])
+    require(documents and all(entry.get("CFBundleTypeRole") == "Viewer" and entry.get("LSHandlerRank") == "Alternate"
+                              for entry in documents), "Mac document types must be Alternate viewers")
+    by_extension = [entry for entry in documents if "CFBundleTypeExtensions" in entry]
+    require(len(by_extension) == 1 and by_extension[0]["CFBundleTypeExtensions"] == extensions,
+            "Mac Open-with extensions differ from LocalMedia::videoExtensions()")
+    imported = {extension: declared["UTTypeIdentifier"] for declared in info.get("UTImportedTypeDeclarations", [])
+                for extension in declared["UTTypeTagSpecification"]["public.filename-extension"]}
+    named = {uti for entry in documents for uti in entry.get("LSItemContentTypes", [])}
+    require(set(imported.values()) <= named and set(imported) <= set(extensions),
+            "a Mac imported video type is not listed in the document types")
+    main = read("src/main.cpp")
+    require("QEvent::FileOpen" in main and "fileOpenFilter->componentsReady();" in main,
+            "the Mac does not hand Finder's files to the local player")
     system = read("src/system/SystemComponent.cpp")
     require('":/web-client/extension/localPlayer.js"' in system, "localPlayer.js is not injected")
     # Android and iPad bundle offline.js without the local player.

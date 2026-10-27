@@ -2008,10 +2008,12 @@ function openClientMenu(anchor) {
         menu.append(entry);
     };
     item('切换 / 管理服务器', () => window.tigerestSwitchServer());
-    item('播放器设置（MPV）', () => window.tigerestOpenMpvSettings('mpv'), android ? '' : 'Ctrl+,');
+    // The Mac's shortcuts use Command, as its other applications do.
+    const command = window.api?.system?.isMacos === true ? '⌘' : 'Ctrl+';
+    item('播放器设置（MPV）', () => window.tigerestOpenMpvSettings('mpv'), android ? '' : command + ',');
     item('客户端设置', () => window.tigerestOpenMpvSettings('main'));
     if (!android && window.tigerestOpenOfflineLibrary) item('下载与离线媒体', () => window.tigerestOpenOfflineLibrary());
-    if (window.tigerestLocalPlayerAvailable?.()) item('打开本地视频', () => window.tigerestOpenLocalFiles(), 'Ctrl+O');
+    if (window.tigerestLocalPlayerAvailable?.()) item('打开本地视频', () => window.tigerestOpenLocalFiles(), command + 'O');
     document.body.appendChild(menu);
     // Below the button, inside the viewport; a button moved into a compact
     // overflow menu has no box, so use the top-right corner then.
@@ -2099,7 +2101,8 @@ function installMpvSettingsEntry() {
         if ((event.ctrlKey || event.metaKey) && event.key === ',') {
             event.preventDefault();
             openTigerestSettings();
-        } else if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'o' &&
+        } else if ((window.api?.system?.isMacos === true ? event.metaKey && !event.ctrlKey : event.ctrlKey) &&
+                   !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'o' &&
                    window.tigerestLocalPlayerAvailable?.()) {
             event.preventDefault();
             window.tigerestOpenLocalFiles();
