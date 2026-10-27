@@ -100,8 +100,8 @@ class WebHost(private val activity: MainActivity, val view: WebView, private val
         WebViewCompat.addWebMessageListener(view,"tigerestNative",allowed) { _,message,source,isMain,reply ->
             if(isMain && source.toString().trimEnd('/') in allowed) message.data?.let { bridge.request(it,reply) }
         }
-        val bootstrap = JSONObject().put("version",BuildConfig.VERSION_NAME).put("deviceName","${android.os.Build.MODEL} / Android").put("mode","desktop").put("userAgent",view.settings.userAgentString).put("scriptPath","$ASSET_ORIGIN/assets/shared").put("mpvConfigMode","embedded").put("mpvConfigDir","安卓应用内配置").put("settings",settings.values).put("sections",settings.sections).put("settingsDescriptions",settings.descriptions)
-        val nativeFiles = listOf("serverKind.js","mpvVideoPlayer.js","mpvAudioPlayer.js","inputPlugin.js","sessionNavigationPlugin.js","communityClient.js","communityBridge.js","communitySession.js","communityAvatar.js","communityPublicClient.js","communityAccount.js","communityMessages.js","communityPlugin.js","watchTogetherClient.js","watchTogetherSync.js","watchTogether.js","jellyfinPlugin.js","connectivityHelper.js","serverHistory.js","nativeshell.js","offline.js","homeData.js","homeGallery.js","homeBackdrop.js","homeTransitions.js","homeMotion.js","embycompat.js","webAppearance.js","updatePlugin.js")
+        val bootstrap = JSONObject().put("version",BuildConfig.VERSION_NAME).put("buildNumber",listOf(BuildConfig.VERSION_CODE.toString(),BuildConfig.GIT_REVISION).filter { it.isNotEmpty() }.joinToString(" · ")).put("deviceName","${android.os.Build.MODEL} / Android").put("mode","desktop").put("userAgent",view.settings.userAgentString).put("scriptPath","$ASSET_ORIGIN/assets/shared").put("mpvConfigMode","embedded").put("mpvConfigDir","安卓应用内配置").put("settings",settings.values).put("sections",settings.sections).put("settingsDescriptions",settings.descriptions)
+        val nativeFiles = listOf("serverKind.js","mpvVideoPlayer.js","mpvAudioPlayer.js","inputPlugin.js","sessionNavigationPlugin.js","communityClient.js","communityBridge.js","communitySession.js","communityAvatar.js","communityPublicClient.js","communityAccount.js","communityMessages.js","communityPlugin.js","watchTogetherClient.js","watchTogetherSync.js","watchTogether.js","jellyfinPlugin.js","connectivityHelper.js","serverHistory.js","nativeshell.js","offline.js","homeData.js","homeGallery.js","homeBackdrop.js","homeTransitions.js","homeMotion.js","embycompat.js","webAppearance.js","ambientBackdrop.js","updatePlugin.js")
         val injected = StringBuilder("(()=>{if(window!==window.top)return;\nwindow.__tigerestBootstrap=${bootstrap};\n").append(asset("androidBridge.js"))
         for(file in nativeFiles) {
             if(BuildConfig.DEBUG) injected.append("\nconsole.info('TGS phase start $file');")
@@ -116,7 +116,12 @@ class WebHost(private val activity: MainActivity, val view: WebView, private val
     }
     private fun asset(path: String) = activity.assets.open(path).bufferedReader().use { it.readText() }
     fun open(url: String) { val origin = if(url.startsWith(ASSET_ORIGIN)) ASSET_ORIGIN else ServerAddress.origin(url.substringBefore('?').substringBefore('#')); configure(origin); view.loadUrl(url) }
-    fun openSaved() { val saved = settings.string("main","userWebClient"); open(saved.ifBlank { ONBOARDING }) }
+    private fun moveDedicatedAddress(): Boolean {
+        val moved = ServerAddress.movedDedicated(settings.string("main","userWebClient"),settings.string("main","serverConnectionMode")) ?: return false
+        settings.set("main","userWebClient",moved)
+        return true
+    }
+    fun openSaved() { moveDedicatedAddress(); val saved = settings.string("main","userWebClient"); open(saved.ifBlank { ONBOARDING }) }
     fun finishServerSelection(server: String, mode: String, target: String, history: String = ""): Boolean {
         if(selection != null || view.url?.substringBefore('?')?.substringBefore('#') != ONBOARDING) return false
         require(mode in setOf("custom","tigerest"))
@@ -146,6 +151,8 @@ class WebHost(private val activity: MainActivity, val view: WebView, private val
     }
     fun takeServerSelectionError(): Boolean = selectionError.also { selectionError = false }
     fun restore(state: android.os.Bundle) {
+        // A page saved on the old address is not restored.
+        if(moveDedicatedAddress()) { openSaved(); return }
         val saved = settings.string("main","userWebClient")
         configure(if(saved.isBlank()) ASSET_ORIGIN else ServerAddress.origin(saved))
         if(view.restoreState(state) == null) openSaved()

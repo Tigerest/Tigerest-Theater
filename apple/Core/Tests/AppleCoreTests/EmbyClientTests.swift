@@ -568,7 +568,7 @@ extension EmbyClientTests {
             #expect(request.url?.absoluteString == "https://media.test/jellyfin/Users/AuthenticateByName")
             let authorization = request.value(forHTTPHeaderField: "Authorization") ?? ""
             #expect(authorization.hasPrefix("MediaBrowser Client=\"Tigerest Theater TV\""))
-            #expect(authorization.contains("DeviceId=\"tv-device\"") && authorization.contains("Version=\"2.9.4\""))
+            #expect(authorization.contains("DeviceId=\"tv-device\"") && authorization.contains("Version=\"2.9.5\""))
             #expect(!authorization.contains("Token="))
             #expect(request.value(forHTTPHeaderField: "X-Emby-Authorization") == nil)
             #expect(request.value(forHTTPHeaderField: "X-Emby-Token") == nil)

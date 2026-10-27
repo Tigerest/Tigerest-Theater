@@ -702,8 +702,25 @@ local autoload_manual = false
 local autoload_timer
 local autoload_attempts = 0
 
+-- Tigerest Theater: a file opened as a local player uses no online service,
+-- so it never searches or loads danmaku.
+local function is_local_playback()
+    return mp.get_property_native("user-data/tigerest/local-playback") == true
+end
+
+local function refuse_local_playback()
+    if not is_local_playback() then return false end
+    show_message("本地播放不加载弹幕", 3)
+    return true
+end
+
 local function try_autoload()
     if not autoload_pending or not ENABLED then return end
+    if is_local_playback() then
+        autoload_pending = false
+        autoload_timer:kill()
+        return
+    end
     local path = mp.get_property("path")
     if not path then return end
     local dir = get_parent_directory(path)
@@ -813,6 +830,7 @@ end)
 mp.register_script_message("show_danmaku_keyboard", function()
     autoload_pending = false
     autoload_timer:kill()
+    if not ENABLED and refuse_local_playback() then return end
     ENABLED = not ENABLED
     if ENABLED then
         toggle_danmaku_switch("on")
@@ -839,6 +857,12 @@ mp.register_script_message("check-update", check_for_update)
 mp.register_script_message("clear-source", clear_source)
 mp.register_script_message("immediately_save_danmaku", save_danmaku)
 mp.register_script_message("open_source_delay_menu", open_delay_menu)
-mp.register_script_message("open_search_danmaku_menu", open_input_menu)
-mp.register_script_message("open_add_source_menu", open_add_menu)
-mp.register_script_message("open_add_total_menu", open_add_total_menu)
+mp.register_script_message("open_search_danmaku_menu", function(...)
+    if not refuse_local_playback() then open_input_menu(...) end
+end)
+mp.register_script_message("open_add_source_menu", function(...)
+    if not refuse_local_playback() then open_add_menu(...) end
+end)
+mp.register_script_message("open_add_total_menu", function(...)
+    if not refuse_local_playback() then open_add_total_menu(...) end
+end)

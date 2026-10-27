@@ -13,6 +13,7 @@
 #include "display/DisplayComponent.h"
 #include "settings/SettingsComponent.h"
 #include "system/SystemComponent.h"
+#include "system/CommunityBridge.h"
 #include "utils/Utils.h"
 #include "utils/Log.h"
 #ifdef Q_OS_MAC
@@ -831,8 +832,13 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
   fileOptions.insert(QStringLiteral("aid"), QStringLiteral("no"));
   fileOptions.insert(QStringLiteral("sid"), QStringLiteral("no"));
 
-  m_currentSubtitleStream = subtitleStream;
-  m_currentAudioStream = audioStream;
+  // A local file has no server stream choice: mpv picks the tracks, including
+  // subtitles beside the file.
+  const bool localPlayback = metadata.value(QStringLiteral("localPlayback")).toBool();
+  const QVariant selectedSubtitle = localPlayback ? QVariant(QStringLiteral("auto")) : subtitleStream;
+  const QVariant selectedAudio = localPlayback ? QVariant(QStringLiteral("auto")) : audioStream;
+  m_currentSubtitleStream = selectedSubtitle;
+  m_currentAudioStream = selectedAudio;
 
   if (metadata["type"] == "music")
     fileOptions.insert(QStringLiteral("vid"), QStringLiteral("no"));
@@ -872,7 +878,12 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
     MpvConfigManager::danmakuApiServer(
       settings.value(SETTINGS_SECTION_MAIN, "userWebClient").toString(),
       settings.value(SETTINGS_SECTION_MAIN, "serverConnectionMode").toString()));
+  // The script sends these only to our own danmaku service.
+  setIdentityProperty(QStringLiteral("user-data/tigerest/danmaku/client-headers"),
+                      CommunityBridge::clientHeaders());
   setIdentityProperty(identityRoot + QStringLiteral("valid"), false);
+  // Local playback uses no online service; the danmaku script stays idle.
+  setIdentityProperty(QStringLiteral("user-data/tigerest/local-playback"), localPlayback);
   bool identityReady = true;
   identityReady = setIdentityProperty(identityRoot + QStringLiteral("item-id"),
                                       playbackIdentity.itemId) && identityReady;
@@ -918,7 +929,7 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
   }
   if(loaded.contains("playlist_entry_id"))
     m_windowsRecoveryLoads.insert(loaded["playlist_entry_id"].toLongLong(),
-        WindowsRecoveryLoad{command,m_mpv->getProperty("http-header-fields").toList(),audioStream,subtitleStream});
+        WindowsRecoveryLoad{command,m_mpv->getProperty("http-header-fields").toList(),selectedAudio,selectedSubtitle});
   if(loadMode==QStringLiteral("append-play")&&m_inPlayback&&!m_windowsCurrentLoad.command.isEmpty()) {
     m_currentAudioStream=m_windowsCurrentLoad.audioStream;m_currentSubtitleStream=m_windowsCurrentLoad.subtitleStream;
     m_mpv->setProperty("http-header-fields",m_windowsCurrentLoad.httpHeaders);
@@ -1291,6 +1302,10 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       m_playbackError.clear();
       m_lastPositionUpdate = 0.0;
       m_audioOutputWarningShown = false;
+      // A file mpv switches to by itself (a uosc directory entry, a dropped
+      // file) follows an END_FILE that hid the window, and a VO kept across
+      // the switch reports no vo-configured change to show it again.
+      m_windowVisible = m_voConfigured;
       // An in-scene Render API target must be visible before VO reconfigure
       // can finish; native windows can wait for the actual VO readiness.
       emit windowVisible(!m_nativeVideoOutput || m_windowVisible);
@@ -1458,6 +1473,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       else if (strcmp(prop->name, "vo-configured") == 0)
       {
         int state = prop->format == MPV_FORMAT_FLAG ? *static_cast<int*>(prop->data) : 0;
+        m_voConfigured = state;
         m_windowVisible = state;
         emit windowVisible(m_inPlayback && (!m_nativeVideoOutput || m_windowVisible));
       }
@@ -2457,6 +2473,11 @@ void PlayerComponent::reselectStream(const QVariant &streamSelection, MediaType 
 
   // Check for string format first (handles "#,URL" and "#index")
   QString streamSelectionStr = streamSelection.toString();
+  if (streamSelectionStr == QLatin1String("auto"))
+  {
+    m_mpv->setProperty(streamIdPropertyName, "auto");
+    return;
+  }
   bool isStringFormat = streamSelectionStr.startsWith("#") || !streamSelection.canConvert<int>();
 
   // Handle integer Jellyfin stream index (new format)

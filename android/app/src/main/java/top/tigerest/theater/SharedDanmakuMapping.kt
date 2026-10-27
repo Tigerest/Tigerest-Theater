@@ -78,11 +78,14 @@ class SharedDanmakuMapping(
     companion object {
         const val MAX_RESPONSE_BYTES = 16 * 1024 * 1024
         fun validCredential(value: String): Boolean = value.length in 1..4000 && value.matches(Regex("[A-Za-z0-9._~+/=-]+"))
+        // Our service: plain HTTP inside the NAS network, HTTPS from anywhere else.
+        const val LAN_ORIGIN = "http://192.168.5.150:18443"
+        const val REMOTE_ORIGIN = "https://nas.tigerest.top:18446"
         fun trustedOrigin(value: String): String? = runCatching {
             val uri = URI(value)
-            if (uri.scheme !in listOf("http","https") || uri.host !in listOf("nas.tigerest.top","192.168.5.150") ||
-                uri.port != 18443 || uri.rawUserInfo != null || uri.rawQuery != null || uri.rawFragment != null ||
-                uri.rawPath !in listOf("", "/")) null else "${uri.scheme}://${uri.host}:${uri.port}"
+            val origin = "${uri.scheme}://${uri.host}:${uri.port}"
+            if (origin !in listOf(LAN_ORIGIN, REMOTE_ORIGIN) || uri.rawUserInfo != null || uri.rawQuery != null ||
+                uri.rawFragment != null || uri.rawPath !in listOf("", "/")) null else origin
         }.getOrNull()
 
         fun source(metadata: JSONObject): JSONObject? {

@@ -21,6 +21,7 @@
 
 #include "shared/Names.h"
 #include "system/SystemComponent.h"
+#include "system/LocalMedia.h"
 #include "Paths.h"
 #include "core/ProfileManager.h"
 #include "player/PlayerComponent.h"
@@ -39,6 +40,7 @@
 
 #ifdef Q_OS_MAC
 #include "PFMoveApplication.h"
+#include <QFileOpenEvent>
 #endif
 
 #if defined(Q_OS_MAC) || defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD)
@@ -131,6 +133,57 @@ void ShowLicenseInfo()
   printf("%.*s\n", static_cast<int>(contents.size()), contents.data());
 }
 
+#ifdef Q_OS_MAC
+/////////////////////////////////////////////////////////////////////////////////////////
+// Finder hands files over with an Apple Event, not argv, and opens them in the
+// running process instead of starting a second one. Files that arrive while the
+// client is launching are startup files, so the server picker does not connect;
+// they wait until the components exist. Later files play in the running window.
+class LocalFileOpenFilter : public QObject
+{
+public:
+  explicit LocalFileOpenFilter(QGuiApplication* app) : QObject(app)
+  {
+    app->installEventFilter(this);
+    // AppKit delivers the launch documents before the application first becomes active.
+    connect(app, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+      if (state == Qt::ApplicationActive)
+        m_launching = false;
+    });
+  }
+  void componentsReady()
+  {
+    m_ready = true;
+    SystemComponent::Get().openLocalFiles(m_pending, true);
+    m_pending.clear();
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override
+  {
+    if (event->type() != QEvent::FileOpen)
+      return QObject::eventFilter(watched, event);
+    const QString file = static_cast<QFileOpenEvent*>(event)->file();
+    if (file.isEmpty())
+      return QObject::eventFilter(watched, event);
+    if (!m_ready)
+      m_pending << file;
+    else
+    {
+      if (!m_launching)
+        WindowManager::Get().raiseWindow();
+      SystemComponent::Get().openLocalFiles({file}, m_launching);
+    }
+    return true;
+  }
+
+private:
+  bool m_ready = false;
+  bool m_launching = true;
+  QStringList m_pending;
+};
+#endif
+
 /////////////////////////////////////////////////////////////////////////////////////////
 QStringList g_qtFlags = {
   "--enable-gpu-rasterization",
@@ -158,6 +211,9 @@ int main(int argc, char *argv[])
                        {"fullscreen",               "Start in fullscreen"},
                        {"disable-gpu",              "Disable QtWebEngine gpu accel"},
                        {"ignore-certificate-errors", "Ignore certificate errors"}});
+    parser.addPositionalArgument("files", "Local video files to play without a media server.", "[files...]");
+    QStringList localFiles;
+    QString programDirectory;
 
     auto scaleOption = QCommandLineOption("scale-factor", "Set to a integer or default auto which controls" \
                                                           "the scale (DPI) of the desktop interface.");
@@ -222,6 +278,8 @@ int main(int argc, char *argv[])
       // native Windows command line. Chromium flags are appended only for the
       // final QApplication, so they cannot disable that native decoding here.
       parser.process(core.arguments());
+      localFiles = LocalMedia::filesFromArguments(parser.positionalArguments(), QDir::currentPath());
+      programDirectory = QCoreApplication::applicationDirPath();
 
       // Detect portable mode while QCoreApplication exists (needed for applicationDirPath)
       Paths::detectAndEnablePortableMode();
@@ -275,6 +333,13 @@ int main(int argc, char *argv[])
       Paths::setConfigDir(absPath);
       QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, absPath);
     }
+
+#ifdef Q_OS_WIN
+    // Explorer's "Open with" starts the client in System32, where QtWebEngine
+    // fails a check while it starts. The files and the config directory are
+    // absolute by now; run from the program's folder, as the shortcut does.
+    QDir::setCurrent(programDirectory);
+#endif
 
     // Handle --list-profiles
     if (parser.isSet("list-profiles"))
@@ -481,6 +546,10 @@ int main(int argc, char *argv[])
 #ifdef Q_OS_WIN
     ThreadSampler::startFromEnvironment();
 #endif
+#ifdef Q_OS_MAC
+    // Before anything that can run the event loop (the move-to-Applications alert).
+    auto* fileOpenFilter = new LocalFileOpenFilter(&app);
+#endif
 
 #if defined(Q_OS_WIN) 
     // Setting window icon on OSX will break user ability to change it
@@ -494,22 +563,24 @@ int main(int argc, char *argv[])
     app.setDesktopFileName("org.jellyfin.JellyfinDesktop");
 #endif
 
+#if defined(Q_OS_MAC) && defined(NDEBUG)
+    PFMoveToApplicationsFolderIfNecessary();
+#endif
+
+    // A later launch only hands its files over, before it starts a second
+    // WebEngine on the running instance's profile and caches.
+    UniqueApplication* uniqueApp = new UniqueApplication(&app);
+    if (!uniqueApp->ensureUnique(localFiles))
+    {
+      Log::Cleanup();
+      return EXIT_SUCCESS;
+    }
+
     // Configure default WebEngineProfile paths early (profile is already set)
     {
       QWebEngineProfile* defaultProfile = QWebEngineProfile::defaultProfile();
       defaultProfile->setCachePath(ProfileManager::activeProfile().cacheDir("QtWebEngine"));
       defaultProfile->setPersistentStoragePath(ProfileManager::activeProfile().dataDir("QtWebEngine"));
-    }
-
-#if defined(Q_OS_MAC) && defined(NDEBUG)
-    PFMoveToApplicationsFolderIfNecessary();
-#endif
-
-    UniqueApplication* uniqueApp = new UniqueApplication(&app);
-    if (!uniqueApp->ensureUnique())
-    {
-      Log::Cleanup();
-      return EXIT_SUCCESS;
     }
 
 #ifdef Q_OS_UNIX
@@ -524,6 +595,10 @@ int main(int argc, char *argv[])
     // early since most everything else relies on it
     //
     ComponentManager::Get().initialize();
+    SystemComponent::Get().openLocalFiles(localFiles, true);
+#ifdef Q_OS_MAC
+    fileOpenFilter->componentsReady();
+#endif
 
     // Rotate temp log to main log file and rotate old logs
     Log::RotateLog();
@@ -618,8 +693,9 @@ int main(int argc, char *argv[])
       WindowManager::Get().initializeWindow(window);
 
       // Handle other app focus by raising window
-      QObject::connect(uniqueApp, &UniqueApplication::otherApplicationStarted, []() {
+      QObject::connect(uniqueApp, &UniqueApplication::otherApplicationStarted, [](const QStringList& files) {
         WindowManager::Get().raiseWindow();
+        SystemComponent::Get().openLocalFiles(files);
       });
     });
 #ifdef Q_OS_WIN

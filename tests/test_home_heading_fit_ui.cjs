@@ -9,7 +9,7 @@ const entries = shell.slice(shell.indexOf('function installHorizontalShelfDraggi
 const page = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>body{margin:0;background:#101216;color:#fff;font:16px system-ui}</style><main id="home"></main>
 <script>
-window.jmpInfo = {capabilities: {desktopWindowControls: true}, settings: {main: {userWebClient: 'http://nas.tigerest.top:8095/', serverConnectionMode: 'tigerest'}}};
+window.jmpInfo = {capabilities: {desktopWindowControls: true}, settings: {main: {userWebClient: 'https://nas.tigerest.top:18445/', serverConnectionMode: 'tigerest'}}};
 window.api = {window: {isFullScreen: async () => false, setFullScreen: async () => {}, fullScreenSwitched: {connect() {}}}, settings: {value: async () => ''}};
 window.initCompleted = Promise.resolve(); window.switches = 0; window.tigerestSwitchServer = () => switches++;
 let identity = null, ready; const readyPromise = new Promise(resolve => { ready = resolve; });

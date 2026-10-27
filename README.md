@@ -8,9 +8,9 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
 
 [下载正式版](https://github.com/Tigerest/Tigerest-Theater/releases/latest) · [使用教程](https://github.com/Tigerest/Tigerest-Theater/wiki) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/Tigerest/Tigerest-Theater/issues) · [作者 B站](https://space.bilibili.com/12562485)
 
-**当前版本：五个平台均为 2.9.4。** Wiki 由 [docs/wiki](docs/wiki/Home.md) 自动同步，修改请提交到这里。
+**当前版本：2.9.5（Windows、Android、Mac、iPhone／iPad 与 Apple TV）。** 2.9.5 起大河专属服务器的公网连接改用加密连接，升级后需要重新登录一次 Emby（Apple TV 不用）；2.9.4 及更早的版本在旧地址关闭后无法从公网连接，请尽快升级。Wiki 由 [docs/wiki](docs/wiki/Home.md) 自动同步，修改请提交到这里。
 
-**已知问题：** 部分 Windows 高刷新率环境下，窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.4 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户暂时无法发表或回复评论，下一个版本改用新接口后恢复。
+**已知问题：** 部分 Windows 高刷新率环境下，窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.5 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
 
 客户端不包含影视资源。你需要已有的 Emby 或 Jellyfin 服务器地址和账号；媒体库、播放与下载权限由所连接的服务器提供。本项目是非官方客户端，与 Emby LLC 及 Jellyfin 项目无隶属关系。
 
@@ -79,6 +79,18 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
   </tr>
 </table>
 
+## 2.9.5 更新
+
+Windows、Android、Mac、iPhone／iPad 与 Apple TV 一起发布。
+
+- **加密连接（所有平台）：** 大河专属服务器的公网连接改用 HTTPS，评论、弹幕、一起看和检查更新都走加密连接，局域网不变。升级后需要重新登录一次 Emby；Apple TV 的登录自动换到新地址。
+- **本地播放器（Windows 与 Mac）：** Windows 对视频文件右键「打开方式」选大河影院，或拖到大河影院的快捷方式上；Mac 在访达里选「打开方式 → 大河影院」，或拖到程序坞图标上。不连媒体服务器就能播放；服务器选择页和客户端菜单也有「打开本地视频」（Windows 为 Ctrl+O，Mac 为 ⌘O）。同一文件夹的视频按文件名排成播放列表，播完接下一集；已经开着时再打开文件，交给同一个窗口。本地播放不加载弹幕、不上报进度，用文件启动时也不会自动连接服务器。
+- **服务器播放选集：** 从剧集页点「播放」时 Emby 只把这一集排进队列，播放列表里只有一集；现在会列出这一季的各集，可以选集和上一集／下一集。
+- **页面转场（Android）：** 点下海报或媒体库后，下一个页面在 0.7 秒内就能操作（2.9.4 约 1–2 秒）；海报按下就起飞，转场中不再闪烁。
+- **离线媒体与设置（Windows 与 Mac）：** 离线下载的视频播放时有声音和字幕；没连服务器时，服务器选择页的「设置」也能打开完整设置，独立设置窗口改为和媒体库里一样的左侧分组菜单。
+- **统计信息（Windows 与 Mac）：** mpv 统计的第 2 页默认画出各渲染步骤的耗时曲线。
+- **版本号与构建号：** 之后的小修复用四段版本号（如 2.9.5.1），2.9.5 起检查更新能识别；更新窗口显示构建号，方便确认装的是哪个包。见 [2.9.5 发布说明](docs/releases/2026-10-27-v2.9.5.md)。
+
 ## 2.9.4 更新
 
 - **更新下载与安装：** 「直接下载」先走 GitHub 加速镜像（gh-proxy.com、ghproxy.net，最后才连 GitHub），下完仍按 GitHub 的 SHA-256 核对；夸克与百度网盘收进「备用下载」。Windows 安装版点「安装更新」后自动关闭、安装并重新打开；Android 下载后直接交给系统安装。检查更新改为先问社区服务器（服务器签名、客户端验签），连不上再问 GitHub。
@@ -141,18 +153,18 @@ iPad 与 Apple TV 的 IPA 均未签名，需使用自己的 Apple 身份签名�
 
 | 平台 | 安装包 | 系统要求 |
 | --- | --- | --- |
-| Windows 安装版 | [2.9.4 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
-| Windows 便携版 | [2.9.4 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-x64.zip) | 同上；完整解压后运行 |
-| Android | [2.9.4 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-android.apk) | Android 15+，arm64-v8a / x86_64 |
-| Apple Silicon Mac | [2.9.4 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-arm64.dmg) | macOS 26+，M 系列芯片 |
-| iPad / iPhone | [2.9.4 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
-| Apple TV | [2.9.4 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+| Windows 安装版 | [2.9.5 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.5 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.9.5 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
 
 包内已包含 MPV 和基础运行库，无需另装播放器。Windows RIFE 大型组件是可选扩展；已有 NVIDIA 1.0.0 扩展可以继续使用。正式 Mac 下载仅提供 Apple Silicon 版本。
 
 无法访问 GitHub 时，可从[夸克网盘](https://pan.quark.cn/s/88e6f7a795b4)或[百度网盘](https://pan.baidu.com/s/58azzOU4piiB3miyZqA1dig)下载 Windows／Android 安装包，每个版本一个文件夹，内容与发行页附件相同；Mac、iPad 与 Apple TV 的安装包目前只在 GitHub 发行页提供。
 
-Windows／Android 使用 [2.9.4 SHA-256 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-SHA256SUMS.txt)；Mac／iPad／iPhone／Apple TV 使用 [2.9.4 Apple 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-APPLE-SHA256SUMS.txt)。来源与验证记录见发行页的 `RELEASE-MANIFEST.json` 和 `APPLE-RELEASE-MANIFEST.json` 附件。
+全部平台使用同一份 [2.9.5 SHA-256 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-SHA256SUMS.txt)。来源与验证记录见发行页的 `RELEASE-MANIFEST.json` 附件。
 
 ### 第一次使用
 
@@ -291,7 +303,7 @@ Apple TV 的轻量增强会在高帧率视频或持续渲染掉帧时暂时降�
 - [iPad / iPhone 安装与构建](docs/apple/INSTALL.md)
 - [Apple TV 安装与构建](apple/TV/README.md)
 - [Windows 测试环境要求](dev/windows/TESTING.md)
-- [版本变化](CHANGELOG.md)与本次发布说明（[2.9.4](docs/releases/2026-10-23-v2.9.4.md)、[2.9.3](docs/releases/2026-10-21-v2.9.3.md)、[2.9.1](docs/releases/2026-10-20-v2.9.1.md)、[2.9.0](docs/releases/2026-10-19-v2.9.0.md)、[2.8.0](docs/releases/2026-10-16-v2.8.0.md)）
+- [版本变化](CHANGELOG.md)与本次发布说明（[2.9.5](docs/releases/2026-10-27-v2.9.5.md)、[2.9.4](docs/releases/2026-10-23-v2.9.4.md)、[2.9.3](docs/releases/2026-10-21-v2.9.3.md)、[2.9.1](docs/releases/2026-10-20-v2.9.1.md)、[2.9.0](docs/releases/2026-10-19-v2.9.0.md)、[2.8.0](docs/releases/2026-10-16-v2.8.0.md)）
 
 Windows 每次运行原生测试前，都必须在同一个 PowerShell 调用中加载测试环境脚本并完成运行库预检。测试、包启动检查、生产 API 联调和真实媒体播放的覆盖范围分别记录，不能互相替代。
 

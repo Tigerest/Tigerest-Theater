@@ -67,8 +67,8 @@ test('known servers, the server selection page and unavailable server informatio
 });
 
 test('the Tigerest server keeps its fixed record without a request', () => {
-    const { credentials, requests, welcome } = start({ href: 'http://nas.tigerest.top:8095/web/index.html' });
+    const { credentials, requests, welcome } = start({ href: 'https://nas.tigerest.top:18445/web/index.html' });
     assert.deepEqual(requests, []);
     assert.equal(credentials.Servers[0].Id, '62526c3bf747439c99327ddec5fed4a8');
-    assert.equal(credentials.Servers[0].ManualAddress, 'http://nas.tigerest.top:8095'); assert.equal(welcome, '1');
+    assert.equal(credentials.Servers[0].ManualAddress, 'https://nas.tigerest.top:18445'); assert.equal(welcome, '1');
 });

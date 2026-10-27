@@ -42,10 +42,20 @@ import AppleCore
         do {
             profiles = try ProfileStore(root: root)
             settings = try SettingsStore(directory: profiles.directory)
+            Self.moveDedicatedAddress(settings)
             server = try? ServerAddress(settings.get("main", "userWebClient").string ?? "")
         } catch { fatalError("无法打开应用配置目录") }
         showConnection = server == nil
         Self.shared = self
+    }
+    /// A dedicated profile saved on the old public HTTP address moves to the HTTPS
+    /// one before anything connects; the old address is never contacted again.
+    /// The web sign-in is per origin, so Emby asks to sign in once more.
+    private static func moveDedicatedAddress(_ settings: SettingsStore) {
+        guard settings.get("main", "serverConnectionMode").string != "custom",
+              let moved = TigerestService.movedEmby(settings.get("main", "userWebClient").string ?? ""),
+              let address = try? ServerAddress(moved) else { return }
+        try? settings.setServerConnection(address, mode: "tigerest")
     }
     var downloads: DownloadCoordinator { coordinator(for: profiles.currentID) }
     func coordinator(for id: UUID) -> DownloadCoordinator {
@@ -64,7 +74,7 @@ import AppleCore
         connectionTask?.cancel(); cancelServerSelection(); connectionFailure = nil
         player.stop(notify:true);community.clear();web.close()
         try profiles.select(id)
-        settings=try SettingsStore(directory:profiles.directory)
+        settings=try SettingsStore(directory:profiles.directory);Self.moveDedicatedAddress(settings)
         community=CommunityTransport(model:self);danmaku=DanmakuRepository(model:self)
         embySession = .null
         server=try? ServerAddress(settings.get("main","userWebClient").string ?? "")

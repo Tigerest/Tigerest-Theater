@@ -33,7 +33,7 @@ QDateTime timestamp(const QJsonValue& value)
 
 QUrl ReleaseFeed::address()
 {
-  return QUrl("http://nas.tigerest.top:18443/api/tigerest/v1/app/releases");
+  return QUrl("https://nas.tigerest.top:18446/api/tigerest/v1/app/releases");
 }
 
 ReleaseFeed::Keys ReleaseFeed::productionKeys()

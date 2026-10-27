@@ -173,7 +173,7 @@ local function http_reply(s, index, status, data, headers, curl)
 end
 local function comment_request(s)
     s.env.ENABLED = true
-    s.env.fetch_danmaku('198760001', false, 'http://nas.tigerest.top:18443')
+    s.env.fetch_danmaku('198760001', false, 'https://nas.tigerest.top:18446')
 end
 function cases.comment_timeout_retries_once_then_loads()
     local s=sandbox(true,true); comment_request(s)
@@ -276,7 +276,7 @@ function cases.successful_malformed_body_is_not_an_infinite_retry()
 end
 function cases.api_requests_have_connection_and_total_deadlines()
     local s=sandbox(true,true)
-    local args=s.env.make_danmaku_request_args('GET','http://nas.tigerest.top:18443/api/v2/comment/198760001')
+    local args=s.env.make_danmaku_request_args('GET','https://nas.tigerest.top:18446/api/v2/comment/198760001')
     local connection,total
     for i,v in ipairs(args) do if v=='--connect-timeout' then connection=tonumber(args[i+1]) elseif v=='--max-time' then total=tonumber(args[i+1]) end end
     assert(connection and connection<=5 and total and total<=20,'Legacy API subprocess must have bounded connection and total duration')
@@ -286,7 +286,7 @@ function cases.manual_selection_wins_over_delayed_shared_hit()
     s.emit('file-loaded')
     s.props['user-data/tigerest/danmaku/mapping-auth-file'] = '/private/header'
     s.env.io = setmetatable({open=function() return {read=function() return 'Authorization: Bearer fixture-token\n' end,close=function() end} end},{__index=io})
-    s.env.set_episode_id('55555',true,'http://nas.tigerest.top:18443','tmdb-55',s.env.mapping_playback_token())
+    s.env.set_episode_id('55555',true,'https://nas.tigerest.top:18446','tmdb-55',s.env.mapping_playback_token())
     mapping_reply(s,2,'manual','55555','MANUAL_CHOICE')
     mapping_reply(s,1,'shared','11111','DELAYED_AUTO')
     assert(s.env.DANMAKU.episode == 'MANUAL_CHOICE' and s.env.DANMAKU.mapping_origin == 'manual',
@@ -297,7 +297,7 @@ function cases.manual_selection_prevents_delayed_lookup_fallback()
     s.emit('file-loaded')
     s.props['user-data/tigerest/danmaku/mapping-auth-file'] = '/private/header'
     s.env.io = setmetatable({open=function() return {read=function() return 'Authorization: Bearer fixture-token\n' end,close=function() end} end},{__index=io})
-    s.env.set_episode_id('55555',true,'http://nas.tigerest.top:18443','tmdb-55',s.env.mapping_playback_token())
+    s.env.set_episode_id('55555',true,'https://nas.tigerest.top:18446','tmdb-55',s.env.mapping_playback_token())
     mapping_reply(s,2,'manual','55555','MANUAL_CHOICE')
     s.requests[1](true,{status=0,stdout='HTTP/1.1 200 OK\r\n\r\n{"success":true,"matched":false}'})
     assert(#s.requests == 2,'An old lookup miss must not start a legacy chain after manual selection')
@@ -309,7 +309,7 @@ function cases.manual_selection_cancels_existing_legacy_chain()
     assert(#s.requests == 2,'Expected pending legacy anime lookup')
     s.props['user-data/tigerest/danmaku/mapping-auth-file'] = '/private/header'
     s.env.io = setmetatable({open=function() return {read=function() return 'Authorization: Bearer fixture-token\n' end,close=function() end} end},{__index=io})
-    s.env.set_episode_id('55555',true,'http://nas.tigerest.top:18443','tmdb-55',s.env.mapping_playback_token())
+    s.env.set_episode_id('55555',true,'https://nas.tigerest.top:18446','tmdb-55',s.env.mapping_playback_token())
     mapping_reply(s,3,'manual','55555','MANUAL_CHOICE')
     s.respond(2,{animes={{type='tvseries',animeTitle='Fixture series',bangumiId='42'}}})
     assert(#s.requests == 3,'Pending legacy matching must not resume after an explicit choice')
@@ -338,7 +338,7 @@ function cases.shared_lookup_precedes_local_history_and_uses_complete_response()
         animeTitle = 'Wrong previous title', episodeTitle = 'Wrong previous episode'}})
     s.emit('file-loaded')
     local args = s.request_args[1]
-    assert(args and args[#args] == 'http://nas.tigerest.top:18443/api/tigerest/v1/danmaku',
+    assert(args and args[#args] == 'https://nas.tigerest.top:18446/api/tigerest/v1/danmaku',
         'Every playback must look up shared mapping before reusing history')
     local body
     for i, value in ipairs(args) do if value == '--data-binary' then body = require('mp.utils').parse_json(args[i + 1]) end end
@@ -375,12 +375,12 @@ end
 function cases.legacy_authorization_requires_explicit_generation_mode()
     local legacy = sandbox(true, true); mapping_header(legacy)
     legacy.props['user-data/tigerest/danmaku/auth-generation'] = 'legacy:9'
-    legacy.env.set_episode_id('99000005',true,'http://nas.tigerest.top:18443','99',legacy.env.mapping_playback_token())
+    legacy.env.set_episode_id('99000005',true,'https://nas.tigerest.top:18446','99',legacy.env.mapping_playback_token())
     assert(legacy.request_args[1][#legacy.request_args[1]]:find('/api/tigerest/v1/danmaku',1,true),
         'Explicit eligible legacy generation must preserve the configured mapping token')
     local ordinary = sandbox(true, true); mapping_header(ordinary)
     ordinary.props['user-data/tigerest/danmaku/auth-generation'] = '9'
-    ordinary.env.set_episode_id('99000005',true,'http://nas.tigerest.top:18443','99',ordinary.env.mapping_playback_token())
+    ordinary.env.set_episode_id('99000005',true,'https://nas.tigerest.top:18446','99',ordinary.env.mapping_playback_token())
     assert(ordinary.request_args[1][#ordinary.request_args[1]]:find('/comment/99000005?',1,true),
         'Ordinary session generation must never reinterpret a Bearer file as legacy authorization')
 end
@@ -390,7 +390,7 @@ function cases.logged_in_emby_session_saves_without_admin_json_and_cancels_on_sw
     s.env.io = setmetatable({open = function()
         return {read=function() return 'X-Emby-Token: fixture-session-secret\r\nX-Emby-Server-Id: 62526c3bf747439c99327ddec5fed4a8\r\nX-Emby-User-Id: fixture-user\r\n' end, close=function() end}
     end}, {__index=io})
-    s.env.set_episode_id('99000005', true, 'http://nas.tigerest.top:18443', 'tmdb-99', s.env.mapping_playback_token())
+    s.env.set_episode_id('99000005', true, 'https://nas.tigerest.top:18446', 'tmdb-99', s.env.mapping_playback_token())
     local args=s.request_args[1]
     assert(args[#args]:find('/api/tigerest/v1/danmaku',1,true), 'Ordinary Emby session must save shared binding without administrator JSON')
     for _,value in ipairs(args) do assert(not value:find('fixture-session-secret',1,true), 'Session token must stay out of command arguments') end
@@ -401,7 +401,7 @@ end
 function cases.explicit_selection_uses_original_identity_and_private_header_reference()
     local s = sandbox(true, true); mapping_header(s)
     s.env.DANMAKU.anime, s.env.DANMAKU.episode = 'Selected catalog title', 'Catalog E5'
-    s.env.set_episode_id('99000005', true, 'http://nas.tigerest.top:18443', 'tmdb-99', s.env.mapping_playback_token())
+    s.env.set_episode_id('99000005', true, 'https://nas.tigerest.top:18446', 'tmdb-99', s.env.mapping_playback_token())
     local args, body = s.request_args[1]
     for i, value in ipairs(args) do
         assert(not value:find('fixture-private-token', 1, true), 'Credential cannot appear in subprocess arguments')
@@ -422,7 +422,7 @@ function cases.manual_post_failure_loads_exact_chosen_id_and_reports_unsaved_map
     local s = sandbox(true, true); mapping_header(s)
     local notice
     s.env.show_message = function(value) notice = value end
-    s.env.set_episode_id('99000005', true, 'http://nas.tigerest.top:18443', 'tmdb-99', s.env.mapping_playback_token())
+    s.env.set_episode_id('99000005', true, 'https://nas.tigerest.top:18446', 'tmdb-99', s.env.mapping_playback_token())
     s.requests[1](true, {status=0, stdout='HTTP/1.1 503 Busy\r\n\r\n{"success":false}'})
     assert(s.request_args[2][#s.request_args[2]]:find('/comment/99000005?',1,true), 'Failure must fetch the chosen episode without ID arithmetic')
     s.respond(2,{count=1,comments={{p='10,1,16777215',m='Legacy fallback'}}})
@@ -430,7 +430,7 @@ function cases.manual_post_failure_loads_exact_chosen_id_and_reports_unsaved_map
 end
 function cases.no_token_third_party_unknown_season_and_stale_manual_are_legacy_only()
     local no_token = sandbox(true, true)
-    no_token.env.set_episode_id('99000005',true,'http://nas.tigerest.top:18443','99',no_token.env.mapping_playback_token())
+    no_token.env.set_episode_id('99000005',true,'https://nas.tigerest.top:18446','99',no_token.env.mapping_playback_token())
     assert(no_token.request_args[1][#no_token.request_args[1]]:find('/comment/99000005?',1,true), 'No token selects legacy GET')
     local third = sandbox(true, true); mapping_header(third)
     third.env.set_episode_id('99000005',true,'https://third.example.test','99',third.env.mapping_playback_token())
@@ -442,14 +442,14 @@ function cases.no_token_third_party_unknown_season_and_stale_manual_are_legacy_o
     end
     local stale = sandbox(true,true); mapping_header(stale)
     local token = stale.env.mapping_playback_token(); stale.emit('on_unload')
-    stale.env.set_episode_id('99000005',true,'http://nas.tigerest.top:18443','99',token)
+    stale.env.set_episode_id('99000005',true,'https://nas.tigerest.top:18446','99',token)
     assert(#stale.requests == 0, 'Stale menu selection must never calibrate the replacement playback')
 end
 function cases.missing_write_token_does_not_imply_shared_binding_was_saved()
     local s = sandbox(true, true)
     local notice
     s.env.show_message = function(value) notice = value end
-    s.env.set_episode_id('99000005', true, 'http://nas.tigerest.top:18443', '99', s.env.mapping_playback_token())
+    s.env.set_episode_id('99000005', true, 'https://nas.tigerest.top:18446', '99', s.env.mapping_playback_token())
     s.respond(1, {count=1, comments={{p='10,1,16777215', m='Chosen episode'}}})
     assert(s.env.COMMENTS and #s.env.COMMENTS == 1 and #s.requests == 1,
         'Missing credentials must preserve the selected episode via a single legacy GET')
@@ -458,13 +458,13 @@ function cases.missing_write_token_does_not_imply_shared_binding_was_saved()
 end
 function cases.mapping_rate_limit_blocks_immediate_legacy_download()
     local s = sandbox(true, true); mapping_header(s)
-    s.env.set_episode_id('99000005', true, 'http://nas.tigerest.top:18443', '99', s.env.mapping_playback_token())
+    s.env.set_episode_id('99000005', true, 'https://nas.tigerest.top:18446', '99', s.env.mapping_playback_token())
     s.requests[1](true, {status=0, stdout='HTTP/1.1 429 Too Many Requests\r\nRetry-After: 120\r\n\r\n{"success":false}'})
     assert(#s.requests == 1, 'A 429 must not immediately download through the same gateway legacy endpoint')
     s.env.fetch_danmaku('99000005', true, 'http://192.168.5.150:18443')
     assert(#s.requests == 1, 'LAN and DDNS addresses must share the same gateway cooldown')
     s.advance(121)
-    s.env.fetch_danmaku('99000005', true, 'http://nas.tigerest.top:18443')
+    s.env.fetch_danmaku('99000005', true, 'https://nas.tigerest.top:18446')
     assert(#s.requests == 2, 'Legacy download must become available after Retry-After expires')
 end
 function cases.rate_limit_cooldown_survives_playback_change()
@@ -478,7 +478,7 @@ function cases.rate_limit_cooldown_survives_playback_change()
 end
 function cases.cooldown_blocks_unknown_season_and_catalog_requests_but_allows_third_parties()
     local s = sandbox(true, true); mapping_header(s)
-    s.env.set_episode_id('99000005', true, 'http://nas.tigerest.top:18443', '99', s.env.mapping_playback_token())
+    s.env.set_episode_id('99000005', true, 'https://nas.tigerest.top:18446', '99', s.env.mapping_playback_token())
     s.requests[1](true, {status=0, stdout='HTTP/1.1 429 Too Many Requests\r\nRetry-After: 120\r\n\r\n{"success":false}'})
     s.emit('on_unload'); s.props['user-data/tigerest/emby/season-number'] = 0
     s.env.auto_load_danmaku(s.props.path, 'Fixture series', 'Fixture series E04', 4)
@@ -500,7 +500,7 @@ function cases.rate_limited_menu_selection_preserves_loaded_titles_and_comments(
     s.emit('file-loaded'); mapping_reply(s, 1, 'shared', '55000003', 'Original loaded episode')
     local comments, history = s.env.COMMENTS, require('mp.utils').format_json(s.history())
     s.messages['load-danmaku']('Rejected catalog', 'Rejected episode', '99000005',
-        'http://nas.tigerest.top:18443', '99', s.env.mapping_playback_token())
+        'https://nas.tigerest.top:18446', '99', s.env.mapping_playback_token())
     assert(s.env.DANMAKU.anime == 'Chosen work' and s.env.DANMAKU.episode == 'Original loaded episode',
         'Pending selection must not relabel comments before the response')
     s.requests[2](true, {status=0, stdout='HTTP/1.1 429 Too Many Requests\r\nRetry-After: 120\r\n\r\n{"success":false}'})
@@ -511,7 +511,7 @@ function cases.rate_limited_menu_selection_preserves_loaded_titles_and_comments(
 end
 function cases.gateway_cooldown_keeps_third_party_automatic_matching_available()
     local s = sandbox(true, true)
-    s.env.options.api_server = 'http://nas.tigerest.top:18443,https://third.example.test'
+    s.env.options.api_server = 'https://nas.tigerest.top:18446,https://third.example.test'
     s.emit('file-loaded')
     s.requests[1](true, {status=0, stdout='HTTP/1.1 429 Too Many Requests\r\nRetry-After: 120\r\n\r\n{"success":false}'})
     assert(#s.requests == 2 and s.request_args[2][#s.request_args[2]]:find('https://third.example.test/api/v2/search/anime?', 1, true),
@@ -526,7 +526,7 @@ function cases.empty_legacy_response_reports_empty_comments_and_unsaved_binding(
     local s = sandbox(true, true)
     local notice
     s.env.show_message = function(value) notice = value end
-    s.env.set_episode_id('99000005', true, 'http://nas.tigerest.top:18443', '99', s.env.mapping_playback_token())
+    s.env.set_episode_id('99000005', true, 'https://nas.tigerest.top:18446', '99', s.env.mapping_playback_token())
     s.respond(1, {count=0, comments={}})
     assert(notice and notice:find('为空', 1, true) and notice:find('未保存', 1, true)
         and not notice:find('已加载', 1, true), 'An empty response cannot be advertised as loaded comments')
@@ -536,7 +536,7 @@ function cases.manual_menu_carries_catalog_and_original_generation_to_selection(
     s.env.uosc_available = true
     local items
     s.env.update_menu_uosc = function(_, _, value) if type(value) == 'table' then items = value end end
-    s.env.get_episodes('Chosen catalog title','tmdb-99','http://nas.tigerest.top:18443',s.env.mapping_playback_token())
+    s.env.get_episodes('Chosen catalog title','tmdb-99','https://nas.tigerest.top:18446',s.env.mapping_playback_token())
     s.respond(1,{bangumi={episodes={{episodeId='99000005',episodeTitle='Catalog E5',episodeNumber=5}}}})
     local event = items[2].value
     assert(event[8] == 'tmdb-99' and event[9] == s.env.mapping_playback_token(), 'Menu must preserve both catalog ID and playback identity')
@@ -1395,7 +1395,7 @@ function cases.stream_without_hash_uses_work_season_episode_and_title()
 end
 function cases.relay_history_keeps_source_preferences()
     local s = sandbox()
-    local remote = 'http://nas.tigerest.top:18443'
+    local remote = 'https://nas.tigerest.top:18446'
     local old = 'https://danmaku-api.152468.xyz/api/v2/comment/123?withRelated=true&chConvert=0'
     local custom = 'https://custom.example/api/v2/comment/456'
     local utils = require('mp.utils')

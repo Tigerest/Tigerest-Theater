@@ -19,6 +19,10 @@ Factor and model come from the filter's `user-data` JSON; absent or invalid
 metadata does not produce invented values. Path-valued models display only the
 last path component. Other filters retain upstream parameter display, and no
 raw mpv filter properties are changed.
+Tigerest change (2026-10-27): `plot_perfdata` defaults to on, so page 2 draws a
+timing graph beside each rendering pass. At 4K 240 Hz on an RTX 4090 the graphs
+added about 17 µs of overlay GPU time per frame and no measurable CPU over the
+text-only page; `script-opts=stats-plot_perfdata=no` restores the upstream view.
 Shader names, API property names, rendering pass data, graphs, scrolling and the
 upstream script-binding names remain intact. Native RIFE inference time is not
 fabricated or derived from rendering timing.

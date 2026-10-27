@@ -7,7 +7,7 @@ class CommunityBridgePolicyTest {
   val session=JSONObject().put("address","https://own.example:8096/emby/").put("userId","0123456789abcdef0123456789abcdef").put("token","own-token")
   assertEquals("https://own.example:8096/emby/Users/0123456789abcdef0123456789abcdef",CommunityBridgePolicy.sourceUrl(session,false)?.toString())
   assertEquals("https://own.example:8096/emby/Users/0123456789abcdef0123456789abcdef/Images/Primary?MaxWidth=128&MaxHeight=128&Format=png",CommunityBridgePolicy.sourceUrl(session,true)?.toString())
-  for(address in listOf("file:///private","http://user:secret@own.example","http://own.example?token=secret","http://own.example/#fragment","http://nas.tigerest.top:18443/community/v2","http://own.example/../other","http://own.example/%2e%2e/other"))assertNull(CommunityBridgePolicy.sourceUrl(JSONObject(session.toString()).put("address",address),false))
+  for(address in listOf("file:///private","http://user:secret@own.example","http://own.example?token=secret","http://own.example/#fragment","http://nas.tigerest.top:18443/community/v2","https://nas.tigerest.top:18446/community/v2","http://own.example/../other","http://own.example/%2e%2e/other"))assertNull(CommunityBridgePolicy.sourceUrl(JSONObject(session.toString()).put("address",address),false))
   val metadata=JSONObject().put("Id",session.getString("userId")).put("PrimaryImageTag","tag")
   assertEquals("present",CommunityBridgePolicy.avatarState(metadata,session.getString("userId")))
   for(absent in listOf(JSONObject.NULL,"")){metadata.put("PrimaryImageTag",absent);assertEquals("absent",CommunityBridgePolicy.avatarState(metadata,session.getString("userId")))}

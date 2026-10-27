@@ -13,7 +13,7 @@ object CommunityBridgePolicy {
   val uri=runCatching{URI(address)}.getOrNull()?:return null
   val url=address.toHttpUrlOrNull()?:return null
   if(address.length>4096||uri.rawUserInfo!=null||uri.rawAuthority?.contains('@')==true||uri.rawQuery!=null||uri.rawFragment!=null||
-   (url.host.equals("nas.tigerest.top",true)&&url.port==18443)||!safe(session.optString("token"))||!user.matches(Regex("[A-Za-z0-9_-]{1,128}"))||
+   (url.host.equals("nas.tigerest.top",true)&&url.port in listOf(18443,18446))||!safe(session.optString("token"))||!user.matches(Regex("[A-Za-z0-9_-]{1,128}"))||
    uri.path.orEmpty().let{it.contains('\\')||it.contains("//")||it.split('/').any{part->part=="."||part==".."}})return null
   val builder=url.newBuilder().addPathSegment("Users").addPathSegment(user)
   if(image)builder.addPathSegment("Images").addPathSegment("Primary").addQueryParameter("MaxWidth","128").addQueryParameter("MaxHeight","128").addQueryParameter("Format","png")

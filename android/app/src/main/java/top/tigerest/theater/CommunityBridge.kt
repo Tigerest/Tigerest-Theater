@@ -40,8 +40,9 @@ class CommunityBridge(private val context:Context,private val response:(String,J
   val path=r.getString("path");val method=r.getString("method");val generation=epoch
   val image=r.optString("responseType")=="image";val limit=if(image)262144 else 2097152
   if(path=="/mapping-capabilities")synchronized(this){mappingRequestId=id;mappingCapabilitiesStatus=0;refreshAuthorization()}
-  val url=if(path=="/mapping-capabilities")"http://nas.tigerest.top:18443/api/tigerest/v1/danmaku/capabilities" else "http://nas.tigerest.top:18443/community/v2$path"
+  val url=if(path=="/mapping-capabilities")"${SharedDanmakuMapping.REMOTE_ORIGIN}/api/tigerest/v1/danmaku/capabilities" else "${SharedDanmakuMapping.REMOTE_ORIGIN}/community/v2$path"
   val builder=Request.Builder().url(url).header("Accept",if(image)"image/png" else "application/json")
+  ClientIdentity.headers().forEach{(name,value)->builder.header(name,value)}
   val headers=r.optJSONObject("headers")?:JSONObject();headers.keys().forEach { builder.header(it,headers.getString(it)) }
   builder.method(method,if(method in listOf("GET","DELETE"))null else r.optString("body").toRequestBody("application/json; charset=utf-8".toMediaType()))
   val call=http.newCall(builder.build());pending[id]=call

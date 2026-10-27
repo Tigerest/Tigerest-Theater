@@ -84,7 +84,7 @@ async function run() {
             const comment={id:'root',topicId:'episode-topic',rootId:null,state:'visible',body:'<img src=x onerror=alert(1)>你好\\n第二行',createdAt:'2026-10-01T02:00:00Z',author,replyCount:4,
                 permissions:{canReply:true,canDelete:true,canModerate:true},
                 replies:[{id:'reply1',rootId:'root',author,body:'第一条回复',state:'visible',replyToAuthor:{name:'大河'},createdAt:'2026-10-01T02:01:00Z',permissions:{canReply:true,canDelete:true}}],repliesNextCursor:'next-reply'};
-            const api={serverId:()=> '62526c3bf747439c99327ddec5fed4a8',getCurrentUserId:()=> 'user',accessToken:()=> 'fixture-token',serverAddress:()=> 'http://nas.tigerest.top:8095',
+            const api={serverId:()=> '62526c3bf747439c99327ddec5fed4a8',getCurrentUserId:()=> 'user',accessToken:()=> 'fixture-token',serverAddress:()=> 'https://nas.tigerest.top:18445',
                 getItem:async(user,id)=>({Id:id,Type:'Episode',Name:'第一集'})};
             window.fetch=async(url,opt)=>{
                 requests.push({url,method:opt.method,body:opt.body&&JSON.parse(opt.body),headers:opt.headers});

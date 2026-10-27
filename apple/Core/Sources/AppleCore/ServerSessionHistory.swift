@@ -34,6 +34,19 @@ public struct ServerSessionHistory: Codable, Sendable {
         guard key != currentKey else { throw CoreError.invalidSetting }
         history = ServerHistory.forget(history, key: key)
     }
+    /// A dedicated session saved on the old public HTTP address moves to the HTTPS
+    /// one. It is the same Emby server, so the sign-in stays valid. True when anything moved.
+    public mutating func moveDedicated() -> Bool {
+        func moved(_ session: EmbySession?) -> EmbySession? {
+            guard let session, let address = TigerestService.movedEmby(session.serverURL) else { return nil }
+            return EmbySession(serverURL: address, userID: session.userID, accessToken: session.accessToken, deviceID: session.deviceID,
+                               serverID: session.serverID, serverKind: session.serverKind, serverVersion: session.serverVersion)
+        }
+        let current = currentMode == "tigerest" ? moved(self.current) : nil, saved = moved(sessions["tigerest"])
+        if let current { self.current = current }
+        if let saved { sessions["tigerest"] = saved }
+        return current != nil || saved != nil
+    }
     public mutating func logout() {
         if let key = currentKey { sessions.removeValue(forKey: key) }
         current = nil

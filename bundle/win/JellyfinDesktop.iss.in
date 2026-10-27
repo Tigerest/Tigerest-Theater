@@ -48,6 +48,8 @@ DisableDirPage=no
 DisableReadyPage=no
 CloseApplications=yes
 RestartApplications=no
+; The video file types below gain "Open with Tigerest Theater".
+ChangesAssociations=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -66,6 +68,32 @@ Source: "{#DeployPath}/vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: ignoreversio
 [Icons]
 Name: "{autoprograms}\Tigerest Theater"; Filename: "{app}\{#MyAppExeName}"; Comment: "Unofficial Emby desktop client"; WorkingDir: "{app}"
 Name: "{autodesktop}\Tigerest Theater"; Filename: "{app}\{#MyAppExeName}"; Comment: "Unofficial Emby desktop client"; WorkingDir: "{app}"; Tasks: desktopicon
+
+[Registry]
+; Local video files open in Tigerest Theater as a local player. The installer
+; adds it to "Open with" and to Settings > Default apps; it never takes over the
+; default player, which stays the user's choice. Keep the extensions in step
+; with LocalMedia::videoExtensions() (src/system/LocalMedia.cpp).
+#define VideoProgId "TigerestTheater.Video"
+#define VideoCapabilities "Software\TigerestTheater\Capabilities"
+#dim VideoExtensions[24] {"mkv", "mp4", "m4v", "mov", "avi", "wmv", "asf", "flv", "f4v", "webm", "ts", "m2ts", "mts", "tp", "mpg", "mpeg", "m2v", "vob", "rmvb", "rm", "3gp", "3g2", "ogv", "divx"}
+Root: HKA; Subkey: "Software\Classes\{#VideoProgId}"; ValueType: string; ValueName: ""; ValueData: "视频文件"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\{#VideoProgId}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"",0"
+Root: HKA; Subkey: "Software\Classes\{#VideoProgId}\shell\open"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#MyAppName}"
+Root: HKA; Subkey: "Software\Classes\{#VideoProgId}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#MyAppName}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+Root: HKA; Subkey: "Software\TigerestTheater"; Flags: uninsdeletekeyifempty
+Root: HKA; Subkey: "{#VideoCapabilities}"; ValueType: string; ValueName: "ApplicationName"; ValueData: "{#MyAppName}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "{#VideoCapabilities}"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "Emby / Jellyfin 客户端，也可以直接播放本地视频"
+Root: HKA; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: "{#VideoCapabilities}"; Flags: uninsdeletevalue
+#define i
+#sub RegisterVideoExtension
+Root: HKA; Subkey: "Software\Classes\.{#VideoExtensions[i]}\OpenWithProgids"; ValueType: string; ValueName: "{#VideoProgId}"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}\SupportedTypes"; ValueType: string; ValueName: ".{#VideoExtensions[i]}"; ValueData: ""
+Root: HKA; Subkey: "{#VideoCapabilities}\FileAssociations"; ValueType: string; ValueName: ".{#VideoExtensions[i]}"; ValueData: "{#VideoProgId}"
+#endsub
+#for {i = 0; i < DimOf(VideoExtensions); i++} RegisterVideoExtension
 
 [Run]
 ; Install VCRedist if selected for optional system-wide installation

@@ -2,16 +2,16 @@
 
 ## 选择正确的包
 
-从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以 2.9.4 的文件名示例说明；安装步骤也适用于后续同类正式包。
+从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以 2.9.5 的文件名示例说明；安装步骤也适用于后续同类正式包。
 
 | 设备 | 包名 | 最低要求 |
 | --- | --- | --- |
-| Windows 安装版 | TigerestTheater-2.9.4-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
-| Windows 便携版 | TigerestTheater-2.9.4-x64.zip | 同上 |
-| Android | TigerestTheater-2.9.4-android.apk | Android 15+，arm64-v8a / x86_64 |
-| Apple Silicon Mac | TigerestTheater-2.9.4-arm64.dmg | macOS 26+，M 系列 |
-| iPad / iPhone | TigerestTheater-2.9.4-universal.ipa（2.9.3 及以前为 ipad.ipa） | iPadOS / iOS 26+，需要自行签名 |
-| Apple TV | TigerestTheater-2.9.4-tvos.ipa | tvOS 26+，需要自行签名 |
+| Windows 安装版 | TigerestTheater-2.9.5-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
+| Windows 便携版 | TigerestTheater-2.9.5-x64.zip | 同上 |
+| Android | TigerestTheater-2.9.5-android.apk | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | TigerestTheater-2.9.5-arm64.dmg | macOS 26+，M 系列 |
+| iPad / iPhone | TigerestTheater-2.9.5-universal.ipa（2.9.3 及以前为 ipad.ipa） | iPadOS / iOS 26+，需要自行签名 |
+| Apple TV | TigerestTheater-2.9.5-tvos.ipa | tvOS 26+，需要自行签名 |
 
 Windows 安装版适合日常使用，由安装器管理程序目录；便携版适合把程序与配置放在同一个文件夹。Mac 正式附件目前仅提供 Apple Silicon 版本。Android 的系统版本和处理器架构必须同时满足要求。iPad / iPhone 通用包和 Apple TV 的 IPA 是两个不同的设备包，不能互换。
 
@@ -60,6 +60,7 @@ Windows 安装版适合日常使用，由安装器管理程序目录；便携版
 3. 免费账号的签名有有效期，需要按 Apple 的规则续签。
 4. 更新时重新签名并覆盖安装，保持原来的应用标识和签名身份。不要先卸载，以免丢失配置和离线媒体。
 5. 2.9.4 起应用标识改为 `top.tigerest.theater.universal`，安装包改名为 `universal.ipa`。系统会把它当成新应用：不会覆盖 2.9.3 及更早的 iPad 版，登录、服务器列表、设置和离线媒体不会迁移，需要重新登录；确认新版正常后可以手动删除旧版。
+6. 2.9.5 沿用同一个应用标识，可以覆盖 2.9.4 安装。大河专属服务器的公网连接从 2.9.5 起改用加密连接，升级后第一次连接需要重新登录一次 Emby，服务器列表、设置和离线媒体保留。
 
 IPA 不含作者的签名、设备名单或证书。应用内可以检查新版本、阅读说明和忽略本次更新，但不会自动替换安装。
 
@@ -94,18 +95,18 @@ Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新
 
 ## 核对 SHA-256
 
-发行页有两份校验清单：Windows 和 Android 的文件在 `TigerestTheater-2.9.4-SHA256SUMS.txt`，Mac、iPad／iPhone 和 Apple TV 的文件在 `TigerestTheater-2.9.4-APPLE-SHA256SUMS.txt`。先找到文件名对应的摘要，再与本机结果对照。
+2.9.5 起全部平台的文件都在发行页的同一份校验清单 `TigerestTheater-2.9.5-SHA256SUMS.txt` 里；2.9.4 及更早版本的 Mac、iPad／iPhone 和 Apple TV 文件另有一份 `APPLE-SHA256SUMS.txt`。先找到文件名对应的摘要，再与本机结果对照。
 
 Windows PowerShell 示例：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.4-x64.exe'
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.5-x64.exe'
 ```
 
 macOS 终端示例：
 
 ```sh
-shasum -a 256 ~/Downloads/TigerestTheater-2.9.4-arm64.dmg
+shasum -a 256 ~/Downloads/TigerestTheater-2.9.5-arm64.dmg
 ```
 
 摘要应完全相同，大小写不影响比较。如果不同，重新下载该文件；不要使用校验失败的包继续更新。

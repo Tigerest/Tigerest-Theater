@@ -14,6 +14,11 @@ target_link_libraries(test_appupdater PRIVATE Qt6::Core Qt6::Network Qt6::Test)
 add_test(NAME test_appupdater COMMAND test_appupdater)
 target_compile_definitions(test_appupdater PRIVATE FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
+add_executable(test_local_media test_local_media.cpp ../src/system/LocalMedia.cpp)
+target_include_directories(test_local_media PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_local_media PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME test_local_media COMMAND test_local_media)
+
 add_executable(test_release_feed test_release_feed.cpp ../src/system/ReleaseFeed.cpp ../src/system/Ed25519.cpp)
 target_include_directories(test_release_feed PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(test_release_feed PRIVATE FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
@@ -543,6 +548,8 @@ if(Node_EXECUTABLE)
                    ${CMAKE_CURRENT_SOURCE_DIR}/test_home_registration.js)
   add_test(NAME test_offline_downloads
            COMMAND ${Node_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test_offline_downloads.js)
+  add_test(NAME test_local_player
+           COMMAND ${Node_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test_local_player.js)
   add_test(NAME test_watch_together
            COMMAND ${Node_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test_watch_together_client.js
                    ${CMAKE_CURRENT_SOURCE_DIR}/test_watch_together_sync.js)
@@ -771,6 +778,8 @@ if(Node_EXECUTABLE)
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_stream_quality.js)
   add_test(NAME test_android_playlist
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_android_playlist.cjs)
+  add_test(NAME test_emby_season_list
+           COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_emby_season_list.cjs)
   add_test(NAME test_session_navigation
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_session_navigation.js)
   add_test(NAME test_web_appearance

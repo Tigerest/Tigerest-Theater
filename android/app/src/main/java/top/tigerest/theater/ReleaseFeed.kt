@@ -7,7 +7,7 @@ import java.util.Base64
 
 /** The community server's signed copy of the GitHub release list (docs/backend-app-release-feed.md, same rules as src/system/ReleaseFeed.cpp). */
 object ReleaseFeed {
-    const val ADDRESS = "http://nas.tigerest.top:18443/api/tigerest/v1/app/releases"
+    const val ADDRESS = "https://nas.tigerest.top:18446/api/tigerest/v1/app/releases"
     const val MAX_ENVELOPE = 2 * 1024 * 1024
     const val MAX_PAYLOAD = 1024 * 1024
     /** keyId → raw 32-byte Ed25519 public key (standard base64); a rotated key is added beside the old one. */

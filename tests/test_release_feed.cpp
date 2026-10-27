@@ -107,6 +107,10 @@ private slots:
     QVERIFY(!ReleaseFeed::open(QJsonDocument(outer).toJson(), at("2026-10-21T10:53:13Z"), ReleaseFeed::productionKeys(), &why));
     QCOMPARE(why, "bad signature");
   }
+  void publicAddressIsHttps()
+  {
+    QCOMPARE(ReleaseFeed::address(), QUrl("https://nas.tigerest.top:18446/api/tigerest/v1/app/releases"));
+  }
   void liveFeedVerifies()
   {
     // Reads the deployed feed (GET only) and checks it with the built-in key and the real clock.

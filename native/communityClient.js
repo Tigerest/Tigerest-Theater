@@ -97,8 +97,8 @@
                 this.clear();
                 this.contextKey = key;
                 this.context = next;
-                this.base = next ? 'http://' + (new URL(next.address).hostname === '192.168.5.150'
-                    ? '192.168.5.150' : 'nas.tigerest.top') + ':18443/community/v1' : null;
+                this.base = next ? (new URL(next.address).hostname === '192.168.5.150'
+                    ? 'http://192.168.5.150:18443' : 'https://nas.tigerest.top:18446') + '/community/v1' : null;
             }
             return Boolean(this.context);
         }

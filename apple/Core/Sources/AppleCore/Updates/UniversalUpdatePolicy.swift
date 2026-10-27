@@ -7,11 +7,14 @@ public enum UniversalUpdatePolicy {
     private struct Version {
         let numbers:[Int]
         let prerelease:Bool
+        // MAJOR.MINOR.PATCH, plus a fourth number (1-99) for a fix release such as
+        // 2.9.5.1. A missing fourth number is 0, so 2.9.5 sorts before 2.9.5.1.
+        private static let core=#"(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(?:\.([1-9][0-9]?))?"#
         init?(_ value:String,stable:Bool) {
-            let pattern=stable ? #"^v(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$"# : #"^v?(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$"#
+            let pattern=stable ? "^v"+Self.core+"$" : "^v?"+Self.core+#"(-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$"#
             guard let match=try! NSRegularExpression(pattern:pattern).firstMatch(in:value,range:NSRange(value.startIndex...,in:value)) else {return nil}
-            numbers=(1...3).map{Int((value as NSString).substring(with:match.range(at:$0)))!}
-            prerelease = !stable && match.range(at:4).location != NSNotFound
+            numbers=(1...4).map{match.range(at:$0).location==NSNotFound ? 0 : Int((value as NSString).substring(with:match.range(at:$0)))!}
+            prerelease = !stable && match.range(at:5).location != NSNotFound
         }
     }
     public static func state(releases:[JSONValue],currentVersion:String) -> JSONValue {

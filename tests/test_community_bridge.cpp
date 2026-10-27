@@ -1,6 +1,7 @@
 #include <QtTest/QtTest>
 #include "system/CommunityBridge.h"
 #include "core/ProfileManager.h"
+#include "core/Version.h"
 #include "shared/Paths.h"
 #include <QNetworkProxy>
 #include <QTcpServer>
@@ -11,6 +12,7 @@
 #include <QCryptographicHash>
 #include <functional>
 
+static const QString FixtureOrigin="http://nas.tigerest.top:18443";
 class CapabilityFixture {
 public:
   QTcpServer server;
@@ -56,7 +58,7 @@ private slots:
     CapabilityFixture fixture;QVERIFY(fixture.server.isListening());
     const QVariantMap session{{"serverId","62526C3B-F747-439C-9932-7DDEC5FED4A8"},{"userId","fixture-user"},{"token","fixture-emby-token"},{"mappingAuth","legacy"}};
     for(int status:{0,200,401,403,503,404}){
-      CommunityBridge bridge;QVERIFY(fixture.observe(bridge,"/capabilities",200));
+      CommunityBridge bridge(nullptr,FixtureOrigin);QVERIFY(fixture.observe(bridge,"/capabilities",200));
       if(status)QVERIFY(fixture.observe(bridge,"/mapping-capabilities",status));
       QCOMPARE(bridge.setEmbySession(session),status==404);
       if(status!=404){QVERIFY(bridge.mappingAuthFile().isEmpty());continue;}
@@ -72,7 +74,7 @@ private slots:
       QVERIFY(!bridge.setEmbySession(session));
     }
     for(int rejected:{401,403,503}){
-      CommunityBridge bridge;QVERIFY(fixture.observe(bridge,"/capabilities",200));
+      CommunityBridge bridge(nullptr,FixtureOrigin);QVERIFY(fixture.observe(bridge,"/capabilities",200));
       QVERIFY(fixture.observe(bridge,"/mapping-capabilities",404));
       QVERIFY(bridge.setEmbySession(session));
       QVariantMap headers{{"X-Emby-Token","fixture-emby-token"},{"X-Emby-Server-Id",session["serverId"]},{"X-Emby-User-Id",session["userId"]}};
@@ -81,7 +83,7 @@ private slots:
       bridge.setEmbySession({});QVERIFY(!bridge.setEmbySession(session));
     }
     {
-      CommunityBridge bridge;QVERIFY(fixture.observe(bridge,"/capabilities",200));
+      CommunityBridge bridge(nullptr,FixtureOrigin);QVERIFY(fixture.observe(bridge,"/capabilities",200));
       auto ordinary=session;ordinary.remove("mappingAuth");QVERIFY(bridge.setEmbySession(ordinary));
       QVERIFY(!bridge.authGeneration().startsWith("legacy:"));
       QFile auth(bridge.mappingAuthFile());QVERIFY(auth.open(QIODevice::ReadOnly));
@@ -90,10 +92,36 @@ private slots:
     QVERIFY(legacy.open(QIODevice::ReadOnly));QCOMPARE(legacy.readAll(),QByteArray("Authorization: Bearer synthetic-legacy-token\n"));legacy.close();
     for(const auto& invalid:{QByteArray("Authorization: Bearer fixture\r\nX-Emby-Token: injected\r\n"),QByteArray("Authorization: Bearer ")+QByteArray(4001,'x'),QByteArray("not-a-header")}){
       QVERIFY(legacy.open(QIODevice::WriteOnly|QIODevice::Truncate));legacy.write(invalid);legacy.close();
-      CommunityBridge bridge;QVERIFY(fixture.observe(bridge,"/capabilities",200));QVERIFY(fixture.observe(bridge,"/mapping-capabilities",404));
+      CommunityBridge bridge(nullptr,FixtureOrigin);QVERIFY(fixture.observe(bridge,"/capabilities",200));QVERIFY(fixture.observe(bridge,"/mapping-capabilities",404));
       QVERIFY(!bridge.setEmbySession(session));QVERIFY(bridge.mappingAuthFile().isEmpty());
     }
     ProfileManager::Get().setActiveProfile(Profile());Paths::setConfigDir({});Paths::setCacheDir({});
+  }
+  void requestsReportTheClient(){
+    CapabilityFixture fixture;QVERIFY(fixture.server.isListening());
+    CommunityBridge bridge(nullptr,FixtureOrigin);QVERIFY(fixture.observe(bridge,"/capabilities",200));
+    const QVariantMap exchange{{"X-Emby-Token","fixture-emby-token"},{"X-Emby-Server-Id","62526c3bf747439c99327ddec5fed4a8"},{"X-Emby-User-Id","fixture-user"}};
+    QVERIFY(fixture.observe(bridge,"/auth/emby",200,exchange));
+    QCOMPARE(fixture.requests.size(),2);
+    for(const auto& request:fixture.requests){
+      const auto lower=request.toLower();
+      QVERIFY(lower.contains("\r\nx-tigerest-client-name: tigerest theater\r\n"));
+      QVERIFY(lower.contains("\r\nx-tigerest-client-version: "+Version::GetVersionString().toLatin1().toLower()+"\r\n"));
+#ifdef Q_OS_WIN
+      QVERIFY(lower.contains("\r\nx-tigerest-client-platform: windows\r\n"));
+#endif
+    }
+    QVERIFY(fixture.requests.last().toLower().contains("\r\nx-emby-token: fixture-emby-token\r\n"));
+    const auto headers=CommunityBridge::clientHeaders();QCOMPARE(headers.size(),3);
+    for(const auto& value:headers)QVERIFY(QRegularExpression("^[\\x20-\\x7e]{1,40}$").match(value.toString()).hasMatch());
+  }
+  void productionUsesTheHttpsService(){
+    // Through the proxy fixture an HTTPS request is only a CONNECT to the service's host and port.
+    CapabilityFixture fixture;QVERIFY(fixture.server.isListening());
+    CommunityBridge bridge;QSignalSpy responses(&bridge,&CommunityBridge::response);
+    bridge.request("fixture",{{"path","/capabilities"},{"method","GET"},{"headers",QVariantMap{}}});
+    QVERIFY(responses.wait(5000));QCOMPARE(fixture.requests.size(),1);
+    QVERIFY2(fixture.requests.first().startsWith("CONNECT nas.tigerest.top:18446 "),fixture.requests.first().constData());
   }
   void requestPolicy(){
     const QString trusted="62526c3bf747439c99327ddec5fed4a8";
@@ -123,7 +151,7 @@ private slots:
     r["method"]="PUT";r["path"]="/me/password";QVERIFY(!CommunityBridge::allowed(r,""));
   }
   void avatarBinaryResponseAndLimits(){
-    CapabilityFixture fixture;CommunityBridge bridge;
+    CapabilityFixture fixture;CommunityBridge bridge(nullptr,FixtureOrigin);
     const QVariantMap request{{"path","/avatars/2c9b6e0e-4af8-4fd6-bc92-144604e59389?v="+QString(64,'a')},{"method","GET"},{"responseType","image"},{"headers",QVariantMap{{"Authorization","Bearer fixture"}}}};
     fixture.contentType="image/png";fixture.body=QByteArray::fromHex("89504e470d0a1a0a00ff10");
     QSignalSpy responses(&bridge,&CommunityBridge::response);bridge.request("image",request);QVERIFY(responses.wait(3000));
@@ -137,7 +165,7 @@ private slots:
     fixture.status=302;bridge.request("redirect",request);QVERIFY(responses.wait(3000));QCOMPARE(responses.takeFirst()[1].toMap().value("error").toString(),QString("NETWORK_UNAVAILABLE"));
   }
   void sourceAvatarVerifiesIdentityAndNormalizesPng(){
-    CapabilityFixture fixture;CommunityBridge bridge;QSignalSpy responses(&bridge,&CommunityBridge::response);
+    CapabilityFixture fixture;CommunityBridge bridge(nullptr,FixtureOrigin);QSignalSpy responses(&bridge,&CommunityBridge::response);
     const QVariantMap session{{"address","http://source.invalid/emby"},{"userId","0123456789abcdef0123456789abcdef"},{"token","own-fixture-token"}};
     QImage input(320,180,QImage::Format_RGB32);input.fill(Qt::blue);QByteArray jpeg;QBuffer encoded(&jpeg);QVERIFY(encoded.open(QIODevice::WriteOnly));QVERIFY(input.save(&encoded,"JPEG"));
     fixture.configure=[&](const QByteArray& request){fixture.status=200;if(request.split('\n').first().contains("/Images/Primary?")){fixture.contentType="image/jpeg";fixture.body=jpeg;}else{fixture.contentType="application/json";fixture.body=R"({"Id":"0123456789abcdef0123456789abcdef","PrimaryImageTag":"tag"})";}};
@@ -171,7 +199,7 @@ private slots:
       bridge.sourceAvatar("oversize-image",session);QVERIFY(responses.wait(3000));QCOMPARE(responses.takeFirst()[1].toMap().value("error").toString(),QString("SOURCE_UNAVAILABLE"));
     }
     fixture.configure=nullptr;fixture.body=R"({"Id":"0123456789abcdef0123456789abcdef","PrimaryImageTag":null})";
-    const auto count=fixture.requests.size();for(const auto& address:{"file:///private","http://user:secret@source.invalid","http://source.invalid?token=secret","http://source.invalid/#fragment","http://nas.tigerest.top:18443/community/v2"}){
+    const auto count=fixture.requests.size();for(const auto& address:{"file:///private","http://user:secret@source.invalid","http://source.invalid?token=secret","http://source.invalid/#fragment","http://nas.tigerest.top:18443/community/v2","https://nas.tigerest.top:18446/community/v2"}){
       auto invalid=session;invalid["address"]=address;bridge.sourceAvatar("invalid-origin",invalid);QCOMPARE(responses.takeFirst()[1].toMap().value("error").toString(),QString("SOURCE_UNAVAILABLE"));
     }QCOMPARE(fixture.requests.size(),count);
     bridge.sourceAvatar("cancelled",session);bridge.cancel("cancelled");QTest::qWait(100);QVERIFY(responses.isEmpty());

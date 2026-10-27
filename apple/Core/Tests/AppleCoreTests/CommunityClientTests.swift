@@ -86,6 +86,23 @@ private func credentials(_ name: String, expired: Bool = false) throws -> JSONVa
         let client = CommunityClient(emby: communityEmby(), serverID: trustedID, urlSession: transport)
         _ = try await client.comments(topicID: "topic", itemID: "episode", channel: .privateServer)
     }
+    @Test func servicesAreHTTPSExceptTheLANDiscussion() async throws {
+        let calls = CommentRequests()
+        let transport = CommentFixture.session { request in
+            _ = calls.append(.string(request.url!.absoluteString))
+            if request.url!.path.hasSuffix("/capabilities") { return (200, try capabilities()) }
+            return (200, try value(["data": ["items": [], "nextCursor": NSNull()]]))
+        }
+        defer { transport.invalidateAndCancel() }
+        let lan = EmbySession(serverURL: "http://192.168.5.150:8095/", userID: "user1", accessToken: "PRIVATE-EMBY", deviceID: "tv")
+        _ = try await CommunityClient(emby: lan, serverID: trustedID, urlSession: transport).comments(topicID: "topic", itemID: "episode", channel: .privateServer)
+        _ = try await CommunityClient(emby: communityEmby(), serverID: trustedID, urlSession: transport).comments(topicID: "topic", itemID: "episode", channel: .privateServer)
+        let urls = calls.values.compactMap(\.string)
+        #expect(urls.contains { $0.hasPrefix("http://192.168.5.150:18443/community/v1/topics/topic/comments") }, "\(urls)")
+        #expect(urls.contains { $0.hasPrefix("https://nas.tigerest.top:18446/community/v1/topics/topic/comments") }, "\(urls)")
+        #expect(urls.filter { $0.contains("/community/v2/") }.allSatisfy { $0.hasPrefix("https://nas.tigerest.top:18446/community/v2/") })
+        #expect(!urls.contains { $0.contains(":18443") && $0.contains("nas.tigerest.top") })
+    }
     @Test func foreignServerCannotUsePrivateAuth() async throws {
         let calls = CommentRequests()
         let transport = CommentFixture.session { request in
@@ -311,7 +328,7 @@ private func credentials(_ name: String, expired: Bool = false) throws -> JSONVa
     private func moderatedCapabilities() throws -> JSONValue {
         try value(["data": ["enabled": true, "auth": ["password", "emby-exchange"], "mediaIdentity": "tmdb-aired", "embyExchangeServerId": trustedID,
                             "moderation": ["flagReasons": ["spam", "harassment"], "blocks": true, "accountDeletion": ["authKinds": ["password", "emby"]],
-                                           "terms": ["version": "2026-10-24", "url": "http://nas.tigerest.top:18443/community/v2/terms", "contact": "mailto:owner@example.com"]]]])
+                                           "terms": ["version": "2026-10-24", "url": "https://nas.tigerest.top:18446/community/v2/terms", "contact": "mailto:owner@example.com"]]]])
     }
     private func exchanged() throws -> JSONValue {
         try value(["data": ["accessToken": "access-token", "refreshToken": "refresh-token", "tokenType": "Bearer", "expiresAt": "2099-01-01T00:00:00Z", "refreshExpiresAt": "2099-02-01T00:00:00Z", "author": ["id": "a", "name": "A"]]])

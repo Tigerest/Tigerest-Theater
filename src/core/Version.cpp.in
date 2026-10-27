@@ -18,6 +18,11 @@ QString Version::GetBuildDate()
   return QString("@CURRENT_DATE@");
 }
 
+QString Version::GetBuildRevision()
+{
+  return QString("@GIT_REVISION@");
+}
+
 QString Version::GetWebVersion()
 {
   return QString("@WEB_CLIENT_VERSTR@");

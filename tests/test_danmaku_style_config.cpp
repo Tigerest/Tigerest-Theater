@@ -63,7 +63,7 @@ void TestDanmakuStyleConfig::writesOptionsIntoTheManagedScriptOptsDirectory()
 void TestDanmakuStyleConfig::selectsRelayForTheInitialServer()
 {
   const QString local = "http://192.168.5.150:18443";
-  const QString remote = "http://nas.tigerest.top:18443";
+  const QString remote = "https://nas.tigerest.top:18446";
   QCOMPARE(MpvConfigManager::danmakuApiServer("http://192.168.5.150:8095/", "tigerest"), local);
   QCOMPARE(MpvConfigManager::danmakuApiServer("http://192.168.5.150:8095/", ""), local);
   QCOMPARE(MpvConfigManager::danmakuApiServer("http://nas.tigerest.top:8095/", "tigerest"), remote);
@@ -71,6 +71,7 @@ void TestDanmakuStyleConfig::selectsRelayForTheInitialServer()
   QCOMPARE(MpvConfigManager::danmakuApiServer("http://192.168.5.150:8095/", "custom"), remote);
   QCOMPARE(MpvConfigManager::danmakuApiServer("http://192.168.5.150:8097/", "tigerest"), remote);
   QCOMPARE(MpvConfigManager::danmakuApiServer("http://emby.example/", "custom"), remote);
+  QCOMPARE(MpvConfigManager::danmakuApiServer("https://nas.tigerest.top:18445/", "custom"), remote);
   QCOMPARE(MpvConfigManager::danmakuApiServer("", ""), remote);
 }
 

@@ -318,8 +318,8 @@ public actor CommunityClient {
         let generation = epoch
         guard path.hasPrefix("/"), !path.contains(".."), !path.contains("//"), path.utf8.count <= 4096,
               headers.values.allSatisfy({ !$0.contains("\r") && !$0.contains("\n") }) else { throw CommunityError("INVALID_REQUEST") }
-        let hostname = privateAPI && URL(string: emby.serverURL)?.host == "192.168.5.150" ? "192.168.5.150" : "nas.tigerest.top"
-        guard let url = URL(string: "http://\(hostname):18443/community/\(privateAPI ? "v1" : "v2")" + path) else { throw CommunityError("INVALID_REQUEST") }
+        let origin = privateAPI ? TigerestService.origin(forEmby: emby.serverURL) : TigerestService.remoteOrigin
+        guard let url = URL(string: origin + "/community/\(privateAPI ? "v1" : "v2")" + path) else { throw CommunityError("INVALID_REQUEST") }
         var request = URLRequest(url: url); request.httpMethod = method; request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         for (name, value) in clientHeaders.merging(headers, uniquingKeysWith: { $1 }) { request.setValue(value, forHTTPHeaderField: name) }

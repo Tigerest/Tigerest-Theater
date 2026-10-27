@@ -19,11 +19,13 @@ object AppUpdatePolicy {
     /** GitHub download accelerators, tried in order before the release URL. Size and SHA-256 still come from the GitHub API. */
     val DOWNLOAD_PROXIES = listOf("https://gh-proxy.com/", "https://ghproxy.net/")
     fun downloadSources(url: String) = DOWNLOAD_PROXIES.map { it + url } + url
-    private val stableVersion = Regex("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)")
+    /** MAJOR.MINOR.PATCH, plus a fourth number (1-99) for a fix release such as 2.9.5.1. */
+    private val stableVersion = Regex("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[1-9][0-9]?)?")
     private val mirrorMarker = Regex("<!--\\s*tigerest-mirrors\\s+(\\{[^<>]*\\})\\s*-->")
     private val quark = Regex("https://pan\\.quark\\.cn/s/[0-9A-Za-z]{6,64}(\\?pwd=[0-9A-Za-z]{4})?")
     private val baidu = Regex("https://pan\\.baidu\\.com/s/[0-9A-Za-z_-]{6,64}(\\?pwd=[0-9A-Za-z]{4})?")
-    private fun numbers(version: String) = version.split('.').map { BigInteger(it) }
+    /** A missing fourth number is 0, so 2.9.5 sorts before 2.9.5.1. */
+    private fun numbers(version: String) = version.split('.').map { BigInteger(it) }.let { it + List(4 - it.size) { BigInteger.ZERO } }
     private fun compare(a: String, b: String): Int {
         val left = numbers(a); val right = numbers(b)
         return left.indices.map { left[it].compareTo(right[it]) }.firstOrNull { it != 0 } ?: 0

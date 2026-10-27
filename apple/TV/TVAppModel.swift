@@ -797,7 +797,8 @@ final class TVAppModel: ObservableObject {
         var seen = Set<String>()
         // Prefer existing rows: they can contain a stop position not reported to
         // Emby yet. New page/adjacency responses must not erase that local state.
-        return (old + new).filter { seen.insert(TVMedia.id($0)).inserted }.map(withLocalEpisodeProgress).sorted {
+        // Missing (Virtual) episodes cannot play, so the season list leaves them out as the desktop does.
+        return (old + new).filter { (seasons || $0["LocationType"].string != "Virtual") && seen.insert(TVMedia.id($0)).inserted }.map(withLocalEpisodeProgress).sorted {
             let firstSeason = seasons ? 0 : $0["ParentIndexNumber"].number ?? 0
             let secondSeason = seasons ? 0 : $1["ParentIndexNumber"].number ?? 0
             if firstSeason != secondSeason { return firstSeason < secondSeason }

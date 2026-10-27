@@ -96,6 +96,16 @@ public:
   Q_INVOKABLE QVariantMap downloadInfo(const QString& id) const;
   Q_INVOKABLE QString downloadsDirectory() const;
 
+  // Local video files from the command line, a later launch or the file
+  // dialog. Launches arriving together (Explorer starts one per selected file)
+  // form one batch; the page takes it once the batch is complete, as
+  // {items, start}. A single file plays within its folder's videos.
+  void openLocalFiles(const QStringList& files, bool atStartup = false);
+  Q_INVOKABLE QVariantMap takeLocalFiles();
+  Q_INVOKABLE bool startedWithLocalFiles() const { return m_startedWithLocalFiles; }
+  Q_INVOKABLE bool chooseLocalFiles();
+  Q_SIGNAL void localFilesRequested();
+
   Q_INVOKABLE void runUserScript(QString script);
 
   Q_INVOKABLE QString getNativeShellScript();
@@ -212,6 +222,11 @@ private:
   QHash<QString, QVariantMap> m_downloads;
   QHash<QString, QUrl> m_downloadUrls;
   QHash<QString, ActiveDownload*> m_activeDownloads;
+  QStringList m_localFiles;
+  QTimer m_localFilesBatch;
+  bool m_startedWithLocalFiles = false;
+  QPointer<QObject> m_localFileDialog;
+  QString m_localFileDirectory;
 
 };
 

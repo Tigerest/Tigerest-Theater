@@ -17,6 +17,7 @@ module.exports=async function withBrowser(routes,work,{settings={},gpu=false,vis
         const route=routes[new URL(req.url,'http://fixture').pathname];
         if(!route){res.writeHead(404);res.end();return;}
         res.setHeader('Content-Type',route.type||'text/javascript; charset=utf-8');
+        for(const [name,value] of Object.entries(route.headers||{}))res.setHeader(name,value);
         res.end(route.path?fs.readFileSync(route.path):route.body);
     });
     await new Promise(r=>server.listen(0,'127.0.0.1',r));

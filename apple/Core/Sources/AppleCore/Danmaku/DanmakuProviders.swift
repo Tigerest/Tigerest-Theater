@@ -1,8 +1,12 @@
 import Foundation
 public struct DanmakuProvider: Sendable, Equatable {
     public let url: String, note: String
-    public static let remote = "http://nas.tigerest.top:18443", local = "http://192.168.5.150:18443"
-    public static func managed(_ url: String) -> Bool { [remote,local,"https://danmaku-api.152468.xyz"].contains(url.trimmingCharacters(in:CharacterSet(charactersIn:"/"))) }
+    public static let remote = TigerestService.remoteOrigin, local = TigerestService.localOrigin
+    /// Our service under any address it has had. Old settings name the retired
+    /// public HTTP address; `parse` moves it to the active one, never contacting it.
+    public static func managed(_ url: String) -> Bool { [remote,local,TigerestService.retiredRemoteOrigin,"https://danmaku-api.152468.xyz"].contains(url.trimmingCharacters(in:CharacterSet(charactersIn:"/"))) }
+    /// Only our service at its current addresses learns which client and user asked.
+    public static func own(_ url: String) -> Bool { [remote,local].contains(url.trimmingCharacters(in:CharacterSet(charactersIn:"/"))) }
     public static func parse(_ setting: String, embyHost: String?) -> [Self] {
         let active = embyHost=="192.168.5.150" ? local : remote
         return (setting.isEmpty ? remote : setting).split(separator:",").compactMap { entry in

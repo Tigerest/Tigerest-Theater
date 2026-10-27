@@ -26,6 +26,25 @@ class AppUpdatePolicyTest {
         assertNull(AppUpdatePolicy.select(releases, "2.10.0+build-1"))
     }
 
+    @Test fun readsFixReleases() {
+        // A fourth number marks a fix release; 2.9.5 and 2.9.5.0 are the same version.
+        assertEquals("2.9.5.1", AppUpdatePolicy.select(JSONArray().put(release("2.9.5")).put(release("2.9.5.1")).put(release("2.9.4.9")), "2.9.5")?.version)
+        assertEquals("2.9.5.10", AppUpdatePolicy.select(JSONArray().put(release("2.9.5.2")).put(release("2.9.5.10")), "2.9.5.1")?.version)
+        assertEquals("2.9.6", AppUpdatePolicy.select(JSONArray().put(release("2.9.5.2")).put(release("2.9.6")), "2.9.5.1")?.version)
+        assertNull(AppUpdatePolicy.select(JSONArray().put(release("2.9.5")).put(release("2.9.5.1")), "2.9.5.1"))
+        assertEquals("2.9.5.1", AppUpdatePolicy.select(JSONArray().put(release("2.9.5.1")), "2.9.5.1-rc.1")?.version)
+        for (bad in listOf("2.9.5.0", "2.9.5.100", "2.9.5.01", "2.9.5.1.1")) assertNull(bad, AppUpdatePolicy.select(JSONArray().put(release(bad)), "2.9.5"))
+        // A fix published for another platform only is not offered here.
+        assertNull(AppUpdatePolicy.select(JSONArray().put(release("2.9.5.1", "TigerestTheater-2.9.5.1-x64.exe")), "2.9.5"))
+    }
+
+    @Test fun buildVersionCodeKeepsTheFixNumberInTheLastTwoDigits() {
+        val parts = BuildConfig.VERSION_NAME.split('.').map(String::toInt)
+        assertEquals(parts[0] * 1_000_000 + parts[1] * 10_000 + parts[2] * 100 + parts.getOrElse(3) { 0 }, BuildConfig.VERSION_CODE)
+        // Empty only for a build made outside a Git checkout, such as a source package.
+        assertTrue(BuildConfig.GIT_REVISION.isEmpty() || BuildConfig.GIT_REVISION.matches(Regex("[0-9a-f]{8,}")))
+    }
+
     @Test fun rejectsMissingDigestWrongAssetAndUntrustedUrls() {
         for (bad in listOf(
             release("2.5.0", "TigerestTheater-2.5.0-android-sources.zip"),

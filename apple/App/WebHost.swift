@@ -4,7 +4,7 @@ import AppleCore
 @MainActor final class WebHost: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     unowned let model: AppModel
     let view: WKWebView
-    private let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+    private let version = AppVersion.current
     private var policy: BridgePolicy?
     private var tasks: [Int: Task<Void, Never>] = [:]
     private var active: Bool
@@ -128,14 +128,17 @@ import AppleCore
                 settings["main", default: [:]]["userWebClient"] = .string(address.baseURL.absoluteString)
                 settings["main", default: [:]]["serverConnectionMode"] = .string(mode)
             }
+            let manifest = try JSONDecoder().decode(JSONValue.self, from: Data(resource("manifest.json").utf8))
+            // platform stays "ipad" for the shared scripts; devicePlatform names iOS on iPhone.
             let bootstrap: JSONValue = .object([
                 "version": .string(version), "deviceName": .string(UIDevice.current.model), "platform": .string("ipad"), "mode": .string("desktop"),
+                "devicePlatform": .string(UIDevice.current.userInterfaceIdiom == .phone ? "iOS" : "iPadOS"),
+                "buildNumber": .string(AppVersion.buildNumber(Bundle.main.infoDictionary, revision: manifest["revision"].string)),
                 "userAgent": .string(view.customUserAgent!), "scriptPath": .string("tigerest://bundle"), "mpvConfigMode": .string("embedded"), "mpvConfigDir": .string(UIDevice.current.model + " 应用内配置"),
                 "settings": .object(settings.mapValues(JSONValue.object)), "sections": .array(model.settings.sections), "settingsDescriptions": .object(model.settings.descriptions),
                 "capabilities": .object(["downloads": .bool(true), "nativePlayback": .bool(true), "desktopWindowControls": .bool(false), "selfUpdate": .bool(false), "updateCheck": .bool(true), "rife": .bool(SettingsStore.nativeRifeAvailable)])
             ])
             let json = String(decoding: try JSONEncoder().encode(bootstrap), as: UTF8.self)
-            let manifest = try JSONDecoder().decode(JSONValue.self, from: Data(resource("manifest.json").utf8))
             var script = "(()=>{if(window!==window.top || location.origin!==\(String(decoding: try JSONEncoder().encode(address.origin), as: UTF8.self)))return;window.__tigerestBootstrap=\(json);\n"
             script += try resource("ipadBridge.js")
             for file in manifest["scripts"].array ?? [] { script += "\n;(function(){\n" + (try resource(file.string!)) + "\n}).call(window);" }

@@ -59,7 +59,7 @@ async function run(){
                 if(p==='/comments/old-root/replies')return Response.json({data:{items:u.searchParams.has('anchorId')?[comment('reply1','需要定位的回复','old-root')]:[comment('reply3','下一页回复','old-root')],nextCursor:u.searchParams.has('anchorId')?'replies-next':null}});
                 throw Error('unhandled '+p);
             };
-            const api={serverId:()=> '62526c3bf747439c99327ddec5fed4a8',getCurrentUserId:()=> 'user1',accessToken:()=>token,serverAddress:()=> 'http://nas.tigerest.top:8095'};
+            const api={serverId:()=> '62526c3bf747439c99327ddec5fed4a8',getCurrentUserId:()=> 'user1',accessToken:()=>token,serverAddress:()=> 'https://nas.tigerest.top:18445'};
             window.TigerestCommunityAccount=undefined; window.TigerestCommunityClient.trustedServerId=undefined; const plugin=new window._communityPlugin({connectionManager:{currentApiClient:()=>api},events:{on:(x,k,h)=>handlers[k]=h,off(){}},appRouter:{show:async p=>navigations.push(p)}});
             plugin.messages.sync();await wait(()=>document.querySelector('#tigerest-message-entry')?.textContent.includes('2'));
             check(!plugin.state,'entry works away from detail pages');

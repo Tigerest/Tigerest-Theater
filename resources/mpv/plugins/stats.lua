@@ -43,7 +43,7 @@ local o = {
     debug = false,
 
     -- Graph options and style
-    plot_perfdata = false,
+    plot_perfdata = true,
     plot_vsync_ratio = false,
     plot_vsync_jitter = false,
     plot_cache = true,

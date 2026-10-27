@@ -420,7 +420,7 @@ def test_mpv_bundle() -> None:
 def test_default_server_seed() -> None:
     compat = read("native/embycompat.js")
     require("192.168.5.150:8095" in compat, "internal default server is missing")
-    require("nas.tigerest.top:8095" in compat, "public default server is missing")
+    require("nas.tigerest.top:18445" in compat, "public default server is missing")
     # Both server records: the fixed Tigerest one and the one for a server
     # chosen during first run.
     seed_start = compat.index("function chosenServer()")
@@ -702,6 +702,48 @@ def test_offline_download_cleanup() -> None:
             "reopened offline library does not receive download updates")
 
 
+def test_local_player_file_types() -> None:
+    media = read("src/system/LocalMedia.cpp")
+    listed = re.search(r"static const QStringList extensions\{(.*?)\};", media, re.S)
+    require(listed is not None, "LocalMedia::videoExtensions() list not found")
+    extensions = re.findall(r'"([a-z0-9]+)"', listed.group(1))
+    installer = read("bundle/win/JellyfinDesktop.iss.in")
+    registered = re.search(r"#dim VideoExtensions\[(\d+)\] \{(.*?)\}", installer)
+    require(registered is not None, "installer does not register video file types")
+    require(int(registered.group(1)) == len(extensions) and
+            re.findall(r'"([a-z0-9]+)"', registered.group(2)) == extensions,
+            "installer Open-with file types differ from LocalMedia::videoExtensions()")
+    require(r'ValueData: """{app}\{#MyAppExeName}"" ""%1"""' in installer,
+            "Open-with command does not pass the file to the client")
+    # The Mac lists the same extensions as a Viewer that never claims the default
+    # player; every extension also has a content type the document types name.
+    import plistlib
+    info = plistlib.loads(read("bundle/osx/Info.plist.in").encode())
+    documents = info.get("CFBundleDocumentTypes", [])
+    require(documents and all(entry.get("CFBundleTypeRole") == "Viewer" and entry.get("LSHandlerRank") == "Alternate"
+                              for entry in documents), "Mac document types must be Alternate viewers")
+    by_extension = [entry for entry in documents if "CFBundleTypeExtensions" in entry]
+    require(len(by_extension) == 1 and by_extension[0]["CFBundleTypeExtensions"] == extensions,
+            "Mac Open-with extensions differ from LocalMedia::videoExtensions()")
+    imported = {extension: declared["UTTypeIdentifier"] for declared in info.get("UTImportedTypeDeclarations", [])
+                for extension in declared["UTTypeTagSpecification"]["public.filename-extension"]}
+    named = {uti for entry in documents for uti in entry.get("LSItemContentTypes", [])}
+    require(set(imported.values()) <= named and set(imported) <= set(extensions),
+            "a Mac imported video type is not listed in the document types")
+    main = read("src/main.cpp")
+    require("QEvent::FileOpen" in main and "fileOpenFilter->componentsReady();" in main,
+            "the Mac does not hand Finder's files to the local player")
+    system = read("src/system/SystemComponent.cpp")
+    require('":/web-client/extension/localPlayer.js"' in system, "localPlayer.js is not injected")
+    # Android and iPad bundle offline.js without the local player.
+    apple = read("apple/tools/sync_resources.py")
+    android = read("android/app/src/main/java/top/tigerest/theater/WebHost.kt")
+    if "localPlayer" not in apple or '"localPlayer.js"' not in android:
+        offline = read("native/offline.js")
+        require("if (window.tigerestPlayLocalMedia) return window.tigerestPlayLocalMedia(" in offline,
+                "offline playback requires localPlayer.js, which Android/iPad do not bundle")
+
+
 def test_windows_delay_load_targets_final_executable() -> None:
     cmake = read("src/CMakeLists.txt")
     delay_library_calls = [
@@ -869,6 +911,7 @@ def main() -> int:
         test_brand_assets,
         test_settings_ui,
         test_offline_download_cleanup,
+        test_local_player_file_types,
         test_windows_delay_load_targets_final_executable,
         test_windows_packages_bundle_runtime_locally,
         test_windows_portable_runtime_bundle_contract,

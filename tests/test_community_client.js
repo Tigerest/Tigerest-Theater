@@ -12,7 +12,7 @@ function load(crypto = require('node:crypto').webcrypto) {
     assert.equal(typeof context.TigerestCommunityClient, 'function', 'comment API client must be available');
     return context.TigerestCommunityClient;
 }
-function session(address = 'http://nas.tigerest.top:8095', token = 'test-only-token') {
+function session(address = 'https://nas.tigerest.top:18445', token = 'test-only-token') {
     return { serverId: '62526c3bf747439c99327ddec5fed4a8', userId: 'user1', token, address };
 }
 function ok(data) { return new Response(JSON.stringify({data}), {status: 200}); }
@@ -26,7 +26,7 @@ test('trusted server routes LAN and remote on shared HTTP18443; other servers ne
     assert.equal(calls[0].options.headers['X-Emby-Token'], 'test-only-token');
     client.setContext(session(), 'item2');
     await client.resolve('episode');
-    assert.equal(calls[1].url, 'http://nas.tigerest.top:18443/community/v1/topics/resolve');
+    assert.equal(calls[1].url, 'https://nas.tigerest.top:18446/community/v1/topics/resolve');
     assert.deepEqual(JSON.parse(calls[1].options.body), {itemId:'item2', scope:'episode'});
     assert.equal(client.setContext({...session(), serverId:'other'}, 'item1'), false);
     await assert.rejects(client.me(), /登录/);
@@ -149,7 +149,7 @@ test('private report retries preserve their UUID and only send documented diagno
     const first=JSON.parse(calls[0].options.body),retry=JSON.parse(calls[1].options.body);
     assert.deepEqual(first,retry);assert.match(first.clientRequestId,/^[0-9a-f-]{36}$/);
     assert.deepEqual(first.context,{positionSeconds:720,platform:'Android',clientVersion:'2.4.3'});
-    assert.equal(calls[0].url,'http://nas.tigerest.top:18443/community/v1/reports');
+    assert.equal(calls[0].url,'https://nas.tigerest.top:18446/community/v1/reports');
     assert.equal(calls[0].options.headers['X-Tigerest-Item-Id'],undefined);
     await client.reports('open','cursor+/=');await client.report('report/1');
     assert.equal(new URL(calls[2].url).searchParams.get('status'),'open');

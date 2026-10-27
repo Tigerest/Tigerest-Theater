@@ -101,18 +101,23 @@
         return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GiB`;
     }
 
+    // On the desktop, downloaded media plays as a local file (localPlayer.js):
+    // mpv picks the tracks, and no online service runs. Bundles without the
+    // local player (Android, iPad) keep loading the file directly.
     async function playOffline(id, close) {
         const item = await callSystem('downloadInfo', id);
         if (!item || !item.localUrl) return;
         close();
+        const title = item.title || item.fileName;
+        if (window.tigerestPlayLocalMedia) return window.tigerestPlayLocalMedia([{url: item.localUrl, title}]);
         window.api.player.setVideoOnlyMode(true);
         window.api.player.load(item.localUrl, {
             autoplay: true,
             startMilliseconds: 0
         }, {
             type: 'video',
-            title: item.title || item.fileName,
-            metadata: { Name: item.title || item.fileName }
+            title,
+            metadata: { Name: title }
         }, null, null);
     }
 
@@ -222,8 +227,9 @@
 
     window.tigerestOpenOfflineLibrary = openOfflineLibrary;
 
+    // localPlayer.js ends its own playback; it is injected after this script.
     window.apiPromise.then(api => {
-        if (api.player && api.player.stopped) {
+        if (!window.tigerestPlayLocalMedia && api.player && api.player.stopped) {
             api.player.stopped.connect(() => api.player.setVideoOnlyMode(false));
         }
     });

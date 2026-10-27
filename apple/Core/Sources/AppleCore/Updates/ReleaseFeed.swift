@@ -3,10 +3,10 @@ import Foundation
 
 /// The community server's signed copy of the GitHub release list. Same checks,
 /// order and failure reasons as the desktop `ReleaseFeed`; any failure means the
-/// caller asks GitHub instead. The feed is plain HTTP, so trust comes only from
-/// the Ed25519 signature over the decoded payload.
+/// caller asks GitHub instead. HTTPS does not replace the signature: trust comes
+/// only from the Ed25519 signature over the decoded payload.
 public enum ReleaseFeed {
-    public static let productionURL = URL(string: "http://nas.tigerest.top:18443/api/tigerest/v1/app/releases")!
+    public static let productionURL = URL(string: TigerestService.remoteOrigin + "/api/tigerest/v1/app/releases")!
     /// keyId → 32-byte raw public key. A rotation adds a key next to the old one.
     public static let productionKeys: [String: Data] = ["tg-release-1": Data(base64Encoded: "zIJjQTCdN1PbiNIUyVNJmPZys/Pdar/YRvzKYd/knBA=")!]
     public static let maximumEnvelopeBytes = 2 * 1024 * 1024

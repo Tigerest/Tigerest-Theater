@@ -7,7 +7,7 @@ function load(){
  assert.equal(typeof c.TigerestCommunitySession,'function');return c;
 }
 const guid='62526c3bf747439c99327ddec5fed4a8';
-const emby={serverId:guid,userId:'u1',token:'EMBY-PRIVATE',address:'http://nas.tigerest.top:8095'};
+const emby={serverId:guid,userId:'u1',token:'EMBY-PRIVATE',address:'https://nas.tigerest.top:18445'};
 const caps={enabled:true,auth:['password','emby-exchange'],embyExchangeServerId:guid,registrationEnabled:true,mediaIdentity:'tmdb-aired'};
 function tokens(id='1',expiry=9999999999999){return {accessToken:'access'+id,refreshToken:'refresh'+id,tokenType:'Bearer',expiresAt:new Date(expiry).toISOString(),refreshExpiresAt:new Date(9999999999999).toISOString(),author:{id:'author',name:'Tester'}};}
 function response(data,status=200,headers={}){return {status,headers,body:JSON.stringify(status<400?{data}:{error:{code:data},requestId:'11111111-1111-4111-8111-111111111111'})};}

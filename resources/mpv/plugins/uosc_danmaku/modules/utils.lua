@@ -439,17 +439,20 @@ function contains_any(tab, val)
     return false
 end
 
--- Follow the initial Emby connection for managed endpoints, including old
--- configuration/history. Explicit third-party providers remain untouched.
+-- Our service: plain HTTP inside the NAS network, HTTPS from anywhere else.
+TIGEREST_LOCAL_API = 'http://192.168.5.150:18443'
+TIGEREST_REMOTE_API = 'https://nas.tigerest.top:18446'
+
+-- Follow the initial Emby connection for managed endpoints. Old configuration
+-- and history name retired addresses (the public service was HTTP 18443);
+-- they are rewritten, never contacted. Explicit third-party providers remain untouched.
 function resolve_api_server(server)
     if not server then return nil end
     local normalized = server:gsub('/+$', '')
-    local local_api = 'http://192.168.5.150:18443'
-    local remote_api = 'http://nas.tigerest.top:18443'
-    if normalized == 'https://danmaku-api.152468.xyz'
-        or normalized == local_api or normalized == remote_api then
-        local active = mp.get_property_native('user-data/tigerest/danmaku/api-server', remote_api)
-        return active == local_api and local_api or remote_api
+    if normalized == 'https://danmaku-api.152468.xyz' or normalized == 'http://nas.tigerest.top:18443'
+        or normalized == TIGEREST_LOCAL_API or normalized == TIGEREST_REMOTE_API then
+        local active = mp.get_property_native('user-data/tigerest/danmaku/api-server', TIGEREST_REMOTE_API)
+        return active == TIGEREST_LOCAL_API and TIGEREST_LOCAL_API or TIGEREST_REMOTE_API
     end
     return server
 end
@@ -459,6 +462,23 @@ function resolve_managed_api_url(url)
     local origin, path = url:match('^(https?://[^/]+)(/.*)$')
     if origin then return resolve_api_server(origin) .. path end
     return resolve_api_server(url)
+end
+
+-- Our own service records which client asked (the player publishes the
+-- headers); other providers receive nothing.
+function managed_client_headers(url)
+    local origin = url and url:match('^(https?://[^/]+)')
+    if origin ~= TIGEREST_REMOTE_API and origin ~= TIGEREST_LOCAL_API then return {} end
+    local headers, result = mp.get_property_native('user-data/tigerest/danmaku/client-headers'), {}
+    if type(headers) ~= 'table' then return result end
+    for name, value in pairs(headers) do
+        if type(name) == 'string' and name:match('^X%-Tigerest%-Client%-%a+$')
+            and type(value) == 'string' and value:match('^[ -~]+$') then
+            result[#result + 1] = name .. ': ' .. value
+        end
+    end
+    table.sort(result)
+    return result
 end
 
 -- 将一个逗号分隔的 api_server 字符串解析为有序列表

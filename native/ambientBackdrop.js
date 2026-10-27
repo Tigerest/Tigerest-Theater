@@ -1,7 +1,7 @@
 (function () {
     'use strict';
     window.TigerestAmbientBackdrop?.dispose();
-    // Loaded by the Mac shell only. The original CSS is always the fallback.
+    // Loaded by the Mac and Android shells. The original CSS is always the fallback.
     if (!window.Worker || !window.OffscreenCanvas || !window.createImageBitmap) return;
     const states = new Map(), requests = new Map();
     const prepared = 'tigerest-ambient-prepared', canvasClass = 'tigerest-ambient-canvas';

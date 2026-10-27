@@ -110,7 +110,7 @@ public actor EmbyClient: EmbyHomeAPI {
     private let urlSession: URLSession
     private static let maxResponseBytes = 8 * 1024 * 1024
     private static let fields = "Overview,PrimaryImageAspectRatio,SeriesId,SeasonId,MediaSources,ProviderIds,DisplayOrder,DateCreated,PremiereDate,CommunityRating,UserDataLastPlayedDate,Genres,People,Studios,MediaStreams"
-    static let clientVersion = "2.9.4"
+    static let clientVersion = "2.9.5"
     // Jellyfin's Fields parameter is an enum of optional data, not the names of
     // response properties. These are Emby request names, or data Jellyfin always
     // returns; 10.11 also dropped PresentationUniqueKey from the enum.

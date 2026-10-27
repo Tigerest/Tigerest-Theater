@@ -422,8 +422,9 @@ QString MpvConfigManager::danmakuApiServer(const QString& serverUrl, const QStri
   const bool dedicatedLan = connectionMode != "custom" &&
     server.host() == "192.168.5.150" && server.port() == 8095 &&
     (server.scheme() == "http" || server.scheme() == "https");
+  // The LAN entry stays on plain HTTP; the public one is HTTPS.
   return dedicatedLan ? QStringLiteral("http://192.168.5.150:18443")
-                      : QStringLiteral("http://nas.tigerest.top:18443");
+                      : QStringLiteral("https://nas.tigerest.top:18446");
 }
 
 QString MpvConfigManager::danmakuStyleConfigText(const QVariantMap& values)

@@ -24,6 +24,9 @@
 #include <QJsonArray>
 #include <QUuid>
 #include <QDateTime>
+#include <QFileDialog>
+#include <QStandardPaths>
+#include <QWindow>
 #include <algorithm>
 #include <functional>
 #include <utility>
@@ -36,6 +39,7 @@
 #include "InstallerHandoff.h"
 #include "ReleaseFeed.h"
 #include "CommunityBridge.h"
+#include "LocalMedia.h"
 #include "MainThreadWatchdog.h"
 #include "player/PlayerComponent.h"
 #include "Version.h"
@@ -44,6 +48,7 @@
 #include "settings/SettingsSection.h"
 #include "Paths.h"
 #include "core/ProfileManager.h"
+#include "core/Globals.h"
 #include "Names.h"
 #include "utils/Utils.h"
 #include "utils/Log.h"
@@ -88,6 +93,9 @@ SystemComponent::SystemComponent(QObject* parent) : ComponentBase(parent), m_pla
   connect(m_communityBridge, &CommunityBridge::mappingAuthChanged, this, [](const QString& path, const QString& generation) {
     PlayerComponent::Get().updateDanmakuAuthorization(path, generation);
   });
+  m_localFilesBatch.setSingleShot(true);
+  m_localFilesBatch.setInterval(500);
+  connect(&m_localFilesBatch, &QTimer::timeout, this, &SystemComponent::localFilesRequested);
 
 // define OS Type
 #if defined(Q_OS_MAC)
@@ -180,6 +188,65 @@ bool SystemComponent::componentInitialize()
 QString SystemComponent::downloadsDirectory() const
 {
   return ProfileManager::activeProfile().dataDir("downloads");
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void SystemComponent::openLocalFiles(const QStringList& files, bool atStartup)
+{
+  if (files.isEmpty())
+    return;
+  if (atStartup)
+    m_startedWithLocalFiles = true;
+  for (const QString& file : files)
+  {
+    if (!m_localFiles.contains(file, Qt::CaseInsensitive))
+      m_localFiles << file;
+  }
+  m_localFileDirectory = QFileInfo(files.last()).absolutePath();
+  qInfo() << "Local files requested:" << files.size();
+  m_localFilesBatch.start();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+QVariantMap SystemComponent::takeLocalFiles()
+{
+  // A batch still gathering launches is announced by localFilesRequested.
+  if (m_localFilesBatch.isActive() || m_localFiles.isEmpty())
+    return {};
+  const bool single = m_localFiles.size() == 1;
+  const QStringList files = single ? LocalMedia::folderVideos(m_localFiles.first()) : LocalMedia::sorted(m_localFiles);
+  const QString first = single ? m_localFiles.first() : files.first();
+  m_localFiles.clear();
+  return {{"items", LocalMedia::playlist(files)},
+          {"start", qMax(0, int(files.indexOf(first)))}};
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+bool SystemComponent::chooseLocalFiles()
+{
+  if (m_localFileDialog)
+    return false;
+  QString directory = m_localFileDirectory;
+  if (directory.isEmpty() || !QFileInfo(directory).isDir())
+    directory = QStandardPaths::writableLocation(QStandardPaths::MoviesLocation);
+  auto* dialog = new QFileDialog(nullptr, QStringLiteral("打开本地视频"), directory);
+  m_localFileDialog = dialog;
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->setFileMode(QFileDialog::ExistingFiles);
+  dialog->setNameFilters(LocalMedia::dialogFilters());
+  // Owned by the main window, so it stays in front of it, also when the
+  // window is kept on top.
+  if (QWindow* main = Globals::MainWindow())
+  {
+    dialog->winId();
+    if (dialog->windowHandle())
+      dialog->windowHandle()->setTransientParent(main);
+  }
+  connect(dialog, &QFileDialog::filesSelected, this, [this](const QStringList& selected) {
+    openLocalFiles(LocalMedia::filesFromArguments(selected, QDir::currentPath()));
+  });
+  dialog->open();
+  return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1040,6 +1107,10 @@ QString SystemComponent::getNativeShellScript()
   QJsonObject clientData;
   clientData.insert("deviceName", QJsonValue::fromVariant(SettingsComponent::Get().getClientName()));
   clientData.insert("version", QJsonValue::fromVariant(Version::GetVersionString()));
+  // Shown on the update page so a test package can be told apart.
+  QStringList buildNumber{Version::GetBuildRevision(), Version::GetBuildDate()};
+  buildNumber.removeAll(QString());
+  clientData.insert("buildNumber", buildNumber.join(QString(" ") + QChar(0x00B7) + " "));
   clientData.insert("userAgent", QJsonValue::fromVariant(getUserAgent()));
   clientData.insert("scriptPath", QJsonValue::fromVariant("file:///" + path));
   clientData.insert("homeArtPath", "qrc:///web-client/extension/home-art");
@@ -1117,6 +1188,7 @@ QString SystemComponent::getNativeShellScript()
     ":/web-client/extension/mpvConfEditor.js",
     ":/web-client/extension/nativeshell.js",
     ":/web-client/extension/offline.js",
+    ":/web-client/extension/localPlayer.js",
     ":/web-client/extension/homeData.js",
     ":/web-client/extension/homeGallery.js",
     ":/web-client/extension/homeBackdrop.js",

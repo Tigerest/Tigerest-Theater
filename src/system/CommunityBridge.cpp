@@ -1,5 +1,6 @@
 #include "CommunityBridge.h"
 #include "core/ProfileManager.h"
+#include "core/Version.h"
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -29,7 +30,7 @@ QUrl sourceUrl(const QVariantMap& session,bool image){
   const auto address=session.value("address").toString();const auto user=session.value("userId").toString();
   QUrl url(address,QUrl::StrictMode);
   if(address.size()>4096||!url.isValid()||!QStringList{"http","https"}.contains(url.scheme())||url.host().isEmpty()||url.authority().contains('@')||url.hasQuery()||url.hasFragment()||
-      (url.host().compare("nas.tigerest.top",Qt::CaseInsensitive)==0&&url.port(url.scheme()=="https"?443:80)==18443)||
+      (url.host().compare("nas.tigerest.top",Qt::CaseInsensitive)==0&&QList<int>{18443,18446}.contains(url.port(url.scheme()=="https"?443:80)))||
       !safeHeader(session.value("token").toString())||!QRegularExpression("^[A-Za-z0-9_-]{1,128}$").match(user).hasMatch())return {};
   auto path=url.path();if(path.contains('\\')||path.contains("//")||path.split('/').contains("..")||path.split('/').contains("."))return {};
   while(path.endsWith('/'))path.chop(1);
@@ -68,7 +69,19 @@ bool restrictFile(const QString& path) {
 }
 }
 
-CommunityBridge::CommunityBridge(QObject* parent):QObject(parent),m_network(this) {}
+CommunityBridge::CommunityBridge(QObject* parent,const QString& origin):QObject(parent),m_origin(origin),m_network(this) {}
+QVariantMap CommunityBridge::clientHeaders(){
+  // Printable ASCII only; these name the build, never a device or a person.
+  const auto clean=[](QString value,int limit){value.remove(QRegularExpression("[^\\x20-\\x7e]"));return value.trimmed().left(limit);};
+#if defined(Q_OS_WIN)
+  const QString platform="Windows";
+#elif defined(Q_OS_MACOS)
+  const QString platform="macOS";
+#else
+  const QString platform="Linux";
+#endif
+  return {{"X-Tigerest-Client-Name","Tigerest Theater"},{"X-Tigerest-Client-Version",clean(Version::GetVersionString(),40)},{"X-Tigerest-Client-Platform",clean(platform,32)}};
+}
 bool CommunityBridge::allowed(const QVariantMap& r,const QString& trustedServer) {
   const auto path=r.value("path").toString(),method=r.value("method").toString();
   const auto responseType=r.value("responseType","json").toString();
@@ -101,11 +114,12 @@ void CommunityBridge::request(const QString& id,const QVariantMap& data) {
     m_mappingCapabilitiesRequest=id;
     if(m_mappingCapabilitiesStatus!=0){m_mappingCapabilitiesStatus=0;refreshMappingAuth();}
   }
-  QNetworkRequest req(QUrl(path=="/mapping-capabilities"?"http://nas.tigerest.top:18443/api/tigerest/v1/danmaku/capabilities":"http://nas.tigerest.top:18443/community/v2"+path));
+  QNetworkRequest req(QUrl(m_origin+(path=="/mapping-capabilities"?QStringLiteral("/api/tigerest/v1/danmaku/capabilities"):"/community/v2"+path)));
   req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::ManualRedirectPolicy);
   req.setAttribute(QNetworkRequest::CookieLoadControlAttribute,QNetworkRequest::Manual);
   req.setAttribute(QNetworkRequest::CookieSaveControlAttribute,QNetworkRequest::Manual);
   req.setTransferTimeout(15000);req.setRawHeader("Accept",image?"image/png":"application/json");
+  const auto client=clientHeaders();for(auto it=client.begin();it!=client.end();++it)req.setRawHeader(it.key().toLatin1(),it.value().toString().toLatin1());
   const auto headers=data.value("headers").toMap();for(auto it=headers.begin();it!=headers.end();++it)req.setRawHeader(it.key().toLatin1(),it.value().toString().toUtf8());
   const auto body=data.value("body").toString().toUtf8();if(!body.isEmpty())req.setHeader(QNetworkRequest::ContentTypeHeader,"application/json");
   auto* reply=m_network.sendCustomRequest(req,data.value("method").toByteArray(),body);m_pending.insert(id,reply);
