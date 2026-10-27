@@ -95,18 +95,18 @@ Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新
 
 ## 核对 SHA-256
 
-发行页有两份校验清单：Windows 和 Android 的文件在 `TigerestTheater-2.9.3-SHA256SUMS.txt`，Mac、iPad 和 Apple TV 的文件在 `TigerestTheater-2.9.3-APPLE-SHA256SUMS.txt`。先找到文件名对应的摘要，再与本机结果对照。
+2.9.5 起发行页只有一份校验清单 `TigerestTheater-2.9.5-SHA256SUMS.txt`，覆盖 Windows、Android、Mac、iPhone／iPad 与 Apple TV 的全部文件（2.9.4 及以前，Mac、iPad 和 Apple TV 的文件另列在 `APPLE-SHA256SUMS.txt`）。先找到文件名对应的摘要，再与本机结果对照。
 
 Windows PowerShell 示例：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.3-x64.exe'
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.5-x64.exe'
 ```
 
 macOS 终端示例：
 
 ```sh
-shasum -a 256 ~/Downloads/TigerestTheater-2.9.3-arm64.dmg
+shasum -a 256 ~/Downloads/TigerestTheater-2.9.5-arm64.dmg
 ```
 
 摘要应完全相同，大小写不影响比较。如果不同，重新下载该文件；不要使用校验失败的包继续更新。

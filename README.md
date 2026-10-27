@@ -268,6 +268,7 @@ Apple TV 的轻量增强会在高帧率视频或持续渲染掉帧时暂时降�
 | 在 Apple TV 上使用 | [Apple TV](https://github.com/Tigerest/Tigerest-Theater/wiki/Apple-TV) |
 | 解决异常或准备反馈 | [故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting) · [常见问题](https://github.com/Tigerest/Tigerest-Theater/wiki/FAQ) |
 | 了解各客户端的实现与架构 | [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture) |
+| 查看用到的开源项目和许可证 | [引用来源与鸣谢](https://github.com/Tigerest/Tigerest-Theater/wiki/Credits) |
 
 ## 反馈与支持
 
@@ -307,6 +308,49 @@ Apple TV 的轻量增强会在高帧率视频或持续渲染掉帧时暂时降�
 
 Windows 每次运行原生测试前，都必须在同一个 PowerShell 调用中加载测试环境脚本并完成运行库预检。测试、包启动检查、生产 API 联调和真实媒体播放的覆盖范围分别记录，不能互相替代。
 
-项目沿用 Jellyfin Desktop 代码基础，并使用 MPV、Qt、[uosc](https://github.com/tomasklaen/uosc)、[uosc_danmaku](https://github.com/Tony15246/uosc_danmaku)、Anime4K 与 RIFE 等组件，感谢相关项目及贡献者。
-
 主项目许可证见 [LICENSE](LICENSE)（GNU GPL v2）；第三方组件按各自许可证分发，具体来源、修改及许可文件随源码和发行包提供。
+
+## 引用来源与鸣谢
+
+Tigerest Theater 建立在许多开源项目之上。下面按用途列出直接使用或改造的主要项目，不是完整清单；各组件的版本、来源、修改和许可证随源码与发行包提供（桌面见 [licenses.txt](resources/misc/licenses.txt)，Android 见 [licenses](android/app/src/main/assets/licenses/NOTICE.txt)，Windows 补帧扩展见 [extension-NOTICE.txt](dev/windows/rife/extension-NOTICE.txt)）。完整列表和许可证见 Wiki 的[引用来源与鸣谢](https://github.com/Tigerest/Tigerest-Theater/wiki/Credits)。
+
+**客户端与界面**
+
+- [Jellyfin Desktop](https://github.com/jellyfin/jellyfin-desktop)：Windows 与 Mac 客户端的 Qt 架构和代码基础，连同其中的 mpvqt、HIDRemote、LetsMove 等组件。
+- [Qt](https://www.qt.io/) 与 QtWebEngine：桌面界面和网页层；Windows 与 Mac 使用打过补丁的 QtWebEngine，让网页动画跟随显示器刷新率。
+- [Emby](https://emby.media/) 与 [Jellyfin](https://jellyfin.org/)：Windows、Mac、Android 和 iPad 的媒体库页面就是所连接服务器自带的网页端；部分界面文字取自 [jellyfin-web](https://github.com/jellyfin/jellyfin-web) 的翻译。
+
+**播放核心**
+
+- [mpv](https://mpv.io/) 与 [FFmpeg](https://ffmpeg.org/)：各平台的播放和解码内核，字幕与渲染还用到 libass、libplacebo、dav1d、HarfBuzz、FreeType、FriBidi 等。
+- [mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake)（shinchiro）：Windows 的 libmpv；补帧用的 libmpv 也按这套配方加补丁自建。
+- [mpv-android](https://github.com/mpv-android/mpv-android)：Android 内置的 libmpv 与 JNI 桥，原样使用正式版。
+- [MPVKit](https://github.com/mpvkit/MPVKit)：iPhone、iPad 与 Apple TV 的 libmpv、FFmpeg 及依赖。
+- [MoltenVK](https://github.com/KhronosGroup/MoltenVK)：在 Mac 和苹果设备上把 Vulkan 渲染转到 Metal。
+- [uosc](https://github.com/tomasklaen/uosc)（tomasklaen）：桌面播放器的控制界面。
+
+**弹幕**
+
+- [uosc_danmaku](https://github.com/Tony15246/uosc_danmaku)（Tony15246）：桌面弹幕插件，本项目在它的基础上修改；插件里也用到 [rkscv/danmaku](https://github.com/rkscv/danmaku) 等项目的代码。
+- [弹弹play](https://www.dandanplay.com/)：弹幕搜索和下载沿用弹弹play 开放平台的接口格式。
+
+**画质着色器**
+
+- [Anime4K](https://github.com/bloc97/Anime4K)（bloc97）
+- [ArtCNN](https://github.com/Artoriuz/ArtCNN) 与 CfL 色度预测（João Chrisóstomo 等）
+- [FSRCNNX](https://github.com/igv/FSRCNN-TensorFlow)、SSimDownscaler 与 SSimSuperRes（igv）
+- [RAVU](https://github.com/bjin/mpv-prescalers)（bjin）与 KrigBilateral（Shiandow）
+- 着色器的整理版本和参数说明参考 [mpv_PlayKit](https://github.com/hooke007/mpv_PlayKit)（hooke007）。
+
+**AI 补帧（RIFE）**
+
+- [Practical-RIFE](https://github.com/hzwer/Practical-RIFE)（hzwer）：RIFE 补帧模型；Mac 与 iPad 上转换为 Core ML 运行。
+- [VapourSynth](https://github.com/vapoursynth/vapoursynth)：Windows 与 Mac 补帧的视频处理框架。
+- [vs-mlrt](https://github.com/AmusementClub/vs-mlrt)（AmusementClub）：Windows NVIDIA 补帧扩展的 TensorRT 推理和 ONNX 模型；NVIDIA TensorRT 与 CUDA 运行库按 NVIDIA 许可原样分发。
+
+**字体与其他**
+
+- [思源宋体](https://github.com/adobe-fonts/source-han-serif)与[思源黑体](https://github.com/adobe-fonts/source-han-sans)（Adobe）：桌面内置字体，以及 iPad 与 Apple TV 的默认字幕字体。
+- Kotlin、AndroidX 与 [OkHttp](https://github.com/square/okhttp)：Android 客户端；[OpenSSL](https://www.openssl.org/)：Windows 的加密连接；[Inno Setup](https://jrsoftware.org/isinfo.php)：Windows 安装程序。
+
+感谢以上项目的作者和贡献者，也感谢 Emby 与 Jellyfin 社区。感谢在 GitHub Issue、B站和客户端「上报问题」里反馈问题的用户。上述名称和商标归各自所有者所有，本项目与它们没有隶属关系。

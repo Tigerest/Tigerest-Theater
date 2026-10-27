@@ -28,6 +28,7 @@
 | [故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting) | 按现象定位问题、日志目录、提交有效反馈 |
 | [常见问题](https://github.com/Tigerest/Tigerest-Theater/wiki/FAQ) | 平台区别、账号范围、补帧与共享功能的常见疑问 |
 | [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture) | 各客户端的实现与架构、播放链路、一起看同步、评论和弹幕的数据流 |
+| [引用来源与鸣谢](https://github.com/Tigerest/Tigerest-Theater/wiki/Credits) | 用到的开源项目、用途和许可证，源码与许可文件在哪里 |
 
 ## 2.9.5 更新了什么
 

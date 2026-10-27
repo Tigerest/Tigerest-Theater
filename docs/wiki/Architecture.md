@@ -1,6 +1,6 @@
 # 技术原理
 
-这一页介绍 Tigerest Theater 的实现方式：五个客户端各用什么技术、哪些代码是共用的，以及播放、一起看、评论、弹幕和更新的数据怎样流动。内容对应 2.9.4。日常使用不需要读这一页，操作说明见[教程首页](https://github.com/Tigerest/Tigerest-Theater/wiki/Home)。
+这一页介绍 Tigerest Theater 的实现方式：五个客户端各用什么技术、哪些代码是共用的，以及播放、一起看、评论、弹幕和更新的数据怎样流动。内容对应 2.9.5。日常使用不需要读这一页，操作说明见[教程首页](https://github.com/Tigerest/Tigerest-Theater/wiki/Home)。
 
 ## 总览
 
@@ -28,6 +28,7 @@ flowchart TB
 - **客户端不带媒体，视频也不经过本项目的服务。** 播放器直接从你连接的 Emby 或 Jellyfin 服务器拉流；服务器把请求 302 跳转到网盘或 CDN 时，播放器跟着跳转。媒体库、账号权限和观看进度都由 Emby 管理。
 - **社区服务**是本项目自己维护的服务端，源码不随客户端公开。评论、消息、弹幕网关、共享弹幕匹配和一起看运行在同一个进程里，只处理文字、匹配关系和房间状态，不接触视频流。社区服务暂时不可用时，浏览和播放不受影响。
 - **更新检查**读取 GitHub Releases 的公开接口，安装包也从发行页下载。
+- **加密连接：** 2.9.5 起，大河专属服务器的公网连接（Emby 网页、评论、弹幕、一起看和版本列表）都走 HTTPS；在 NAS 所在的局域网里仍然直接连接。保存了旧公网地址的专属服务器配置在启动时换到新地址，自建服务器模式里手动填写的地址不改。新地址对网页来说是另一个网站，所以网页端的 Emby 登录要重新做一次；Apple TV 不用网页，登录随地址一起迁移。iPhone、iPad 与 Apple TV 在系统层面（ATS）也不允许以明文连接公网。
 
 ## 代码在哪里
 
@@ -100,9 +101,19 @@ sequenceDiagram
 ```
 
 - 网页的播放管理器（Emby 与 Jellyfin 的流程相同）通过 PlaybackInfo 选择媒体源、音轨、字幕以及直接播放还是转码，并负责播放队列、上一集和下一集，以及向服务器回报进度。客户端向它注册一个 MPV 播放器，接管真正的解码和显示。
+- **选集：** 从剧集页继续看下一集时，Emby 只把这一集排进队列。2.9.5 起队列里只有一集时，扩展脚本（`inputPlugin.js`）向服务器取这一季的各集放进播放列表并标出当前集；在列表里选别的集或按上一个／下一个，就从那一集重新开始播放。队列里本来就有多集时仍按 Emby 的队列。
 - **令牌：** 服务器给的播放地址不带令牌时（Emby 关闭了 AddApiKeyToDirectStreamUrl），插件只给与当前服务器同一来源的地址补上令牌，其他主机的地址原样交给播放器。桌面端再把令牌从地址里移到 `Authorization` 请求头；MPV 跟随 302 跳到其他主机时会丢掉这个请求头，所以令牌不会发给网盘或 CDN。日志里的令牌会被打码。
 - **字幕：** 内嵌字幕由 MPV 直接读取；Emby 的外挂字幕按地址交给 MPV 加载。ASS 字幕由 libass 渲染，保留脚本自带的样式和字体。
 - **画质预设：** 桌面、iPad 和 Apple TV 的画质档位是一组 MPV 着色器和缩放参数，在播放器里切换，不改变 Emby 返回的视频。
+
+## 本地视频（Windows 与 Mac）
+
+2.9.5 起桌面端可以不连服务器直接播放本机的视频文件：
+
+- **文件从哪来：** Windows 从启动参数里取文件（资源管理器的「打开方式」、拖到程序或快捷方式上）。客户端已经开着时，后启动的进程在创建 WebEngine 之前，通过本机进程间通道把文件交给已运行的进程，然后退出（`UniqueApplication`），所以不会多开一个窗口。Mac 的访达用 Apple Event 把文件交给正在运行的进程，客户端在 `QFileOpenEvent` 里接收；启动过程中到达的文件算作启动文件，服务器选择页不会自动连接上次的服务器。两边也都可以从「打开本地视频」的文件对话框选择。
+- **播放列表：** `LocalMedia` 把单独打开的一个文件扩展成同一文件夹里的视频，按文件名排序，数字按数值比较（第 2 集在第 10 集前）；一次打开多个文件时只排这些文件。
+- **播放：** 列表交给扩展脚本 `localPlayer.js`，它用同一个 MPV 播放器插件播放，并把列表作为网页播放器的队列公布，uosc 的播放列表和上一个／下一个都回到这里。本地播放不请求媒体服务器、弹幕和社区服务，也不上报进度；离线下载的视频走同一流程。
+- **文件关联：** 安装版只把 24 种视频扩展名登记为「打开方式」的候选，不改默认程序；Mac 在应用的 Info.plist 里声明为备选（Alternate）处理程序，同样不抢默认播放器。
 
 ## 各客户端
 
@@ -305,7 +316,8 @@ flowchart TD
   nb --- vault["系统安全存储<br/>凭据管理器 · Keychain · Keystore"]
 ```
 
-- **请求经过原生层：** 网页不直接请求社区服务，而是把请求交给原生层。原生层只放行社区服务的已知路径，从系统安全存储取出公共账号令牌加到请求上。令牌不进入网页存储；HTTPS 页面访问 HTTP 服务的混合内容限制也由此避开。
+- **请求经过原生层：** 网页不直接请求社区服务，而是把请求交给原生层。原生层只放行社区服务的已知路径，从系统安全存储取出公共账号令牌加到请求上，令牌不进入网页存储。
+- **客户端信息：** 2.9.5 起，评论账号的注册与登录、创建一起看房间和向大河弹幕服务请求弹幕时，附上客户端名称、版本和平台（如 Tigerest Theater 2.9.5 Windows），不含设备标识、账号或密码；向其他弹幕来源请求时不附带。
 - **大河用户**带当前 Emby 会话的身份信息，社区服务向大河 Emby 核实令牌真正属于哪个用户，所以不需要注册。
 - **自建用户**使用独立的公共账号，用用户名和密码换取访问令牌，过期前自动刷新。自建 Emby 的令牌、用户 ID 和地址不会发给社区服务。
 - **话题匹配：** 电影和剧集按 TMDB 编号对应同一个公共话题，单集还要加上播出季集号。匹配不可靠时不合并，避免把不同作品混在一起。
@@ -361,6 +373,8 @@ flowchart TD
 
 安装包依次从 GitHub 下载加速镜像 `gh-proxy.com`、`ghproxy.net` 和 GitHub 原址下载。正在出数据的来源断线后先在原处续传；还没出数据就失败、返回错误状态、不受信任的跳转或长度不对时立刻换下一个。镜像只负责传输：大小和 SHA-256 只取自版本信息（GitHub 接口或社区服务器签名转发的原值），经镜像下载的文件校验不通过时丢弃，只从 GitHub 原址重新下载一次。两个镜像转发 GitHub 的 ETag，续传可以跨来源；gh-proxy.com 对超过约 512 MB 的文件不支持断点续传，会从头重新下载。Windows RIFE 扩展的下载使用同一组镜像，校验值来自客户端内置的扩展目录。
 
+版本号可以有四段（如 2.9.5.1）：第四段用于只给部分平台发的小修复，更新器按四段比较，2.9.4 及更早的版本只认三段。Android 的版本代码是 主版本 × 1000000 + 次版本 × 10000 + 修订号 × 100 + 第四段（2.9.5 为 2090500）。更新窗口在「当前版本」下显示构建号：Windows 与 Mac 为构建时的提交编号和日期，Android 为版本代码和提交编号，iPhone 与 iPad 为构建编号和提交编号。
+
 发行页没有本平台安装包时，更新器直接跳过这个版本。Windows 与 Mac 共用同一个 C++ 更新器（`src/system/AppUpdater.cpp`）和网页更新窗口；Android 用 Kotlin 实现同样的规则。iPad 只检查和提示，不下载安装；Apple TV 没有应用内更新检查。
 
 找到的发行连同它的说明保存在本机偏好设置里（Windows/Mac：配置目录的 `app-update-preferences.json`；Android：`app-updates` 偏好）。下次启动先用完整的发行规则重新核对这份记录，已安装或已忽略的版本不会显示；后台刷新失败时保留记录和弹窗，刷新结果变化时替换或删除记录。
@@ -388,8 +402,8 @@ flowchart TD
 | 平台 | 构建 | 自动测试 |
 | --- | --- | --- |
 | Windows | CMake + MSVC，Qt 6.9 与自建 QtWebEngine，Inno Setup 打包 | CTest：C++ 单元测试、扩展脚本测试、QtWebEngine 界面测试、真实 MPV 播放测试、安装包检查 |
-| Mac | 同一套 CMake 工程；打包时换入修补版 QtWebEngine | 同一套测试中适用于 Mac 的部分（2.9.3 共 83 项，含更新窗口界面测试）、打包检查 |
+| Mac | 同一套 CMake 工程；打包时换入修补版 QtWebEngine | 同一套测试中适用于 Mac 的部分（2.9.5 共 92 项，含更新窗口界面测试）、打包检查 |
 | Android | Gradle + Kotlin | JVM 单元测试、lint、签名和 16 KB 对齐检查 |
 | iPad、Apple TV | 由脚本生成 Xcode 工程，固定 MPVKit 版本 | AppleCore 的 Swift 测试、XCTest、Apple TV 遥控器界面测试、RIFE 调度测试、Metal 颜色转换与 swscale 的逐像素对照 |
 
-每次发行附带 `RELEASE-MANIFEST.json`（苹果三端为 `APPLE-RELEASE-MANIFEST.json`），记录来源提交、测试结果和验证范围；测试用模拟数据还是真实服务器、真实播放，分开记录。构建说明见仓库中的 [Windows](https://github.com/Tigerest/Tigerest-Theater/blob/main/dev/windows/README.md)、[macOS](https://github.com/Tigerest/Tigerest-Theater/blob/main/dev/macos/README.md)、[Android](https://github.com/Tigerest/Tigerest-Theater/blob/main/android/README.md)、[iPad](https://github.com/Tigerest/Tigerest-Theater/blob/main/docs/apple/INSTALL.md) 和 [Apple TV](https://github.com/Tigerest/Tigerest-Theater/blob/main/apple/TV/README.md)。
+每次发行附带 `RELEASE-MANIFEST.json`（2.9.5 起一份覆盖全部平台，此前苹果三端另有 `APPLE-RELEASE-MANIFEST.json`），记录来源提交、测试结果和验证范围；测试用模拟数据还是真实服务器、真实播放，分开记录。构建说明见仓库中的 [Windows](https://github.com/Tigerest/Tigerest-Theater/blob/main/dev/windows/README.md)、[macOS](https://github.com/Tigerest/Tigerest-Theater/blob/main/dev/macos/README.md)、[Android](https://github.com/Tigerest/Tigerest-Theater/blob/main/android/README.md)、[iPad](https://github.com/Tigerest/Tigerest-Theater/blob/main/docs/apple/INSTALL.md) 和 [Apple TV](https://github.com/Tigerest/Tigerest-Theater/blob/main/apple/TV/README.md)。

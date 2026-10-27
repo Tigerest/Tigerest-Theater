@@ -15,5 +15,6 @@
 - [故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)
 - [常见问题](https://github.com/Tigerest/Tigerest-Theater/wiki/FAQ)
 - [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture)
+- [引用来源与鸣谢](https://github.com/Tigerest/Tigerest-Theater/wiki/Credits)
 
 [下载最新版](https://github.com/Tigerest/Tigerest-Theater/releases/latest) · [项目主页](https://github.com/Tigerest/Tigerest-Theater) · [问题反馈](https://github.com/Tigerest/Tigerest-Theater/issues)
