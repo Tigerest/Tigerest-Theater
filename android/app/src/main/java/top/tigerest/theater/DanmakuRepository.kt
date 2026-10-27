@@ -37,7 +37,10 @@ class DanmakuRepository(private val context: Context,private val settings: Setti
     private fun fetch(path: String,origin: String = base()): JSONObject {
         val wait=sharedMapping.retryAfter(origin);check(wait==0L){"弹幕接口请求过于频繁，请 $wait 秒后重试"}
         val url = origin+path
-        client.newCall(Request.Builder().url(url).header("Accept","application/json").header("User-Agent","TigerestTheater Android").build()).execute().use { response ->
+        val request = Request.Builder().url(url).header("Accept","application/json").header("User-Agent","TigerestTheater Android")
+        // Our own service records which client asked; other providers receive nothing.
+        if(SharedDanmakuMapping.trustedOrigin(origin) != null) ClientIdentity.headers().forEach{(name,value)->request.header(name,value)}
+        client.newCall(request.build()).execute().use { response ->
             require(response.isSuccessful) { "弹幕服务暂不可用（${response.code}）" }
             val body = response.body ?: throw IllegalStateException("弹幕响应为空")
             require(body.contentLength() < 32*1024*1024) { "弹幕文件过大" }
@@ -49,6 +52,8 @@ class DanmakuRepository(private val context: Context,private val settings: Setti
         val request = Request.Builder().url(url).header("Accept","application/json")
             .header("User-Agent","TigerestTheater Android")
             .post(body.toRequestBody("application/json; charset=utf-8".toMediaType()))
+        // Shared mappings are only ever asked of our own service.
+        ClientIdentity.headers().forEach{(name,value)->request.header(name,value)}
         credential?.forEach{(name,value)->request.header(name,value)}
         mappingClient.newCall(request.build()).execute().use { response ->
             if(response.code != 200) return MappingHttpResponse(response.code,"",response.header("Retry-After"))

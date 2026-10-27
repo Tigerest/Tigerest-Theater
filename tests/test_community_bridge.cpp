@@ -1,6 +1,7 @@
 #include <QtTest/QtTest>
 #include "system/CommunityBridge.h"
 #include "core/ProfileManager.h"
+#include "core/Version.h"
 #include "shared/Paths.h"
 #include <QNetworkProxy>
 #include <QTcpServer>
@@ -94,6 +95,24 @@ private slots:
       QVERIFY(!bridge.setEmbySession(session));QVERIFY(bridge.mappingAuthFile().isEmpty());
     }
     ProfileManager::Get().setActiveProfile(Profile());Paths::setConfigDir({});Paths::setCacheDir({});
+  }
+  void requestsReportTheClient(){
+    CapabilityFixture fixture;QVERIFY(fixture.server.isListening());
+    CommunityBridge bridge;QVERIFY(fixture.observe(bridge,"/capabilities",200));
+    const QVariantMap exchange{{"X-Emby-Token","fixture-emby-token"},{"X-Emby-Server-Id","62526c3bf747439c99327ddec5fed4a8"},{"X-Emby-User-Id","fixture-user"}};
+    QVERIFY(fixture.observe(bridge,"/auth/emby",200,exchange));
+    QCOMPARE(fixture.requests.size(),2);
+    for(const auto& request:fixture.requests){
+      const auto lower=request.toLower();
+      QVERIFY(lower.contains("\r\nx-tigerest-client-name: tigerest theater\r\n"));
+      QVERIFY(lower.contains("\r\nx-tigerest-client-version: "+Version::GetVersionString().toLatin1().toLower()+"\r\n"));
+#ifdef Q_OS_WIN
+      QVERIFY(lower.contains("\r\nx-tigerest-client-platform: windows\r\n"));
+#endif
+    }
+    QVERIFY(fixture.requests.last().toLower().contains("\r\nx-emby-token: fixture-emby-token\r\n"));
+    const auto headers=CommunityBridge::clientHeaders();QCOMPARE(headers.size(),3);
+    for(const auto& value:headers)QVERIFY(QRegularExpression("^[\\x20-\\x7e]{1,40}$").match(value.toString()).hasMatch());
   }
   void requestPolicy(){
     const QString trusted="62526c3bf747439c99327ddec5fed4a8";

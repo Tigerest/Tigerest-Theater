@@ -31,6 +31,14 @@
         return [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
     }
     const uuidPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+    // Self-reported build details the service records with each new room;
+    // never a device identifier or a credential.
+    function clientHeaders(platform, version) {
+        const clean = (value, limit) => String(value || '').replace(/[^\x20-\x7e]/g, '').trim().slice(0, limit);
+        const values = {'X-Tigerest-Client-Name': 'Tigerest Theater', 'X-Tigerest-Client-Version': clean(version, 40),
+            'X-Tigerest-Client-Platform': clean(platform, 32)};
+        return Object.fromEntries(Object.entries(values).filter(([, value]) => value));
+    }
 
     // Offset between the local monotonic clock and the server's monotonic
     // timeline, from the lowest round trip among the last eight pings.
@@ -55,8 +63,9 @@
     }
 
     class WatchClient {
-        constructor({fetch: request = window.fetch.bind(window)} = {}) {
+        constructor({fetch: request = window.fetch.bind(window), platform, appVersion} = {}) {
             this.fetch = request;
+            this.identity = clientHeaders(platform, appVersion);
             this.context = null;
         }
         static session(api) {
@@ -90,9 +99,9 @@
             }
             return Boolean(this.context);
         }
-        async request(path, {method = 'GET', body, auth = true, signal} = {}) {
+        async request(path, {method = 'GET', body, auth = true, identify = false, signal} = {}) {
             if (!this.base || (auth && !this.context)) throw failure('AUTH_REQUIRED');
-            const headers = {};
+            const headers = identify ? {...this.identity} : {};
             if (auth) Object.assign(headers, {'X-Emby-Token': this.context.token,
                 'X-Emby-Server-Id': this.context.serverId, 'X-Emby-User-Id': this.context.userId});
             if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -127,7 +136,7 @@
         health() { return this.request('/health', {auth: false}); }
         me() { return this.request('/me'); }
         createRoom({itemId, mediaSourceId, positionMs, clientRequestId, clientId, leaveCurrent = false}) {
-            return this.request('/rooms', {method: 'POST', body: {itemId: String(itemId), mediaSourceId: String(mediaSourceId),
+            return this.request('/rooms', {method: 'POST', identify: true, body: {itemId: String(itemId), mediaSourceId: String(mediaSourceId),
                 positionMs: Math.max(0, Math.round(Number(positionMs) || 0)), clientRequestId, clientId, leaveCurrent: leaveCurrent === true}});
         }
         joinRoom({code, clientId, leaveCurrent = false}) {

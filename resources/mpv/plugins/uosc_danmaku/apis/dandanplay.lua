@@ -164,6 +164,11 @@ function make_danmaku_request_args(method, url, headers, body)
         "User-Agent: " .. options.user_agent,
     }
 
+    for _, header in ipairs(managed_client_headers(url)) do
+        table.insert(args, '-H')
+        table.insert(args, header)
+    end
+
     if headers then
         for k, v in pairs(headers) do
             table.insert(args, '-H')

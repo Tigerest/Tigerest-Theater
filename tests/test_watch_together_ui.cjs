@@ -52,7 +52,8 @@ const fixture = `(() => {
     window.snapshot = snapshot;
     const reply = (status, body) => new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}});
     window.fetch = async (url, options) => {
-        const call = {url, method: options.method, body: options.body ? JSON.parse(options.body) : null, token: options.headers['X-Emby-Token']};
+        const call = {url, method: options.method, body: options.body ? JSON.parse(options.body) : null, token: options.headers['X-Emby-Token'],
+            client: Object.fromEntries(Object.entries(options.headers).filter(([name]) => name.startsWith('X-Tigerest-Client-')))};
         log.fetch.push(call);
         const p = new URL(url).pathname.replace('/watch/v1', '');
         if (p === '/health') return reply(200, {data: {status: 'ok', enabled: true, protocol: 1}});
@@ -151,6 +152,8 @@ withBrowser(routes, async ({evaluate}) => {
     const create = JSON.parse(await evaluate(`JSON.stringify(log.fetch.find(c => c.url.endsWith('/rooms') && c.method === 'POST'))`));
     assert.deepEqual({...create.body, clientRequestId: 'x', clientId: 'x'}, {itemId: 'ep2', mediaSourceId: 'src-ep2', positionMs: 0, clientRequestId: 'x', clientId: 'x', leaveCurrent: false});
     assert.equal(create.token, 'fixture-token');
+    assert.deepEqual(create.client, {'X-Tigerest-Client-Name': 'Tigerest Theater', 'X-Tigerest-Client-Version': version, 'X-Tigerest-Client-Platform': 'Windows'});
+    assert.deepEqual(JSON.parse(await evaluate(`JSON.stringify(log.fetch.find(c => c.url.endsWith('/rooms/join')).client)`)), {}, 'only a new room reports the client');
     await wait(`sockets.length === 1 && serverLog.some(m => m.type === 'hello')`);
     const hello = JSON.parse(await evaluate(`JSON.stringify(serverLog.find(m => m.type === 'hello'))`));
     assert.deepEqual({...hello, clientId: 'x'}, {type: 'hello', protocol: 1, ticket: 'ticket-1', clientId: 'x', platform: 'Windows', appVersion: version, capabilities: ['sync']});

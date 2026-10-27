@@ -13,6 +13,7 @@
 #include "display/DisplayComponent.h"
 #include "settings/SettingsComponent.h"
 #include "system/SystemComponent.h"
+#include "system/CommunityBridge.h"
 #include "utils/Utils.h"
 #include "utils/Log.h"
 #ifdef Q_OS_MAC
@@ -877,6 +878,9 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
     MpvConfigManager::danmakuApiServer(
       settings.value(SETTINGS_SECTION_MAIN, "userWebClient").toString(),
       settings.value(SETTINGS_SECTION_MAIN, "serverConnectionMode").toString()));
+  // The script sends these only to our own danmaku service.
+  setIdentityProperty(QStringLiteral("user-data/tigerest/danmaku/client-headers"),
+                      CommunityBridge::clientHeaders());
   setIdentityProperty(identityRoot + QStringLiteral("valid"), false);
   // Local playback uses no online service; the danmaku script stays idle.
   setIdentityProperty(QStringLiteral("user-data/tigerest/local-playback"), localPlayback);

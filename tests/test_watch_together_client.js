@@ -18,7 +18,8 @@ const json = (status, body, headers = {}) => new Response(JSON.stringify(body), 
 
 test('REST uses the comment service host rule, exact bodies and Emby identity headers', async () => {
     const {TigerestWatchClient: Client} = load(), calls = [];
-    const client = new Client({fetch: async (url, options) => { calls.push({url, options}); return json(200, {data: {ok: true}}); }});
+    const client = new Client({fetch: async (url, options) => { calls.push({url, options}); return json(200, {data: {ok: true}}); },
+        platform: 'Windows', appVersion: ' 2.9.5\u0007 '});
     assert.equal(client.setSession(lan), true);
     assert.equal(client.socketUrl, 'ws://192.168.5.150:18443/watch/v1/socket');
     await client.health();
@@ -33,6 +34,9 @@ test('REST uses the comment service host rule, exact bodies and Emby identity he
     assert.equal(calls[1].options.headers['X-Emby-Server-Id'], lan.serverId);
     assert.equal(calls[1].options.headers['X-Emby-User-Id'], 'user1');
     assert.deepEqual(JSON.parse(calls[1].options.body), {itemId: '12', mediaSourceId: 's', positionMs: 1501, clientRequestId: 'r', clientId: 'c', leaveCurrent: false});
+    assert.equal(calls[1].options.headers['X-Tigerest-Client-Name'], 'Tigerest Theater');
+    assert.equal(calls[1].options.headers['X-Tigerest-Client-Version'], '2.9.5', 'control characters and padding are dropped');
+    assert.equal(calls[1].options.headers['X-Tigerest-Client-Platform'], 'Windows');
     await client.joinRoom({code: ' 7kq2mz ', clientId: 'c', leaveCurrent: true});
     assert.deepEqual(JSON.parse(calls[2].options.body), {code: '7kq2mz', clientId: 'c', leaveCurrent: true});
     await client.ticket('room-1', 'c');
@@ -42,6 +46,8 @@ test('REST uses the comment service host rule, exact bodies and Emby identity he
     assert.equal(client.setSession({...lan, serverId: 'other'}), false);
     await assert.rejects(client.me(), error => error.code === 'AUTH_REQUIRED');
     assert.equal(calls.length, 5, 'other servers never receive tokens');
+    for (const call of [calls[0], ...calls.slice(2)])
+        assert.equal(Object.keys(call.options.headers).some(name => name.startsWith('X-Tigerest-Client-')), false, 'only a new room reports the client');
 });
 
 test('REST errors carry codes, Chinese text, activeRoom and Retry-After', async () => {

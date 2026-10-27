@@ -176,7 +176,7 @@
     class WatchPlugin {
         constructor({connectionManager, events, playbackManager, appRouter}) {
             Object.assign(this, {connectionManager, events, playbackManager, appRouter});
-            this.client = new Client();
+            this.client = new Client({platform: platform(), appVersion: window.jmpInfo?.version});
             this.clientId = storedClientId();
             this.connection = null;
             this.available = false;

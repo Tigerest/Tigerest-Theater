@@ -110,6 +110,7 @@ local function request(server, source, selection, token, callback)
         '--max-time', '35', '--max-filesize', tostring(MAX_BODY), '--include', '--compressed',
         '--header', 'Accept: application/json', '--header', 'Content-Type: application/json',
         '--header', 'User-Agent: TigerestTheater mapping', '--data-binary', encoded}
+    for _, header in ipairs(managed_client_headers(server)) do args[#args + 1] = '--header'; args[#args + 1] = header end
     if auth_file then args[#args + 1] = '--header'; args[#args + 1] = '@' .. auth_file end
     if options.proxy ~= '' then args[#args + 1] = '--proxy'; args[#args + 1] = options.proxy end
     args[#args + 1] = server .. '/api/tigerest/v1/danmaku'

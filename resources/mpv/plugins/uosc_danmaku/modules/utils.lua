@@ -461,6 +461,23 @@ function resolve_managed_api_url(url)
     return resolve_api_server(url)
 end
 
+-- Our own service records which client asked (the player publishes the
+-- headers); other providers receive nothing.
+function managed_client_headers(url)
+    local origin = url and url:match('^(https?://[^/]+)')
+    if origin ~= 'http://nas.tigerest.top:18443' and origin ~= 'http://192.168.5.150:18443' then return {} end
+    local headers, result = mp.get_property_native('user-data/tigerest/danmaku/client-headers'), {}
+    if type(headers) ~= 'table' then return result end
+    for name, value in pairs(headers) do
+        if type(name) == 'string' and name:match('^X%-Tigerest%-Client%-%a+$')
+            and type(value) == 'string' and value:match('^[ -~]+$') then
+            result[#result + 1] = name .. ': ' .. value
+        end
+    end
+    table.sort(result)
+    return result
+end
+
 -- 将一个逗号分隔的 api_server 字符串解析为有序列表
 function get_api_server_list(api_server_str, meta)
     local want_meta = meta or false

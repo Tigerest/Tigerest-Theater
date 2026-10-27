@@ -20,6 +20,8 @@ public:
   QString mappingAuthFile() const;
   QString authGeneration() const;
   static bool allowed(const QVariantMap& request, const QString& trustedServer);
+  // Self-reported build details the comment, room and danmaku services record.
+  static QVariantMap clientHeaders();
 signals:
   void response(const QString& id, const QVariantMap& result);
   void mappingAuthChanged(const QString& path, const QString& generation);
