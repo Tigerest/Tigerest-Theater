@@ -1,10 +1,12 @@
 # iPad / iPhone 安装与构建
 
-2.9.4 的系统要求为 iPadOS / iOS 26 及以后版本。发行附件 [`TigerestTheater-2.9.4-universal.ipa`](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-universal.ipa) 是 iPad 与 iPhone 通用的完整设备版应用，但**未签名，必须先用自己的 Apple 身份重签名才能安装**。它不含作者的个人开发签名、设备名单、证书或账号。不是 App Store 或 TestFlight 安装包，也不能直接在“文件”中点开安装。
+2.9.5 的系统要求为 iPadOS / iOS 26 及以后版本。发行附件 [`TigerestTheater-2.9.5-universal.ipa`](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) 是 iPad 与 iPhone 通用的完整设备版应用，但**未签名，必须先用自己的 Apple 身份重签名才能安装**。它不含作者的个人开发签名、设备名单、证书或账号。不是 App Store 或 TestFlight 安装包，也不能直接在“文件”中点开安装。
 
 已有侧载签名工具的用户，可以导入 IPA 并使用自己的账号签名。免费账号的签名有有效期，需要按 Apple 的规则续签。覆盖更新时保持原来的应用标识与签名身份；不要先卸载应用，以免丢失配置和离线媒体。
 
 2.9.4 起应用标识改为 `top.tigerest.theater.universal`，安装包改名为 `universal.ipa`。系统会把它当成新应用：不会覆盖 2.9.3 及更早的 iPad 版，登录、服务器列表、设置和离线媒体不会迁移，需要重新登录；确认新版正常后可以手动删除旧版。
+
+2.9.5 沿用同一个应用标识，可以覆盖 2.9.4 安装。大河专属服务器的公网连接从 2.9.5 起改用加密连接，升级后第一次连接需要重新登录一次 Emby，服务器列表、设置和离线媒体保留。
 
 ## 使用 Mac 与 Xcode 27
 

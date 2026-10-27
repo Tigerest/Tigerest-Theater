@@ -2,7 +2,7 @@
 
 Since 2.9.3 the Apple TV client also connects to Jellyfin (10.9.11 to 12.2, root and `/jellyfin` sub-paths, verified on an Apple TV 4K). See the [connection and compatibility guide](../../docs/jellyfin-compatibility.md) and [Apple results](../../docs/verification/2026-10-19-jellyfin-apple-results.md). Apple TV still has no Watch Together or RIFE.
 
-The native television client is distributed as the [`TigerestTheater-2.9.3-tvos.ipa`](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.3/TigerestTheater-2.9.3-tvos.ipa) attachment on the 2.9.3 release page. Requires tvOS26+ and Xcode27 for source builds. The independent `TigerestTV.xcodeproj` shares AppleCore and the pinned MPVKit revision with iPad without importing its WebHost or touch controls.
+The native television client is distributed as the [`TigerestTheater-2.9.5-tvos.ipa`](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) attachment on the 2.9.5 release page. From 2.9.5 the dedicated server's public services are HTTPS; a saved dedicated sign-in moves to the new address and stays signed in. Requires tvOS26+ and Xcode27 for source builds. The independent `TigerestTV.xcodeproj` shares AppleCore and the pinned MPVKit revision with iPad without importing its WebHost or touch controls.
 
 The public IPA is unsigned and contains no developer account or provisioning profile. Sign it for your own paired Apple TV before installing, or build and install from Xcode using your own team. It is not an App Store or TestFlight download. `tvos.ipa` and `universal.ipa` (the iPad/iPhone build, named `ipad.ipa` up to 2.9.3) are separate device builds and cannot be interchanged.
 
