@@ -226,6 +226,12 @@ int main(int argc, char *argv[])
       // final QApplication, so they cannot disable that native decoding here.
       parser.process(core.arguments());
       localFiles = LocalMedia::filesFromArguments(parser.positionalArguments(), QDir::currentPath());
+#ifdef Q_OS_WIN
+      // Explorer's "Open with" starts the client in System32, where QtWebEngine
+      // fails a check while it starts. The files are absolute by now; run from
+      // the program's folder, as the shortcut does.
+      QDir::setCurrent(QCoreApplication::applicationDirPath());
+#endif
 
       // Detect portable mode while QCoreApplication exists (needed for applicationDirPath)
       Paths::detectAndEnablePortableMode();
@@ -498,22 +504,24 @@ int main(int argc, char *argv[])
     app.setDesktopFileName("org.jellyfin.JellyfinDesktop");
 #endif
 
-    // Configure default WebEngineProfile paths early (profile is already set)
-    {
-      QWebEngineProfile* defaultProfile = QWebEngineProfile::defaultProfile();
-      defaultProfile->setCachePath(ProfileManager::activeProfile().cacheDir("QtWebEngine"));
-      defaultProfile->setPersistentStoragePath(ProfileManager::activeProfile().dataDir("QtWebEngine"));
-    }
-
 #if defined(Q_OS_MAC) && defined(NDEBUG)
     PFMoveToApplicationsFolderIfNecessary();
 #endif
 
+    // A later launch only hands its files over, before it starts a second
+    // WebEngine on the running instance's profile and caches.
     UniqueApplication* uniqueApp = new UniqueApplication(&app);
     if (!uniqueApp->ensureUnique(localFiles))
     {
       Log::Cleanup();
       return EXIT_SUCCESS;
+    }
+
+    // Configure default WebEngineProfile paths early (profile is already set)
+    {
+      QWebEngineProfile* defaultProfile = QWebEngineProfile::defaultProfile();
+      defaultProfile->setCachePath(ProfileManager::activeProfile().cacheDir("QtWebEngine"));
+      defaultProfile->setPersistentStoragePath(ProfileManager::activeProfile().dataDir("QtWebEngine"));
     }
 
 #ifdef Q_OS_UNIX
