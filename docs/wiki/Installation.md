@@ -95,7 +95,7 @@ Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新
 
 ## 核对 SHA-256
 
-2.9.5 起全部平台的文件都在发行页的同一份校验清单 `TigerestTheater-2.9.5-SHA256SUMS.txt` 里；2.9.4 及更早版本的 Mac、iPad／iPhone 和 Apple TV 文件另有一份 `APPLE-SHA256SUMS.txt`。先找到文件名对应的摘要，再与本机结果对照。
+2.9.5 起发行页只有一份校验清单 `TigerestTheater-2.9.5-SHA256SUMS.txt`，覆盖 Windows、Android、Mac、iPhone／iPad 与 Apple TV 的全部文件（2.9.4 及以前，Mac、iPad 和 Apple TV 的文件另列在 `APPLE-SHA256SUMS.txt`）。先找到文件名对应的摘要，再与本机结果对照。
 
 Windows PowerShell 示例：
 
