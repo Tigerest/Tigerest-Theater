@@ -22,5 +22,5 @@ async function connect(){
  const evaluate=async expression=>{const r=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
  return {call,evaluate,onEvent:listener=>listeners.add(listener),close:()=>socket.close(),page};
 }
-module.exports={connect,run,delay};
+module.exports={connect,run,delay,adb,serial};
 if(require.main===module)(async()=>{const c=await connect();try{console.log(JSON.stringify(await c.evaluate(process.argv[2] || '({url:location.href,title:document.title,body:document.body?.innerText,api:!!window.api,bootstrap:!!window.jmpInfo})'),null,2));}finally{c.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

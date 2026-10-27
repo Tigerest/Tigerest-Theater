@@ -4,7 +4,8 @@ const art=color=>`<svg xmlns="http://www.w3.org/2000/svg" width="960" height="60
 const routes={
  '/':{type:'text/html',body:'<style>body{margin:0}#art{position:fixed;inset:0}#art img{width:100%;height:100%;object-fit:cover}</style><div id="art"></div>'+(embedded?'':'<script src="/backdrop.js"></script>')},
  '/backdrop.js':{path:path.join(__dirname,'../native/homeBackdrop.js')},
- '/Items/work/Images/Primary':{type:'image/svg+xml',body:art('#f02010')}
+ '/Items/work/Images/Primary':{type:'image/svg+xml',body:art('#f02010')},
+ '/shared/home-art/anime.svg':{type:'image/svg+xml',body:art('#20a040')}
 };
 withBrowser(routes,async({evaluate})=>{
  await evaluate(`window.TigerestHomeTransitions?.dispose?.();
@@ -26,6 +27,11 @@ withBrowser(routes,async({evaluate})=>{
  assert.deepEqual(await evaluate('sample("one",.5)'),{decodes:1,color:first.color},'the smaller panel reuses and rescales a retained larger backdrop');
  routes['/Items/work/Images/Primary'].body=art('#1040e0');
  assert.deepEqual(await evaluate('sample("two")'),{decodes:2,color:[16,64,224,255]},'a changed image version replaces the pixels, not just the cache key');
+ // Artwork bundled with the client, under its script path, is immutable too.
+ assert.equal(await evaluate(`(async()=>{window.jmpInfo={...window.jmpInfo,scriptPath:location.origin+'/shared'};const before=decodeCount;
+  for(let i=0;i<2;i++){const img=new Image();img.src='/shared/home-art/anime.svg';await img.decode();const root=document.querySelector('#art');root.replaceChildren(img);
+   const result=await TigerestHomeBackdrop.build(root,new AbortController().signal);if(!result)throw Error('backdrop build failed');result.bitmap.close();}
+  return decodeCount-before;})()`),1,'bundled artwork is decoded once');
  await evaluate('TigerestHomeBackdrop.dispose();window.createImageBitmap=nativeBitmap;true');
  console.log('decoded artwork cache: source reuse, transfer ownership and changed-version pixels passed');
 },{gpu:true,visible:true}).catch(error=>{console.error(error);process.exitCode=1;});
