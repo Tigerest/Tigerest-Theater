@@ -1,6 +1,6 @@
 # Tigerest Theater 使用教程
 
-这里是 EMBY 大河版的中文使用说明，对应 2.9.4（Windows 与 Android 为 2.9.4；Mac、iPad 与 Apple TV 的 2.9.4 在 Mac 上构建验证后补充到同一发行页）。客户端支持 Windows、Apple Silicon Mac、Android、iPad 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
+这里是 EMBY 大河版的中文使用说明，对应 2.9.5（Windows、Android、Mac、iPhone／iPad 与 Apple TV）。客户端支持 Windows、Apple Silicon Mac、Android、iPad 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
 
 ## 第一次使用
 
@@ -28,6 +28,16 @@
 | [故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting) | 按现象定位问题、日志目录、提交有效反馈 |
 | [常见问题](https://github.com/Tigerest/Tigerest-Theater/wiki/FAQ) | 平台区别、账号范围、补帧与共享功能的常见疑问 |
 | [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture) | 各客户端的实现与架构、播放链路、一起看同步、评论和弹幕的数据流 |
+
+## 2.9.5 更新了什么
+
+- **加密连接：** 大河专属服务器的公网连接改用 HTTPS，局域网不变。升级后需要重新登录一次 Emby（Apple TV 不用）；2.9.4 及更早的版本在旧地址关闭后无法从公网连接，请尽快升级。
+- **本地播放器（Windows 与 Mac）：** Windows 对视频文件右键「打开方式」选大河影院，Mac 在访达里选「打开方式 → 大河影院」，不连服务器就能播放；同一文件夹的视频按文件名排成播放列表，播完接下一集。本地播放不加载弹幕、不上报进度。见[播放本地视频](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#播放本地视频windows-与-mac)。
+- **服务器播放选集：** 从剧集页点「播放」时 Emby 只排了这一集，播放列表现在列出这一季，可以选集和上一集／下一集。
+- **Android 页面转场：** 点下海报或媒体库后，下一个页面在 0.7 秒内就能操作；海报按下就起飞，转场中不再闪烁。
+- **离线媒体有声音和字幕（Windows 与 Mac）**；没连服务器时服务器选择页的「设置」也能打开完整设置。
+- **统计信息：** 第 2 页默认画出各渲染步骤的耗时曲线（Windows 与 Mac）。
+- **版本号与构建号：** 之后的小修复用四段版本号（如 2.9.5.1）；更新窗口显示构建号。
 
 ## 2.9.4 更新了什么
 
@@ -75,7 +85,7 @@
 
 2.6.1 起 Windows 网页界面按屏幕刷新率运行，并新增 iPad 客户端；2.7.0 起首页「继续观看」按观看记录排序，兼容 Emby 4.8–4.10 和 .strm 媒体库，并补充了 Apple TV 首版。完整记录见[更新记录](https://github.com/Tigerest/Tigerest-Theater/blob/main/CHANGELOG.md)。
 
-**已知问题：** 部分 Windows 高刷新率环境下，窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.4 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。
+**已知问题：** 部分 Windows 高刷新率环境下，窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.5 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。
 
 ## 各平台功能范围
 
