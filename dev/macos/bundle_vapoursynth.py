@@ -2,6 +2,7 @@
 """Stage the bundled mpv filter runtime before the Mach-O dependency fixup."""
 
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -32,6 +33,17 @@ def stage_runtime(app: Path, brew: Path, runtime_python: Path | None = None) -> 
     runtime = contents / "Resources/python"
     stdlib = runtime / "lib" / f"python{version}"
     stdlib.mkdir(parents=True, exist_ok=True)
+    # Homebrew removes a Python once nothing it installed needs it. A release
+    # can then reuse the relocated Python of a verified bundle (the previous
+    # release) instead of a different build of that version.
+    reused = os.environ.get("TIGEREST_PYTHON_RUNTIME_SOURCE")
+    if reused:
+        source = Path(reused) / "Contents"
+        recorded = json.loads((source / "Resources/vapoursynth-runtime.json").read_text())
+        if recorded["version"] != version or recorded["vapoursynthVersion"] != info["vapoursynthVersion"]:
+            raise RuntimeError("The reused bundle has another Python or VapourSynth")
+        prefix = source / "Resources/python"
+        info["pythonVersion"] = recorded["pythonVersion"]
     # Homebrew's site-packages is an external symlink. Ship only our runtime,
     # never the build machine's installed packages or optional Tk/test modules.
     shutil.copytree(prefix / "lib" / f"python{version}", stdlib,
@@ -43,13 +55,22 @@ def stage_runtime(app: Path, brew: Path, runtime_python: Path | None = None) -> 
                     ignore=shutil.ignore_patterns("plugins", "include", "pkgconfig", "vspipe",
                                                  "__pycache__", "*.pyc"))
     (contents / "Frameworks").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(prefix / "Python", contents / "Frameworks/Python")
+    shutil.copy2(source / "Frameworks/Python" if reused else prefix / "Python", contents / "Frameworks/Python")
     # Homebrew bin/python is a launcher that follows its original framework.
     # Copy the actual interpreter to make PYTHONHOME and relocation effective.
-    executable = prefix / "Resources/Python.app/Contents/MacOS/Python"
+    executable = source / "MacOS/tigerest-python" if reused else prefix / "Resources/Python.app/Contents/MacOS/Python"
     if not executable.is_file():
         raise RuntimeError("Missing standalone framework Python interpreter")
     shutil.copy2(executable, contents / "MacOS/tigerest-python")
+    if reused:
+        # The reused modules already name their libraries inside the bundle,
+        # so the dependency fixup cannot find them; bring the missing ones along.
+        for binary in [*stdlib.rglob("*.so"), contents / "Frameworks/Python"]:
+            for line in subprocess.check_output(["otool", "-L", str(binary)], text=True).splitlines()[1:]:
+                dependency = line.strip().split(" (compatibility")[0]
+                name = dependency.removeprefix("@executable_path/../Frameworks/")
+                if name != dependency and not (contents / "Frameworks" / name).exists():
+                    shutil.copy2(source / "Frameworks" / name, contents / "Frameworks" / name)
     # Retain VapourSynth's adjacent libraries instead of resolving an older
     # Homebrew installation that may also exist on the build machine.
     for binary in list(package.glob("*.dylib")) + list(package.glob("*.so")):
@@ -76,13 +97,14 @@ def stage_runtime(app: Path, brew: Path, runtime_python: Path | None = None) -> 
         "library": f"../Resources/python/lib/python{version}/site-packages/vapoursynth/libvsscript.dylib",
     }
     (contents / "Resources/vapoursynth-runtime.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    for name, license_file in [("Python", brew / f"opt/python@{version}/LICENSE"),
+    python_license = source / "Resources/licenses/Python/LICENSE" if reused else brew / f"opt/python@{version}/LICENSE"
+    for name, license_file in [("Python", python_license),
                                ("VapourSynth", Path(info['license']) if runtime_python else vs_root / "COPYING.LESSER"),
                                ("zimg", brew / "opt/zimg/COPYING")]:
         destination = contents / "Resources/licenses" / name
         destination.mkdir(parents=True, exist_ok=True)
         shutil.copy2(license_file, destination / license_file.name)
-    print(f"Staged Python {version} and VapourSynth in {app}")
+    print(f"Staged Python {info['pythonVersion'].split()[0]}{' from ' + reused if reused else ''} and VapourSynth in {app}")
 
 
 if __name__ == "__main__":
