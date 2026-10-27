@@ -161,6 +161,7 @@ int main(int argc, char *argv[])
                        {"ignore-certificate-errors", "Ignore certificate errors"}});
     parser.addPositionalArgument("files", "Local video files to play without a media server.", "[files...]");
     QStringList localFiles;
+    QString programDirectory;
 
     auto scaleOption = QCommandLineOption("scale-factor", "Set to a integer or default auto which controls" \
                                                           "the scale (DPI) of the desktop interface.");
@@ -226,12 +227,7 @@ int main(int argc, char *argv[])
       // final QApplication, so they cannot disable that native decoding here.
       parser.process(core.arguments());
       localFiles = LocalMedia::filesFromArguments(parser.positionalArguments(), QDir::currentPath());
-#ifdef Q_OS_WIN
-      // Explorer's "Open with" starts the client in System32, where QtWebEngine
-      // fails a check while it starts. The files are absolute by now; run from
-      // the program's folder, as the shortcut does.
-      QDir::setCurrent(QCoreApplication::applicationDirPath());
-#endif
+      programDirectory = QCoreApplication::applicationDirPath();
 
       // Detect portable mode while QCoreApplication exists (needed for applicationDirPath)
       Paths::detectAndEnablePortableMode();
@@ -285,6 +281,13 @@ int main(int argc, char *argv[])
       Paths::setConfigDir(absPath);
       QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, absPath);
     }
+
+#ifdef Q_OS_WIN
+    // Explorer's "Open with" starts the client in System32, where QtWebEngine
+    // fails a check while it starts. The files and the config directory are
+    // absolute by now; run from the program's folder, as the shortcut does.
+    QDir::setCurrent(programDirectory);
+#endif
 
     // Handle --list-profiles
     if (parser.isSet("list-profiles"))
