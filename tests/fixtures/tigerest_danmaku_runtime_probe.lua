@@ -134,7 +134,7 @@ local function sandbox(integration, mapping)
         env.ENABLED = true
         env.COMMENTS = {{start_time = 0, end_time = 30, move = {1920, 50, -1920, 50},
             text = '{\\move(1920,50,-1920,50)}test'}}
-        for _, name in ipairs({'osd-width', 'osd-height', 'pause', 'display-fps'}) do state.set(name, props[name]) end
+        for _, name in ipairs({'osd-width', 'osd-height', 'pause', 'display-fps', 'video-sync'}) do state.set(name, props[name]) end
         env.show_danmaku_func()
         state.set('time-pos', 10)
     end
@@ -554,10 +554,21 @@ function cases.rife_clock_owner_survives_comment_and_window_transitions()
     s.props['user-data/tigerest/rife-clock-owned'] = true
     s.start_render()
     assert(s.props['video-sync'] == 'audio', 'RIFE audio clock must not be overwritten by danmaku')
+    s.advance(0.05)
     local before = s.overlays[1].updates
     s.advance(1)
-    assert(s.overlays[1].updates - before <= 61, 'Do not submit 240 OSD updates when audio presentation consumes 60')
-    assert(s.overlays[1].updates - before >= 58, 'RIFE comments must keep moving')
+    assert(s.overlays[1].updates == before, 'Audio presentation draws comments only with new video frames')
+    -- A 60 Hz timer against 59.94 fps RIFE output stalled or skipped a step
+    -- every 16.7 s. Each queued frame now carries its own position.
+    local pos, frame = 10, 1001 / 60000
+    for _ = 1, 240 do
+        pos = pos + frame
+        s.set('time-pos', pos)
+        s.advance(frame)
+        local x = tonumber(s.overlays[1].data:match('\\pos%(([%-%d%.]+),'))
+        assert(x and math.abs(x - (1920 - 3840 * pos / 30)) < 0.1, 'Comments must sit at the queued frame position')
+    end
+    assert(s.overlays[1].updates - before == 240, 'Exactly one OSD update per video frame')
     s.set('video-sync', 'display-vdrop') -- An explicit display-clock owner is respected too.
     before = s.overlays[1].updates
     s.advance(1)
