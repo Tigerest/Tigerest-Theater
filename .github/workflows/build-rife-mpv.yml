@@ -17,6 +17,7 @@ on:
       - dev/windows/rife/mpv-private-vs-core.patch
       - dev/windows/rife/mpv-win64-hwdec-pointer.patch
       - dev/windows/rife/mpv-win64-queue-pointer.patch
+      - dev/windows/rife/mpv-win32-precise-flip.patch
       - dev/windows/rife/ngtcp2-static-openssl.patch
       - dev/windows/rife/curl-static-openssl.patch
       - dev/windows/rife/mpv-source-lock.json
@@ -98,9 +99,9 @@ jobs:
         id: media_cache
         with:
           path: build-mpv
-          key: rife-mpv-aug2026-${{ matrix.arch }}-${{ hashFiles('source-lock.json', 'dev/macos/rife/mpv-eof-aware.patch', 'dev/windows/rife/mpv-private-vs-core.patch', 'dev/windows/rife/mpv-win64-hwdec-pointer.patch', 'dev/windows/rife/mpv-win64-queue-pointer.patch', 'dev/windows/rife/ngtcp2-static-openssl.patch', 'dev/windows/rife/curl-static-openssl.patch', 'dev/windows/rife/prepare_mpv_recipe.py') }}
+          key: rife-mpv-aug2026-${{ matrix.arch }}-${{ hashFiles('source-lock.json', 'dev/macos/rife/mpv-eof-aware.patch', 'dev/windows/rife/mpv-private-vs-core.patch', 'dev/windows/rife/mpv-win64-hwdec-pointer.patch', 'dev/windows/rife/mpv-win64-queue-pointer.patch', 'dev/windows/rife/mpv-win32-precise-flip.patch', 'dev/windows/rife/ngtcp2-static-openssl.patch', 'dev/windows/rife/curl-static-openssl.patch', 'dev/windows/rife/prepare_mpv_recipe.py') }}
           restore-keys: |
-            rife-media-${{ matrix.arch }}-${{ hashFiles('source-lock.json', 'dev/macos/rife/mpv-eof-aware.patch', 'dev/windows/rife/mpv-private-vs-core.patch', 'dev/windows/rife/mpv-win64-hwdec-pointer.patch', 'dev/windows/rife/mpv-win64-queue-pointer.patch', 'dev/windows/rife/ngtcp2-static-openssl.patch', 'dev/windows/rife/curl-static-openssl.patch', 'dev/windows/rife/prepare_mpv_recipe.py') }}-
+            rife-media-${{ matrix.arch }}-${{ hashFiles('source-lock.json', 'dev/macos/rife/mpv-eof-aware.patch', 'dev/windows/rife/mpv-private-vs-core.patch', 'dev/windows/rife/mpv-win64-hwdec-pointer.patch', 'dev/windows/rife/mpv-win64-queue-pointer.patch', 'dev/windows/rife/mpv-win32-precise-flip.patch', 'dev/windows/rife/ngtcp2-static-openssl.patch', 'dev/windows/rife/curl-static-openssl.patch', 'dev/windows/rife/prepare_mpv_recipe.py') }}-
             ${{ steps.baseline.outputs.allowed == 'true' && format('rife-mpv-aug2026-{0}-b9e3f0f4395326409d45f220d6c76da6693912d1c7a27b5703ff464c28a1b640', matrix.arch) || 'rife-no-legacy-media-cache' }}
       - name: Build cross compiler
         run: |
@@ -133,7 +134,7 @@ jobs:
         if: failure() && steps.media.outcome == 'failure'
         with:
           path: build-mpv
-          key: rife-media-${{ matrix.arch }}-${{ hashFiles('source-lock.json', 'dev/macos/rife/mpv-eof-aware.patch', 'dev/windows/rife/mpv-private-vs-core.patch', 'dev/windows/rife/mpv-win64-hwdec-pointer.patch', 'dev/windows/rife/mpv-win64-queue-pointer.patch', 'dev/windows/rife/ngtcp2-static-openssl.patch', 'dev/windows/rife/curl-static-openssl.patch', 'dev/windows/rife/prepare_mpv_recipe.py') }}-${{ github.run_id }}
+          key: rife-media-${{ matrix.arch }}-${{ hashFiles('source-lock.json', 'dev/macos/rife/mpv-eof-aware.patch', 'dev/windows/rife/mpv-private-vs-core.patch', 'dev/windows/rife/mpv-win64-hwdec-pointer.patch', 'dev/windows/rife/mpv-win64-queue-pointer.patch', 'dev/windows/rife/mpv-win32-precise-flip.patch', 'dev/windows/rife/ngtcp2-static-openssl.patch', 'dev/windows/rife/curl-static-openssl.patch', 'dev/windows/rife/prepare_mpv_recipe.py') }}-${{ github.run_id }}
       - name: Record build provenance
         if: success()
         run: |
@@ -147,6 +148,7 @@ jobs:
           sha256sum dev/windows/rife/curl-static-openssl.patch >> artifacts/SHA256SUMS.txt
           sha256sum dev/windows/rife/mpv-win64-hwdec-pointer.patch >> artifacts/SHA256SUMS.txt
           sha256sum dev/windows/rife/mpv-win64-queue-pointer.patch >> artifacts/SHA256SUMS.txt
+          sha256sum dev/windows/rife/mpv-win32-precise-flip.patch >> artifacts/SHA256SUMS.txt
           cp recipe/tigerest-luajit-utf8.patch artifacts/
           printf '%s\n' '${{ github.sha }}' > artifacts/host-source-sha.txt
       - uses: actions/upload-artifact@v4

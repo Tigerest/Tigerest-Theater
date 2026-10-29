@@ -29,7 +29,8 @@ def prepare(recipe, lock):
             text = text.replace('${CMAKE_SOURCE_DIR}/tigerest-mpv-private-vs-core.patch',
                                 '${CMAKE_SOURCE_DIR}/tigerest-mpv-private-vs-core.patch '
                                 '${CMAKE_SOURCE_DIR}/tigerest-mpv-win64-hwdec-pointer.patch '
-                                '${CMAKE_SOURCE_DIR}/tigerest-mpv-win64-queue-pointer.patch', 1)
+                                '${CMAKE_SOURCE_DIR}/tigerest-mpv-win64-queue-pointer.patch '
+                                '${CMAKE_SOURCE_DIR}/tigerest-mpv-win32-precise-flip.patch', 1)
         if relative == 'packages/ngtcp2.cmake':
             text = text.replace('    UPDATE_COMMAND ""',
                                 '    PATCH_COMMAND git apply ${CMAKE_SOURCE_DIR}/tigerest-ngtcp2-static-openssl.patch\n'
@@ -50,6 +51,7 @@ def prepare(recipe, lock):
     shutil.copyfile(HERE / 'mpv-private-vs-core.patch', recipe / 'tigerest-mpv-private-vs-core.patch')
     shutil.copyfile(HERE / 'mpv-win64-hwdec-pointer.patch', recipe / 'tigerest-mpv-win64-hwdec-pointer.patch')
     shutil.copyfile(HERE / 'mpv-win64-queue-pointer.patch', recipe / 'tigerest-mpv-win64-queue-pointer.patch')
+    shutil.copyfile(HERE / 'mpv-win32-precise-flip.patch', recipe / 'tigerest-mpv-win32-precise-flip.patch')
     shutil.copyfile(HERE / 'ngtcp2-static-openssl.patch', recipe / 'tigerest-ngtcp2-static-openssl.patch')
     shutil.copyfile(HERE / 'curl-static-openssl.patch', recipe / 'tigerest-curl-static-openssl.patch')
     # The recipe's UTF-8 patch uses a context line from a newer LuaJIT tree.
@@ -111,7 +113,7 @@ def verify_media_baseline(recipe, lock, baseline):
         text = text.replace('        set(reset "")', '        set(reset "${git_tag}")', 1)
         cleanup.write_text(text, encoding='utf-8')
         allowed = {'packages/mpv.cmake', 'tigerest-mpv-win64-hwdec-pointer.patch',
-                   'tigerest-mpv-win64-queue-pointer.patch'}
+                   'tigerest-mpv-win64-queue-pointer.patch', 'tigerest-mpv-win32-precise-flip.patch'}
         names = {path.relative_to(tree) for tree in (previous, current) for path in tree.rglob('*') if path.is_file()}
         for name in names:
             if name.as_posix() in allowed:

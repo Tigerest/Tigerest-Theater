@@ -13,6 +13,7 @@ EOF_PATCH = Path(__file__).resolve().parents[2] / "macos/rife/mpv-eof-aware.patc
 PRIVATE_CORE_PATCH = Path(__file__).with_name('mpv-private-vs-core.patch')
 HWDEC_PATCH = Path(__file__).with_name('mpv-win64-hwdec-pointer.patch')
 QUEUE_PATCH = Path(__file__).with_name('mpv-win64-queue-pointer.patch')
+FLIP_PATCH = Path(__file__).with_name('mpv-win32-precise-flip.patch')
 
 
 def check_source(source):
@@ -26,11 +27,12 @@ def check_source(source):
             return result
         subprocess.run(["git", "-C", str(source), "diff", "--exit-code", "HEAD"],
                        check=True, capture_output=True)
-        subprocess.run(["git", "-C", str(source), "apply", "--check", str(EOF_PATCH), str(PRIVATE_CORE_PATCH), str(HWDEC_PATCH), str(QUEUE_PATCH)],
+        subprocess.run(["git", "-C", str(source), "apply", "--check", str(EOF_PATCH), str(PRIVATE_CORE_PATCH), str(HWDEC_PATCH), str(QUEUE_PATCH), str(FLIP_PATCH)],
                        check=True, capture_output=True)
         result.update(ok=True, eofPatchApplicable=True, privateCorePatchApplicable=True,
                       hwdecPatchApplicable=True, hwdecPatchSha256=hashlib.sha256(HWDEC_PATCH.read_bytes()).hexdigest(),
                       queuePatchApplicable=True, queuePatchSha256=hashlib.sha256(QUEUE_PATCH.read_bytes()).hexdigest(),
+                      flipPatchApplicable=True, flipPatchSha256=hashlib.sha256(FLIP_PATCH.read_bytes()).hexdigest(),
                       privateCorePatchSha256=hashlib.sha256(PRIVATE_CORE_PATCH.read_bytes()).hexdigest(),
                       eofPatchSha256=hashlib.sha256(EOF_PATCH.read_bytes()).hexdigest())
     except subprocess.CalledProcessError as error:
