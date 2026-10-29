@@ -29,7 +29,7 @@ public:
         for(const auto& key:{"video-params","video-frame-info","container-fps",
                              "seeking","paused-for-cache","frame-drop-count",
                              "decoder-frame-drop-count","playback-time","duration",
-                             "avsync","display-fps",
+                             "avsync","display-fps","mistimed-frame-count",
                              "video-out-params","current-vo","hwdec-current"})
             observed.remove(QString::fromLatin1(key));
     }

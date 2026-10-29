@@ -293,6 +293,72 @@ int main(int argc,char**argv) {
     releaseSettings.drain(releaseSettingsController);
     assert(releaseSettings.props["video-sync"]=="display-resample-vdrop"&&!releaseSettings.props[asyncMarker].toBool());
     releaseSettingsController.stopOnEndFile();assert(releaseSettings.pending.isEmpty());
+    // Presentation switches use the same serialized clock transaction.
+    AsyncClockFake screenClock;screenClock.props["video-sync"]="display-resample";
+    FrameInterpolationController screenClockController(screenClock.access(),windowsPaths);
+    screenClockController.setFullScreen(true);
+    screenClockController.beginItem(true,false);screenClockController.onFormatChanged(source);
+    assert(screenClock.pending.isEmpty()&&screenClock.adds==1); // Fullscreen attaches without a clock transaction.
+    screenClockController.setFullScreen(false);
+    assert(screenClock.pending.first().key==asyncMarker&&screenClock.pending.first().value.toBool());
+    screenClock.drain(screenClockController);
+    assert(screenClock.props["video-sync"]=="audio"&&screenClock.props[asyncMarker].toBool());
+    assert(screenClockController.diagnostics()["ownsVideoSync"].toBool());
+    screenClockController.setFullScreen(true);screenClock.drain(screenClockController);
+    assert(screenClock.props["video-sync"]=="display-resample"&&!screenClock.props[asyncMarker].toBool());
+    assert(!screenClockController.diagnostics()["ownsVideoSync"].toBool());
+    screenClockController.setFullScreen(false);screenClockController.setFullScreen(true);
+    for(int i=0;!screenClock.pending.isEmpty();++i){
+        assert(i<20);const auto request=screenClock.complete(screenClockController);
+        assert(request.read||request.key!="video-sync"); // Returning before the acquisition completes never writes audio.
+    }
+    assert(screenClock.props["video-sync"]=="display-resample"&&!screenClock.props[asyncMarker].toBool());
+    screenClockController.setFullScreen(false);screenClock.drain(screenClockController);
+    screenClockController.setFullScreen(true);
+    screenClock.complete(screenClockController);screenClock.complete(screenClockController); // Read, then restore.
+    assert(screenClock.pending.first().key==asyncMarker&&!screenClock.pending.first().value.toBool());
+    screenClockController.setFullScreen(false); // A windowed switch during the release takes the clock again.
+    screenClock.drain(screenClockController);
+    assert(screenClock.props["video-sync"]=="audio"&&screenClock.props[asyncMarker].toBool());
+    assert(screenClockController.diagnostics()["ownsVideoSync"].toBool());
+    screenClockController.setFullScreen(true);screenClockController.setFullScreen(false); // Back before the restore.
+    screenClock.drain(screenClockController);
+    assert(screenClock.props["video-sync"]=="audio"&&screenClock.props[asyncMarker].toBool());
+    screenClock.props["video-sync"]="display-resample"; // IPC takes the windowed clock.
+    screenClockController.onVideoSyncChanged("display-resample");screenClock.drain(screenClockController);
+    screenClockController.setFullScreen(true);screenClockController.setFullScreen(false);
+    assert(screenClock.pending.isEmpty()); // No switch reclaims it within this item.
+    assert(screenClock.props["video-sync"]=="display-resample"&&!screenClock.props[asyncMarker].toBool());
+    screenClockController.stopOnEndFile();assert(screenClock.pending.isEmpty());
+    struct Presentation {uint64_t mistimed=0,drops=0,epoch=1;};
+    // Polls every 250 ms like PlayerComponent: 24 interpolated pairs per second,
+    // plus 4 mistimed and 8 dropped frames per second where requested.
+    const auto play=[](FrameInterpolationController& controller,Presentation& shown,int64_t from,int64_t to,
+                       bool mistiming,bool dropping){
+        Metrics metrics;metrics.epoch=shown.epoch;metrics.timingAvailable=false;
+        for(int64_t now=from;now<to;now+=250){
+            metrics.pairs=metrics.predictions=40+uint64_t(now)*24/1000;
+            if(mistiming)++shown.mistimed;
+            if(dropping)shown.drops+=2;
+            controller.onMetrics(controller.generation(),metrics,now,false,shown.drops,0.,0,shown.mistimed);
+        }
+    };
+    // When DWM composes fullscreen video, the fallback takes the clock through
+    // the same ordered transaction and keeps it for the rest of the item.
+    AsyncClockFake composedClock;composedClock.props["video-sync"]="display-resample";
+    FrameInterpolationController composedClockController(composedClock.access(),windowsPaths);
+    composedClockController.setFullScreen(true);
+    composedClockController.beginItem(true,false);composedClockController.onFormatChanged(source);
+    Presentation clockShown;
+    play(composedClockController,clockShown,0,11250,true,false);
+    assert(composedClock.pending.first().key==asyncMarker&&composedClock.pending.first().value.toBool());
+    composedClock.drain(composedClockController);
+    assert(composedClock.props["video-sync"]=="audio"&&composedClock.props[asyncMarker].toBool());
+    composedClockController.setFullScreen(false);composedClockController.setFullScreen(true);
+    composedClock.drain(composedClockController);
+    assert(composedClock.props["video-sync"]=="audio"&&composedClock.props[asyncMarker].toBool());
+    composedClockController.stopOnEndFile();composedClock.drain(composedClockController);
+    assert(composedClock.props["video-sync"]=="display-resample"&&!composedClock.props[asyncMarker].toBool());
     Fake fallback;MpvPollAccess fallbackAccess(fallback.access());
     const auto fallbackInterface=fallbackAccess.interface();
     assert(!fallbackInterface.asyncPropertyReplies);
@@ -391,6 +457,102 @@ int main(int argc,char**argv) {
     assert(markerFailure.adds==0&&markerFailureController.state()==State::DisabledForCurrentItem);
     assert(markerFailure.props["video-sync"]=="display-resample"&&!markerFailure.props[clockMarker].toBool());
     assert(!windowsFail.props[clockMarker].toBool()&&!rejected.props[clockMarker].toBool());
+    // Fullscreen presents directly and keeps display-resample; only windowed
+    // composition needs audio pacing. Each switch hands the clock over in order.
+    Fake screen;screen.props["video-sync"]="display-resample";
+    FrameInterpolationController screenController(screen.access(),windowsPaths);
+    screenController.setFullScreen(true);
+    screenController.beginItem(true,false);screenController.onFormatChanged(source);
+    assert(screen.adds==1&&screenController.diagnostics()["fullScreen"].toBool());
+    for(const auto& write:screen.writes)assert(write.first!="video-sync"&&write.first!=clockMarker);
+    screenController.setFullScreen(false);
+    assert(screen.props["video-sync"]=="audio"&&screenController.diagnostics()["ownsVideoSync"].toBool());
+    assert(screen.writes[screen.writes.size()-2].first==clockMarker&&screen.writes.last().second=="audio");
+    screenController.onVideoSyncChanged("audio");
+    screenController.setFullScreen(true);
+    assert(screen.props["video-sync"]=="display-resample"&&!screen.props[clockMarker].toBool());
+    assert(screen.writes[screen.writes.size()-2].second=="display-resample"&&screen.writes.last().first==clockMarker);
+    screenController.onVideoSyncChanged("display-resample");
+    screenController.configureVideoSync("display-resample"); // Settings refresh keeps fullscreen's clock.
+    assert(screen.props["video-sync"]=="display-resample"&&!screen.props[clockMarker].toBool());
+    screenController.configureVideoSync("audio"); // An explicit audio choice never takes the marker.
+    screenController.setFullScreen(false);screenController.setFullScreen(true);
+    assert(screen.props["video-sync"]=="audio"&&!screen.props[clockMarker].toBool());
+    screenController.configureVideoSync("display-resample");
+    screenController.setFullScreen(false);screenController.onVideoSyncChanged("audio");
+    screen.props["video-sync"]="display-resample"; // An external writer takes the windowed clock.
+    screenController.onVideoSyncChanged("display-resample");
+    screenController.setFullScreen(true);screenController.setFullScreen(false);
+    assert(screen.props["video-sync"]=="display-resample"&&!screen.props[clockMarker].toBool());
+    screenController.beginItem(true,false);screenController.onFormatChanged(source); // The next item applies the policy again.
+    assert(screen.adds==2&&screen.props["video-sync"]=="audio"&&screen.props[clockMarker].toBool());
+    screenController.stop();assert(screen.props["video-sync"]=="display-resample");
+    // DWM can still compose fullscreen video. Frames mistimed through four
+    // windows move the rest of the item to audio pacing, without a warning.
+    Fake composed;composed.props["video-sync"]="display-resample";
+    FrameInterpolationController composedController(composed.access(),windowsPaths);
+    composedController.setFullScreen(true);
+    composedController.beginItem(true,false);composedController.onFormatChanged(source);
+    Presentation composedShown;
+    play(composedController,composedShown,0,11000,true,true);
+    assert(composed.props["video-sync"]=="display-resample"&&!composedController.diagnostics()["displaySyncFallback"].toBool());
+    play(composedController,composedShown,11000,11250,true,true); // The fourth window ends.
+    assert(composed.props["video-sync"]=="audio"&&composed.props[clockMarker].toBool());
+    assert(composed.writes[composed.writes.size()-2].first==clockMarker&&composed.writes.last().second=="audio");
+    assert(composedController.diagnostics()["displaySyncFallback"].toBool());
+    composedController.onVideoSyncChanged("audio");
+    play(composedController,composedShown,11250,27000,false,false); // Drops from before the fallback never warn.
+    assert(composed.notices==0&&!composedController.diagnostics()["performanceWarning"].toBool());
+    composedController.setFullScreen(false);composedController.setFullScreen(true);composedController.onSeek();
+    assert(composed.props["video-sync"]=="audio"&&composed.props[clockMarker].toBool());
+    composedController.beginItem(true,false);composedController.onFormatChanged(source); // The next item tries again.
+    assert(composed.props["video-sync"]=="display-resample"&&!composed.props[clockMarker].toBool());
+    assert(!composedController.diagnostics()["displaySyncFallback"].toBool());
+    // A stall's burst spans at most two windows.
+    Presentation burstShown;
+    play(composedController,burstShown,0,6500,false,false);
+    play(composedController,burstShown,6500,7500,true,false); // Straddles a window edge.
+    play(composedController,burstShown,7500,20000,false,false);
+    assert(composed.props["video-sync"]=="display-resample");
+    // Three windows of mistimed frames, then an interruption: the warmup and
+    // all four windows must pass again before the fallback.
+    const auto interrupted=[&](const std::function<void(Presentation&)>& interrupt){
+        composedController.beginItem(true,false);composedController.onFormatChanged(source);
+        Presentation shown;
+        play(composedController,shown,0,9250,true,false);
+        interrupt(shown);
+        play(composedController,shown,9500,20500,true,false);
+        assert(composed.props["video-sync"]=="display-resample");
+        play(composedController,shown,20500,20750,true,false);
+        assert(composed.props["video-sync"]=="audio");
+    };
+    interrupted([&](Presentation&){composedController.onSeek();});
+    interrupted([&](Presentation&){composedController.setFullScreen(false);composedController.setFullScreen(true);});
+    interrupted([](Presentation& shown){shown.epoch=2;}); // The graph rebuilt before SEEK arrived.
+    interrupted([&](Presentation& shown){
+        Metrics held;held.epoch=shown.epoch;held.pairs=held.predictions=262;
+        composedController.onMetrics(composedController.generation(),held,9250,true,shown.drops,0.,0,shown.mistimed);
+    });
+    // Drops that trip the guard first get the same fallback. If they continue
+    // under audio pacing, the guard warns as before.
+    composedController.beginItem(true,false);composedController.onFormatChanged(source);
+    Presentation dropShown;
+    play(composedController,dropShown,0,15250,false,true);
+    assert(composed.props["video-sync"]=="audio"&&composed.notices==0);
+    composedController.onVideoSyncChanged("audio");
+    play(composedController,dropShown,15250,31000,false,true);
+    assert(composed.notices==1&&composedController.diagnostics()["performanceWarning"].toBool());
+    assert(composedController.state()==State::Active&&composedController.ownsFilter());
+    // A clock an external writer took during the item is never replaced.
+    composedController.beginItem(true,false);composedController.onFormatChanged(source);
+    composedController.setFullScreen(false);composedController.onVideoSyncChanged("audio");
+    composed.props["video-sync"]="display-resample";composedController.onVideoSyncChanged("display-resample");
+    composedController.setFullScreen(true);
+    Presentation takenShown;
+    play(composedController,takenShown,0,20000,true,false);
+    assert(composed.props["video-sync"]=="display-resample"&&!composed.props[clockMarker].toBool());
+    assert(!composedController.diagnostics()["displaySyncFallback"].toBool());
+    composedController.stop();
     Fake timed;
     MpvPollAccess timedAccess(timed.access());
     FrameInterpolationController timedController(timedAccess.interface(),paths);

@@ -493,6 +493,7 @@ void PlayerComponent::initializeMpv()
   mpv_observe_property(m_mpv->mpv(), 0, "avsync", MPV_FORMAT_DOUBLE);
   mpv_observe_property(m_mpv->mpv(), 0, "display-fps", MPV_FORMAT_DOUBLE);
   mpv_observe_property(m_mpv->mpv(), 0, "speed", MPV_FORMAT_DOUBLE);
+  mpv_observe_property(m_mpv->mpv(), 0, "mistimed-frame-count", MPV_FORMAT_INT64);
 #endif
   m_rifeAccess=std::make_unique<rife::MpvPollAccess>(rife::MpvAccess{
     [this](const QString& key){return m_mpv->getProperty(key);},
@@ -513,6 +514,9 @@ void PlayerComponent::initializeMpv()
   m_rife=std::make_unique<rife::FrameInterpolationController>(
       m_rifeAccess->interface(),m_windowsRifeRuntime->pathsFor({}));
   m_windowsRifePlayback=std::make_unique<rife::RifePlaybackCoordinator>(*m_windowsRifeRuntime,*m_rife);
+  // Windowed and fullscreen presentation pace TensorRT playback differently.
+  connect(&WindowManager::Get(),&WindowManager::fullScreenSwitched,this,
+          &PlayerComponent::updateInterpolationPresentation,Qt::UniqueConnection);
 #else
   m_rife=std::make_unique<rife::FrameInterpolationController>(
       m_rifeAccess->interface(),rife::bundledRuntimePaths());
@@ -1127,6 +1131,12 @@ void PlayerComponent::updatePlaybackState()
       newState=State::buffering;
     else
 #endif
+#ifdef Q_OS_WIN
+    // Resuming: mpv is held while the interpolation graph refills.
+    if(m_rifeResumePrime.pending())
+      newState=State::buffering;
+    else
+#endif
     if (m_paused)
     {
       newState = State::paused;
@@ -1318,6 +1328,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       if(recoverWindowsRifeError(*static_cast<mpv_event_end_file*>(event->data)))break;
       if(m_windowsRifePlayback)m_windowsRifePlayback->endItem();
       m_rifeStartup.cancel();publishInterpolationPause();
+      m_rifeResumePrime.cancel();
 #endif
 #ifdef Q_OS_MAC
       if(m_rife)m_rife->stopOnEndFile();
@@ -1409,7 +1420,8 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
             "cscale","dscale","tscale","interpolation","deband",
             "scripts","load-scripts","video-out-params","aid","sid",
             "audio-params","audio-device","audio-device-list","current-ao","gpu-api",
-            "vo","fullscreen","playback-time","duration","avsync","speed","display-fps","video-sync"};
+            "vo","fullscreen","playback-time","duration","avsync","speed","display-fps","video-sync",
+            "mistimed-frame-count"};
         if(watched.contains(prop->name)) {
           QVariant value;
           switch(prop->format) {
@@ -1437,7 +1449,11 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
 #endif
       if (strcmp(prop->name, "pause") == 0 && prop->format == MPV_FORMAT_FLAG)
       {
+        const bool wasPaused = m_paused;
         m_paused = !!*static_cast<int*>(prop->data);
+#ifdef Q_OS_WIN
+        if (m_paused != wasPaused) onInterpolationPauseChanged();
+#endif
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
         if(!m_paused&&m_rifeStartup.waiting()&&
             (!m_rifeResumeRequest||m_rifeResumeGeneration!=m_rifeStartup.generation())) {
@@ -1753,6 +1769,9 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
 #else
       m_nativeVideoReady = m_inPlayback;
 #endif
+#ifdef Q_OS_WIN
+      releaseInterpolationResumePrime();
+#endif
       break;
 #ifdef Q_OS_MAC
     case MPV_EVENT_IDLE:
@@ -1839,6 +1858,11 @@ void PlayerComponent::publishInterpolationPause()
 void PlayerComponent::finishInterpolationStartup()
 {
   if(!m_rifeStartup.waiting())return;
+#ifdef Q_OS_WIN
+  // The startup hold kept the graph busy; only a later user pause can idle it.
+  const qint64 now=m_rifeClock.isValid()?m_rifeClock.elapsed():0;
+  m_rifeResumePrime.cancel(m_rifeStartup.waitingToPlay()?-1:now);
+#endif
   if(!m_rifeStartup.waitingToPlay()){
     m_rifeStartup.finish();publishInterpolationPause();return;
   }
@@ -1864,6 +1888,34 @@ void PlayerComponent::failInterpolationResume()
   else if(m_mpv)m_mpv->commandAsync({"stop"});
   m_playbackError=QStringLiteral("补帧准备完成，但播放器恢复播放失败，请重新播放");
   m_inPlayback=false;updatePlaybackState();
+}
+#endif
+#ifdef Q_OS_WIN
+void PlayerComponent::onInterpolationPauseChanged()
+{
+  const qint64 now=m_rifeClock.isValid()?m_rifeClock.elapsed():0;
+  if(m_paused){m_rifeResumePrime.paused(now);return;}
+  // Every resume passes here, including mpv's own SPACE binding.
+  const bool eligible=m_inPlayback&&m_rife&&m_rifeAccess&&m_rife->state()==rife::State::Active&&
+      !m_rifeStartup.waiting()&&!m_rifeResumeRequest;
+  if(!m_rifeResumePrime.resumed(now,eligible))return;
+  qInfo() << "Resuming interpolation after a long pause: refilling the graph first";
+  const auto mpv=m_rifeAccess->interface();
+  mpv.setAsync("pause",true);
+  mpv.commandAsync({"no-osd","seek","0","relative+exact"});
+}
+void PlayerComponent::updateInterpolationPresentation()
+{
+  if(m_shuttingDown||!m_rife||!m_rifeAccess)return;
+  // The window is changing state; queue mpv writes instead of waiting on them.
+  auto polling=m_rifeAccess->enterPolling();
+  m_rife->setFullScreen(WindowManager::Get().isFullScreen());
+}
+void PlayerComponent::releaseInterpolationResumePrime()
+{
+  if(!m_rifeResumePrime.ready(m_rifeClock.isValid()?m_rifeClock.elapsed():0))return;
+  if(m_rifeAccess)m_rifeAccess->interface().setAsync("pause",false);
+  else if(m_mpv)m_mpv->setPropertyAsync("pause",false);
 }
 #endif
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
@@ -1899,12 +1951,17 @@ void PlayerComponent::beginInterpolationItem()
       SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO,"aiRifeTarget").toInt());
   if(m_windowsRifePlayback)m_windowsRifePlayback->beginItem(enabled,false,
       m_mpv->getProperty("speed").toDouble());
+  // A window restored as fullscreen at startup emits no switch.
+  m_rife->setFullScreen(WindowManager::Get().isFullScreen());
   if(m_windowsRifeReloaded)m_rife->bypassCurrentItem("filter-error");
 #else
   m_rife->beginItem(enabled,false);
 #endif
   const bool prepare=m_rife->state()==rife::State::Preparing&&
       m_mpv->getProperty("vid").toString()!="no";
+#ifdef Q_OS_WIN
+  m_rifeResumePrime.cancel();
+#endif
   m_rifeStartup.begin(prepare,m_mpv->getProperty("pause").toBool(),m_rifeClock.elapsed());
   if(prepare&&m_mpv->setProperty("pause",true)<0)m_rifeStartup.cancel();
   publishInterpolationPause();
@@ -1914,6 +1971,12 @@ void PlayerComponent::pollInterpolation()
   if(m_rife)m_rife->serviceClock();
   checkInterpolationResume(m_rifeClock.isValid()?m_rifeClock.elapsed():0);
 #ifdef Q_OS_WIN
+  if(m_rifeResumePrime.expired(m_rifeClock.elapsed())){
+    // The seek never restarted playback: play without the prime. A release
+    // whose edge never arrived leaves mpv's pause state as it is.
+    if(m_rifeResumePrime.priming())releaseInterpolationResumePrime();
+    else{m_rifeResumePrime.cancel(m_paused?m_rifeClock.elapsed():-1);updatePlaybackState();}
+  }
   m_rifeStartup.setEnginePreparing(m_windowsRifePlayback&&m_windowsRifePlayback->preparingEngine(),m_rifeClock.elapsed());
   updateInterpolationPreparationOverlay();
 #endif
@@ -2302,6 +2365,13 @@ void PlayerComponent::pause()
   m_rifeResumeRequest=0;
   m_rifeStartup.requestPause(true);
   publishInterpolationPause();
+#ifdef Q_OS_WIN
+  if(m_rifeResumePrime.pending()){
+    // mpv is still held for the prime; the pause starts now.
+    m_rifeResumePrime.cancel(m_rifeClock.elapsed());
+    updatePlaybackState();
+  }
+#endif
   if(m_rifeStartup.waiting()) {
     if(m_rifeAccess)m_rifeAccess->interface().setAsync("pause",true);
     else if(m_mpv)m_mpv->setPropertyAsync("pause",true);
