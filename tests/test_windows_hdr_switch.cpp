@@ -5,6 +5,8 @@
 
 #include <windows.h>
 
+#include <cmath>
+
 #include "display/win/WindowsHdr.h"
 
 class TestWindowsHdrSwitch : public QObject
@@ -133,6 +135,22 @@ private Q_SLOTS:
     const auto display = WindowsHdr::forWindow(reinterpret_cast<quintptr>(GetDesktopWindow()));
     QVERIFY2(!display.devicePath.isEmpty(), "no display path for the primary monitor");
     QCOMPARE(WindowsHdr::byDevicePath(display.devicePath).devicePath, display.devicePath);
+  }
+
+  void systemQueryReportsTheExactRefreshRate()
+  {
+    // The rational rate refines DEVMODE's whole hertz (59 or 60 for 59.94).
+    const HWND desktop = GetDesktopWindow();
+    MONITORINFOEXW monitor{};
+    monitor.cbSize = sizeof(monitor);
+    QVERIFY(GetMonitorInfoW(MonitorFromWindow(desktop, MONITOR_DEFAULTTOPRIMARY), &monitor));
+    DEVMODEW mode{};
+    mode.dmSize = sizeof(mode);
+    QVERIFY(EnumDisplaySettingsW(monitor.szDevice, ENUM_CURRENT_SETTINGS, &mode));
+    const double exact = WindowsHdr::forWindow(reinterpret_cast<quintptr>(desktop)).refreshRate;
+    QVERIFY2(exact > 0, "no rational refresh rate for the primary monitor");
+    QVERIFY2(std::abs(exact - mode.dmDisplayFrequency) < 1,
+             qPrintable(QString("%1 Hz vs DEVMODE %2 Hz").arg(exact).arg(mode.dmDisplayFrequency)));
   }
 };
 

@@ -50,6 +50,9 @@ WindowsHdr::Display describe(const DISPLAYCONFIG_PATH_INFO& path)
     return display;
   display.devicePath = QString::fromWCharArray(name.monitorDevicePath);
   display.name = QString::fromWCharArray(name.monitorFriendlyDeviceName);
+  const DISPLAYCONFIG_RATIONAL rate = path.targetInfo.refreshRate;
+  if (rate.Denominator)
+    display.refreshRate = double(rate.Numerator) / rate.Denominator;
   auto color = request<DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO>(DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO,
                                                               path.targetInfo.adapterId, path.targetInfo.id);
   if (DisplayConfigGetDeviceInfo(&color.header) == ERROR_SUCCESS)

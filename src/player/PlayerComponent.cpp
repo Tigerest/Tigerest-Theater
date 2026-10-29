@@ -3129,6 +3129,16 @@ void PlayerComponent::setVideoConfiguration()
 
 #ifndef TARGET_RPI
   double displayFps = DisplayComponent::Get().currentRefreshRate();
+#ifdef Q_OS_WIN
+  // DEVMODE has whole hertz only (59 for 59.94, 60 for 59.997). Until mpv
+  // trusts its own vsync estimate, display-resample bends audio by that error.
+  if (m_window)
+  {
+    const double exact = WindowsHdr::forWindow(m_window->winId()).refreshRate;
+    if (exact > 0 && std::abs(exact - displayFps) < 1)
+      displayFps = exact;
+  }
+#endif
   m_mpv->setProperty( "display-fps-override", displayFps);
 #endif
 

@@ -5,8 +5,8 @@
 
 #include <functional>
 
-// Windows HDR ("Use HDR") state of the display that shows a window, through
-// the DisplayConfig API. Displays are identified by their monitor device path,
+// Windows HDR ("Use HDR") state and exact refresh rate of the display that
+// shows a window, through the DisplayConfig API. Displays are identified by their monitor device path,
 // which, unlike \\.\DISPLAYn, survives reboots and reconnects.
 namespace WindowsHdr
 {
@@ -16,6 +16,8 @@ namespace WindowsHdr
     QString name;
     bool supported = false;
     bool enabled = false;
+    // Exact rational rate (e.g. 59.997 or 119.88); DEVMODE only has whole hertz.
+    double refreshRate = 0;
   };
 
   // The display under the largest part of the window; empty path if unknown.
