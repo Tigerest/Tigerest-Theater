@@ -27,6 +27,7 @@ const routes = {'/': {type: 'text/html', body: html}, '/find-webclient.html': {t
     '/serverHistory.js': {path: native('serverHistory.js')}, '/find-webclient.lang.js': {path: native('find-webclient.lang.js')},
     '/find-webclient.js': {path: native('find-webclient.js')}, '/logo.png': {type: 'image/png', path: native('logo.png')}};
 withBrowser(routes, async ({evaluate, call}) => {
+    await call('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'no-preference'}]});
     const settle = () => evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
     for (const [width, height] of [[390, 844], [600, 900], [847, 948], [948, 847], [1280, 800]]) {
         await call('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: 1, mobile: width < 900});

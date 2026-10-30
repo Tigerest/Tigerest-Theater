@@ -2,6 +2,11 @@ name: build-macos
 
 on:
   workflow_call:
+    inputs:
+      architecture:
+        description: arm64, x86_64 or all
+        type: string
+        default: all
   workflow_dispatch:
     inputs:
       apple_silicon_only:
@@ -18,8 +23,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.apple_silicon_only && '[{"runner":"macos-26","artifact":"macos-arm64"}]' || '[{"runner":"macos-26","artifact":"macos-arm64"},{"runner":"macos-26-intel","artifact":"macos-x86_64"}]') }}
+        # One package per minimum macOS (target):
+        # - macos-arm64, the release candidate: macOS 26+, built like the
+        #   release with Xcode 27. macOS 27 treats a main executable linked
+        #   with SDK 26.x as an older app, and its playback falls behind.
+        # - macos15-arm64: macOS 15+, SDK 26.2 (no Xcode 27 runs on macOS 15).
+        #   Not a release candidate until it is validated on macOS 15.
+        # - macos-x86_64: manual runs only.
+        # Bundled Homebrew libraries carry the macOS their bottles were built
+        # for as their minimum, so each package pours its target's bottles;
+        # bottles names the macOS to pour for when the runner's is newer.
+        include: >-
+          ${{ fromJSON(
+          inputs.architecture == 'x86_64' && '[{"runner":"macos-15-intel","artifact":"macos-x86_64","dmg":"x86_64","target":"15.0","sdk":"26.2","bottles":""}]'
+          || inputs.apple_silicon_only && '[{"runner":"xcode-27","artifact":"macos-arm64","dmg":"arm64","target":"26.0","sdk":"27.2","bottles":"26.0"}]'
+          || inputs.architecture == 'arm64' && '[{"runner":"xcode-27","artifact":"macos-arm64","dmg":"arm64","target":"26.0","sdk":"27.2","bottles":"26.0"},{"runner":"macos-15","artifact":"macos15-arm64","dmg":"macos15-arm64","target":"15.0","sdk":"26.2","bottles":""}]'
+          || '[{"runner":"xcode-27","artifact":"macos-arm64","dmg":"arm64","target":"26.0","sdk":"27.2","bottles":"26.0"},{"runner":"macos-15","artifact":"macos15-arm64","dmg":"macos15-arm64","target":"15.0","sdk":"26.2","bottles":""},{"runner":"macos-15-intel","artifact":"macos-x86_64","dmg":"x86_64","target":"15.0","sdk":"26.2","bottles":""}]') }}
     runs-on: ${{ matrix.runner }}
+    env:
+      MACOS_DEPLOYMENT_TARGET: ${{ matrix.target }}
+      MACOS_SDK: ${{ matrix.sdk }}
+      # The display-link WebEngine (dev/macos/qt/README.md) is built by hand;
+      # releases copy it from the previous release bundle, and so does CI.
+      # It is arm64 only and built for macOS 12.0.
+      WEBENGINE_SOURCE_REPO: Tigerest/Tigerest-Theater
+      WEBENGINE_SOURCE_TAG: v2.9.4
+      WEBENGINE_SOURCE_DMG: TigerestTheater-2.9.4-arm64.dmg
+      WEBENGINE_SOURCE_SHA256: 461a28e676ee58f69ec144b1aa14ab9e9e12576a521f28ad7854e541d6efde03
     steps:
     - uses: actions/checkout@v7
       with:
@@ -34,9 +64,41 @@ jobs:
         arch: clang_64
         modules: 'qtwebengine qtwebchannel qtpositioning'
     - name: Install dependencies
+      env:
+        BOTTLES_MACOS: ${{ matrix.bottles }}
       run: |
-        brew update
-        brew install mpv molten-vk vapoursynth python@3.13 ninja
+        formulae=(mpv molten-vk vapoursynth python@3.13)
+        if [ -n "$BOTTLES_MACOS" ]; then
+          # The runner's macOS is newer than the target. HOMEBREW_FAKE_MACOS
+          # makes Homebrew pour bottles for the target instead; the image's
+          # preinstalled formulae were poured for its own macOS, so pour the
+          # whole dependency closure again. tests/test_macos_bundle.py checks
+          # every bundled library against the target.
+          export HOMEBREW_FAKE_MACOS="$BOTTLES_MACOS"
+          brew update
+          brew install "${formulae[@]}" ninja
+          # shellcheck disable=SC2046
+          brew reinstall $(brew deps --union "${formulae[@]}") "${formulae[@]}"
+        else
+          brew update
+          brew install "${formulae[@]}" ninja
+        fi
+    - name: Select Xcode for the macOS ${{ matrix.sdk }} SDK
+      run: |
+        # The SDK our code links against (app, mpv, RIFE engine and model)
+        # decides which OS behaviours apply, while MACOS_DEPLOYMENT_TARGET
+        # sets where the app runs. Pick the Xcode whose macOS SDK is exactly
+        # the pinned one, betas included, and fail if the runner has none.
+        xcode=""
+        for app in /Applications/Xcode*.app; do
+          settings="$app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/SDKSettings.plist"
+          sdk=$(plutil -extract Version raw "$settings" 2>/dev/null) || continue
+          if [ "$sdk" = "$MACOS_SDK" ]; then xcode=$app; fi
+        done
+        if [ -z "$xcode" ]; then echo "No Xcode with the macOS $MACOS_SDK SDK on this runner" >&2; exit 1; fi
+        sudo xcode-select -s "$xcode"
+        xcodebuild -version
+        test "$(xcrun --sdk macosx --show-sdk-version)" = "$MACOS_SDK"
     - name: Build pinned playback runtime and RIFE model
       run: |
         "$(brew --prefix python@3.13)/bin/python3.13" -m venv build/rife/venv
@@ -56,14 +118,15 @@ jobs:
         fi
         build/rife/venv/bin/python dev/macos/rife/build_mpv.py \
           --output build/rife/playback --meson "$PWD/build/rife/venv/bin/meson" \
-          --vapoursynth-python "$PWD/build/rife/venv/bin/python"
+          --vapoursynth-python "$PWD/build/rife/venv/bin/python" \
+          --deployment-target "$MACOS_DEPLOYMENT_TARGET"
     - name: Release build
       run: |
         cmake -B build -G Ninja \
           -DQTROOT=$QT_ROOT_DIR \
           -DCMAKE_PREFIX_PATH=$QT_ROOT_DIR \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
+          -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET" \
           -DCMAKE_INSTALL_PREFIX=build/output \
           -DCHECK_FOR_UPDATES=ON \
           -DUSE_STATIC_MPVQT=ON \
@@ -71,6 +134,55 @@ jobs:
           -DTIGEREST_RIFE_MODEL_DIR="${TIGEREST_RIFE_MODEL_DIR:-}" \
           -DTIGEREST_VAPOURSYNTH_PYTHON="$PWD/build/rife/venv/bin/python"
         cmake --build build --target install
+    # Handed to the iOS job through the Actions cache, not as a run artifact:
+    # artifacts are kept for the app packages only.
+    - name: Save compiled RIFE model for the iOS build
+      if: env.TIGEREST_RIFE_MODEL_DIR != '' && matrix.artifact == 'macos-arm64'
+      uses: actions/cache/save@v6
+      with:
+        key: rife-model-${{ github.run_id }}
+        path: build/output/Tigerest Theater.app/Contents/Resources/rife/model
+    # As dev/macos/bundle.sh does with TIGEREST_PATCHED_WEBENGINE_SOURCE: the
+    # stock engine limits the web UI to 60 Hz. use_patched_webengine.py
+    # refuses a source whose QtWebEngineCore is not the patched build.
+    - name: Install the patched WebEngine from the pinned release
+      if: runner.arch == 'ARM64'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        source="$RUNNER_TEMP/webengine"
+        gh release download "$WEBENGINE_SOURCE_TAG" --repo "$WEBENGINE_SOURCE_REPO" \
+          --pattern "$WEBENGINE_SOURCE_DMG" --dir "$source"
+        echo "$WEBENGINE_SOURCE_SHA256  $source/$WEBENGINE_SOURCE_DMG" | shasum -a 256 -c -
+        mkdir "$source/mount"
+        hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$source/mount" "$source/$WEBENGINE_SOURCE_DMG"
+        python3 dev/macos/use_patched_webengine.py --source "$source/mount/Tigerest Theater.app" \
+          --bundle "build/output/Tigerest Theater.app"
+        hdiutil detach "$source/mount"
+    - name: Sign and create dmg
+      env:
+        DMG_SUFFIX: ${{ matrix.dmg }}
+      run: |
+        python3 dev/macos/sign_bundle.py "./build/output/Tigerest Theater.app"
+        python3 tests/test_macos_bundle.py "build/output/Tigerest Theater.app"
+        brew install create-dmg
+        VERSION=$(cat VERSION)
+        DMG_NAME="TigerestTheater-${VERSION}-${DMG_SUFFIX}.dmg"
+        create-dmg \
+          --volname "Tigerest Theater v${VERSION}" \
+          --no-internet-enable \
+          --window-size 500 300 \
+          --icon-size 100 \
+          --icon "Tigerest Theater.app" 125 150 \
+          --app-drop-link 375 150 \
+          "${DMG_NAME}" "./build/output/Tigerest Theater.app"
+    - name: Archive DMG
+      uses: actions/upload-artifact@v7
+      with:
+        name: tigerest-theater-${{ matrix.artifact }}
+        path: ${{ github.workspace }}/TigerestTheater-*.dmg
+    # The DMG is archived before the unit tests so every build yields one;
+    # a failing test still fails the job.
     - name: Run unit tests
       run: |
         # Release builds outside Applications show LetsMove's modal install
@@ -88,39 +200,5 @@ jobs:
         }
         trap restore_install_prompt EXIT
         defaults write "$DOMAIN" "$KEY" -bool true
-        ctest --test-dir build --output-on-failure
-
-    - name: Preserve failed-build diagnostics
-      if: failure()
-      uses: actions/upload-artifact@v7
-      with:
-        name: ${{ matrix.artifact }}-failed-build
-        retention-days: 3
-        path: |
-          build/output/
-          build/tests/
-          build/Testing/Temporary/
-          build/CTestTestfile.cmake
-          build/tests/CTestTestfile.cmake
-
-    - name: Sign and create dmg
-      run: |
-        python3 dev/macos/sign_bundle.py "./build/output/Tigerest Theater.app"
-        python3 tests/test_macos_bundle.py "build/output/Tigerest Theater.app"
-        brew install create-dmg
-        VERSION=$(cat VERSION)
-        ARCH=$(uname -m)
-        DMG_NAME="TigerestTheater-${VERSION}-${ARCH}.dmg"
-        create-dmg \
-          --volname "Tigerest Theater v${VERSION}" \
-          --no-internet-enable \
-          --window-size 500 300 \
-          --icon-size 100 \
-          --icon "Tigerest Theater.app" 125 150 \
-          --app-drop-link 375 150 \
-          "${DMG_NAME}" "./build/output/Tigerest Theater.app"
-    - name: Archive production artifacts
-      uses: actions/upload-artifact@v7
-      with:
-        name: ${{ matrix.artifact }}
-        path: ${{ github.workspace }}/TigerestTheater-*.dmg
+        # Hosted runners have no GPU; see the gpu-hardware label in tests/CMakeLists.txt.
+        ctest --test-dir build --output-on-failure -LE gpu-hardware

@@ -99,7 +99,8 @@ class DllDirectoryLifetimeTests(unittest.TestCase):
         for _ in range(4):
             namespace = self.evaluate()
             namespace.clear()
-        private_plugins = str(self.runtime / 'plugins')
+        # The bridge resolves runtime_path; %TEMP% can be an 8.3 short path.
+        private_plugins = str(self.runtime.resolve() / 'plugins')
         self.assertEqual(sys.path.count(private_plugins), 1)
         self.assertEqual(sys.path[0], private_plugins)
         self.assertEqual(sys.path.count(unrelated), 1)

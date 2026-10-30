@@ -158,21 +158,32 @@ void appendOption(QStringList& lines, const QString& comment, const QString& key
   lines << MpvConf::formatOption(key, MpvConfigManager::optionText(value));
 }
 
+#ifdef Q_OS_MAC
+// SVP's standard macOS endpoint. Never unlink another running player's socket.
+const QString SvpEndpoint = QStringLiteral("/tmp/mpvsocket");
+// Probed by prepare(), before this process's mpv binds the socket. Probing
+// again for a later rewrite would find our own mpv and drop the endpoint.
+bool g_svpEndpointFree = false;
+
+bool svpEndpointFree()
+{
+  QLocalSocket existing;
+  existing.connectToServer(SvpEndpoint);
+  const bool occupied = existing.waitForConnected(100);
+  const bool ordinaryFile = QFileInfo(SvpEndpoint).isFile() || QFileInfo(SvpEndpoint).isDir();
+  if (occupied || ordinaryFile)
+    qWarning() << "SVP IPC endpoint already in use; leaving it untouched:" << SvpEndpoint;
+  return !occupied && !ordinaryFile;
+}
+#endif
+
 QString ipcEndpoint(bool rife)
 {
 #ifdef Q_OS_WIN
   // Suppress managed SVP discovery when RIFE owns interpolation.
   return rife ? QString() : QStringLiteral("mpvpipe");
 #elif defined(Q_OS_MAC)
-  // SVP's standard macOS endpoint. Never unlink another running player's socket.
-  const QString endpoint = QStringLiteral("/tmp/mpvsocket");
-  QLocalSocket existing;
-  existing.connectToServer(endpoint);
-  const bool occupied = existing.waitForConnected(100);
-  const bool ordinaryFile = QFileInfo(endpoint).isFile() || QFileInfo(endpoint).isDir();
-  if (occupied || ordinaryFile)
-    qWarning() << "SVP IPC endpoint already in use; leaving it untouched:" << endpoint;
-  return occupied || ordinaryFile || rife ? QString() : endpoint;
+  return g_svpEndpointFree && !rife ? SvpEndpoint : QString();
 #else
   // "mpvpipe" is a Windows named-pipe convention; Unix would create a
   // relative filesystem socket, so leave it disabled.
@@ -998,6 +1009,9 @@ bool MpvConfigManager::prepare()
   const QString testOptions = qEnvironmentVariable("TIGEREST_MPV_TEST_OPTIONS");
   g_ownsDefaultSvpIpc = !testOptions.contains(QRegularExpression(
       QStringLiteral("(^|\\n)\\s*(input-ipc-server|include)\\s*=")));
+#ifdef Q_OS_MAC
+  g_svpEndpointFree = svpEndpointFree();
+#endif
   const WriteResult written = writeConfig(user, recordedHash);
   if (!written.ok)
   {

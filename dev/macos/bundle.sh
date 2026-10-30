@@ -27,7 +27,9 @@ if [ -n "${TIGEREST_PATCHED_WEBENGINE_SOURCE:-}" ]; then
         --source "${TIGEREST_PATCHED_WEBENGINE_SOURCE}" --bundle "${APP_BUNDLE}"
 else
     echo "warning: stock Qt WebEngine bundled; the web UI is limited to 60 Hz." >&2
-    echo "         Set TIGEREST_PATCHED_WEBENGINE_SOURCE to a verified patched bundle for releases." >&2
+    echo "         Set TIGEREST_PATCHED_WEBENGINE_SOURCE to a verified patched bundle for releases;" >&2
+    echo "         tests/test_macos_bundle.py rejects an arm64 bundle without it unless" >&2
+    echo "         TIGEREST_ALLOW_STOCK_WEBENGINE=1 (local non-release bundles only)." >&2
 fi
 
 echo "Signing app bundle..."

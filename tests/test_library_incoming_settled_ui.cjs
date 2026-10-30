@@ -6,7 +6,8 @@ body{margin:0;background:#123;color:white}.page{position:fixed;inset:0;padding:3
 @keyframes fixtureEntrance{from{opacity:.08;filter:blur(12px);transform:translateY(72px)}to{opacity:1;filter:blur(0);transform:none}}
 </style><div id=home class=page><div class=tg-home-nav>Library</div><div class=tg-home-rail>Posters</div><div class=tg-home-stage>Home</div></div>
 <div id=library class="page hide"><h1>Library</h1><p>Sharp destination page</p></div><script src=/transitions.js></script>`},
- '/transitions.js':{path:path.join(__dirname,'../native/homeTransitions.js')}},async({evaluate})=>{
+ '/transitions.js':{path:path.join(__dirname,'../native/homeTransitions.js')}},async({evaluate,call})=>{
+ await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
  await evaluate(`window.fixtureTransition=TigerestHomeTransitions.library({gallery:{active:true,root:document.querySelector('#home')},navigate:()=>{
  document.querySelector('#home').classList.add('hide');document.querySelector('#library').className='page tigerest-page-enter';}});true`);
  let snapshot;

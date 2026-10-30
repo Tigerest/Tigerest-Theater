@@ -4,6 +4,7 @@
 import json
 import os
 from pathlib import Path
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -84,7 +85,9 @@ def stage_runtime(app: Path, brew: Path, runtime_python: Path | None = None) -> 
                 subprocess.run(["install_name_tool", "-change", dependency,
                                 f"@loader_path/{adjacent.name}", str(binary)], check=True)
     wrapper = contents / "MacOS/vapoursynth"
-    subprocess.run(['xcrun','clang','-mmacosx-version-min=26.0',
+    with (contents / "Info.plist").open("rb") as source:
+        minimum = plistlib.load(source)["LSMinimumSystemVersion"]
+    subprocess.run(['xcrun','clang',f'-mmacosx-version-min={minimum}',
                     '-DTIGEREST_PYTHON_VERSION="'+version+'"',
                     str(Path(__file__).with_name('vapoursynth_launcher.c')),
                     '-o',str(wrapper)],check=True)

@@ -1,6 +1,6 @@
 # Mac display-link experiment (Qt 6.9.3)
 
-Status: the locally packaged arm64 **2.6.1 release includes these patches** after isolated preview validation and user acceptance. The generic `build-macos.yml` workflow still uses stock Qt and does not yet reproduce this engine; do not use its output as a replacement for the patched release. Native playback results, the final review, and remaining preview limitations are recorded in `docs/reports/2026-10-14-mac-120hz.md`.
+Status: the locally packaged arm64 **2.6.1 release includes these patches** after isolated preview validation and user acceptance. The generic `build-macos.yml` workflow does not build this engine either; its arm64 jobs copy it from the pinned, checksummed release DMG with `use_patched_webengine.py`, as release builds do, and `tests/test_macos_bundle.py` rejects an arm64 bundle without it. Native playback results, the final review, and remaining preview limitations are recorded in `docs/reports/2026-10-14-mac-120hz.md`.
 
 The stock Qt WebEngine compositor receives `display_id = -1` on macOS. Chromium's `ExternalBeginFrameSourceMac` then uses a 16.666 ms timer instead of a display link. On the test Mac, QScreen and CoreVideo both report 120 Hz, headed Chrome delivers ~120 rAF callbacks/s, and stock Qt delivers ~60 callbacks/s and ~60 Qt window submissions/s. Merely switching Qt Quick to Metal does not change this.
 

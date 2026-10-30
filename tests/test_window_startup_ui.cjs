@@ -21,14 +21,16 @@ const withBrowser = require('./community_browser.cjs');
                 const startup = await api.window.isFullScreen();
                 const button = document.querySelector('[data-tigerest-window-mode]');
                 button.click();
-                for (let i = 0; i < 100; i++) {
+                // Native fullscreen changes are animated on macOS and can take
+                // seconds on a loaded runner; stay within the 15 s CDP call.
+                for (let i = 0; i < 160; i++) {
                     if (await api.window.isFullScreen() !== startup && button.getAttribute('aria-pressed') === String(!startup)) break;
                     await new Promise(resolve => setTimeout(resolve, 25));
                 }
                 const afterButton = await api.window.isFullScreen();
                 const preference = jmpInfo.settings.home.startupFullscreen;
                 button.click();
-                for (let i = 0; i < 100; i++) {
+                for (let i = 0; i < 160; i++) {
                     if (await api.window.isFullScreen() === initial && !button.disabled) break;
                     await new Promise(resolve => setTimeout(resolve, 25));
                 }
