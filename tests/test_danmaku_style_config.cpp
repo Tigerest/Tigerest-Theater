@@ -43,7 +43,7 @@ const QString expectedConfig = QStringLiteral(
 #if defined(Q_OS_WIN)
   + QStringLiteral("fontname=Microsoft YaHei\n")
 #elif defined(Q_OS_MAC)
-  + QStringLiteral("fontname=PingFang SC\n")
+  + QStringLiteral("fontname=Hiragino Sans GB\n")
 #endif
   ;
 }

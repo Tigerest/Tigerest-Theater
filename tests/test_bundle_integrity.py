@@ -243,7 +243,7 @@ def test_settings() -> None:
     subtitle_values = {item["value"]: item for item in subtitles["values"]}
     require(subtitle_values["font"]["default"] == [
                 {"value": "Microsoft YaHei", "platforms": ["windows"]},
-                {"value": "PingFang SC", "platforms": ["osx"]},
+                {"value": "Hiragino Sans GB", "platforms": ["osx"]},
                 {"value": "Segoe UI"},
             ],
             "Windows and Mac subtitles need a system font with CJK glyphs; others keep the reference Segoe UI")
@@ -357,7 +357,7 @@ def test_mpv_bundle() -> None:
             'QStringLiteral("Segoe UI")' in manager,
             "legacy subtitle font is not migrated to the requested default")
     require("cjkFontMigrated" in manager and 'QStringLiteral("Microsoft YaHei")' in manager and
-            'QStringLiteral("PingFang SC")' in manager and 'QStringLiteral("fontname=%1")' in manager,
+            'QStringLiteral("Hiragino Sans GB")' in manager and 'QStringLiteral("fontname=%1")' in manager,
             "Windows and Mac subtitles and danmaku must name a font with CJK glyphs")
     settings_header = read("src/settings/SettingsComponent.h")
     require('#define SETTINGS_SECTION_DANMAKU "danmaku"' in settings_header and
