@@ -4,13 +4,13 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
 
 <p align="center"><img src="screenshots/poster.webp" alt="大河影院 · Tigerest Theater 宣传海报：电脑、平板、折叠屏与手机上的沉浸式首页"></p>
 
-把 Emby／Jellyfin 媒体库、MPV 播放器、弹幕和作品讨论放在一起。支持 Windows、Apple Silicon Mac、iPad、Android 与 Apple TV，提供 MPV 播放、弹幕和对应平台的画质选项。
+把 Emby／Jellyfin 媒体库、MPV 播放器、弹幕和作品讨论放在一起。支持 Windows、Apple Silicon Mac、iPad／iPhone、Android 与 Apple TV，提供 MPV 播放、弹幕和对应平台的画质选项。
 
 [下载正式版](https://github.com/Tigerest/Tigerest-Theater/releases/latest) · [使用教程](https://github.com/Tigerest/Tigerest-Theater/wiki) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/Tigerest/Tigerest-Theater/issues) · [作者 B站](https://space.bilibili.com/12562485)
 
-**当前版本：Windows 2.9.5.1；Android、Mac、iPhone／iPad 与 Apple TV 2.9.5。** 2.9.5 起大河专属服务器的公网连接改用加密连接，升级后需要重新登录一次 Emby（Apple TV 不用）；2.9.4 及更早的版本在旧地址关闭后无法从公网连接，请尽快升级。 Wiki 源文档同步保存在 [docs/wiki](docs/wiki/Home.md)。
+**当前版本：Windows 2.9.5.1；Android、Mac、iPhone／iPad 与 Apple TV 2.9.5。** 2.9.5 起大河专属服务器的公网连接改用加密连接，升级后需要重新登录一次 Emby（Apple TV 不用）；2.9.4 及更早的版本在旧地址关闭后无法从公网连接，请尽快升级。Wiki 由 [docs/wiki](docs/wiki/Home.md) 自动同步，修改请提交到这里。
 
-**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.5.1 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。
+**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.5.1 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
 
 客户端不包含影视资源。你需要已有的 Emby 或 Jellyfin 服务器地址和账号；媒体库、播放与下载权限由所连接的服务器提供。本项目是非官方客户端，与 Emby LLC 及 Jellyfin 项目无隶属关系。
 
@@ -24,9 +24,9 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
   <tr>
     <td width="50%">
       <b>五个平台都能用，画质开箱即用</b><br>
-      Windows、Apple Silicon Mac、iPad、Android 与 Apple TV 都能连接自己的 Emby 或 Jellyfin，各端内置 MPV 播放核心，无需另装播放器。桌面内置 shader 滤镜和画质调整，一键切换画质预设：默认档用 SSimDownscaler 改善缩小、KrigBilateral 重建色度、RAVU Zoom 放大并抗锯齿，再配合去色带与 EWA Lanczos 缩放；iPad 与 Apple TV 也能选用这套桌面预设。
+      Windows、Apple Silicon Mac、iPad／iPhone、Android 与 Apple TV 都能连接自己的 Emby 或 Jellyfin，各端内置 MPV 播放核心，无需另装播放器。桌面内置 shader 滤镜和画质调整，一键切换画质预设：默认档用 SSimDownscaler 改善缩小、KrigBilateral 重建色度、RAVU Zoom 放大并抗锯齿，再配合去色带与 EWA Lanczos 缩放；iPad 与 Apple TV 也能选用这套桌面预设。
     </td>
-    <td width="50%"><img src="screenshots/quality-settings.webp" alt="MPV 画质与插件设置：大河内置模式、GPU-Next 渲染与画质预设"></td>
+    <td width="50%"><img src="screenshots/quality-settings.webp" alt="MPV 画质与插件设置：GPU-Next 渲染后端、uosc 与弹幕插件开关、mpv.conf 说明与画质预设"></td>
   </tr>
   <tr>
     <td width="50%"><img src="screenshots/watch-together.webp" alt="一起看房间：房间码、当前影片、开始放映与成员列表"></td>
@@ -104,9 +104,9 @@ Windows、Android、Mac、iPhone／iPad 与 Apple TV 一起发布。
 
 - **更新下载与安装：** 「直接下载」先走 GitHub 加速镜像（gh-proxy.com、ghproxy.net，最后才连 GitHub），下完仍按 GitHub 的 SHA-256 核对；夸克与百度网盘收进「备用下载」。Windows 安装版点「安装更新」后自动关闭、安装并重新打开；Android 下载后直接交给系统安装。检查更新改为先问社区服务器（服务器签名、客户端验签），连不上再问 GitHub。
 - **一份可以直接改的 mpv.conf（Windows 与 Mac）：** 客户端只读取自己配置目录里的一份 `mpv.conf`，在「设置 → 播放器设置 → MPV 画质与插件」下方的编辑器里修改：逐行检查、恢复默认、粘贴前看差异、「复制给 AI」，保存后立即生效。原来的三种配置模式、「高级」页和 `user-overrides.conf` 不再使用，升级时旧内容备份到「旧版自定义配置备份.txt」。设置菜单分成「播放器设置」和「媒体库设置」两组（Android 也一样）。
-- **海报转场（Windows 与 Mac）：** 点海报后直接飞向详情页的落点，不再停在半空等页面，页面按时出现时约 0.6–0.7 秒落地；返回海报墙时提前请求数据，不再出现空行；修复进入详情页偶尔闪白。Windows 的修补版 QtWebEngine 会保存 GPU 着色器缓存，重启后第一次转场不用再等编译。
+- **海报转场（Windows、Mac 与 Android）：** 点海报后直接飞向详情页的落点，不再停在半空等页面，页面按时出现时约 0.6–0.7 秒落地；返回海报墙时提前请求数据，不再出现空行；修复进入详情页偶尔闪白。Windows 的修补版 QtWebEngine 会保存 GPU 着色器缓存，重启后第一次转场不用再等编译。Android 10 月 24 日更新的安装包先让海报落地再打开新页面，飞行途中不再卡顿，并换上黑金 Tigerest 图标。
 - **弹幕不遮字幕：** 底部弹幕改为滚动显示，画面底部 20% 留给字幕（Windows、Mac、iPad 与 Apple TV）。
-- **iPad 与 iPhone：** iPad 版改为 iPhone／iPad 通用，转屏后画面正确铺满，开着 RIFE 持续掉帧时会提示。
+- **iPad 与 iPhone：** iPad 版改为 iPhone／iPad 通用包（`universal.ipa`，作为新应用安装），转屏后画面正确铺满，开着 RIFE 持续掉帧时会提示；海报转场改用桌面流程，约 0.6 秒落地，从屏幕左边缘右滑即可返回。
 - **Apple TV：** 返回键先收起控制栏；海报墙可以排序和搜索，并显示观看进度；文字字幕放大约 15%。见 [2.9.4 发布说明](docs/releases/2026-10-23-v2.9.4.md)。
 
 ## 2.9.3 更新
@@ -177,10 +177,10 @@ Windows 使用 [2.9.5.1 SHA-256 校验清单](https://github.com/Tigerest/Tigere
 
 ### 第一次使用
 
-1. 下载对应平台安装包。Windows 安装版运行向导；便携版完整解压；Mac 将应用拖入「应用程序」；Android 安装 APK；iPad／Apple TV 按上述说明签名并安装对应 IPA。
-2. 打开客户端，选择「大河李斯特专属 EMBY」或「自建服务器」。
+1. 下载对应平台安装包。Windows 安装版运行向导；便携版完整解压；Mac 将应用拖入「应用程序」；Android 安装 APK；iPad／iPhone 与 Apple TV 按上述说明签名并安装对应 IPA。
+2. 打开客户端，选择「连接大河李斯特专属 EMBY 服务器」，或选择连接自建 Emby / Jellyfin 服务器的入口。
 3. 自建 Emby／Jellyfin 服务器填写完整地址，例如 `http://192.168.1.100:8096`、`https://example.com/emby` 或 `https://example.com/jellyfin`，然后使用该服务器账号登录。
-4. 进入作品详情并播放。桌面与移动端可在 Emby 设置中的「Tigerest Theater 设置」调整播放选项；Apple TV 使用原生页面和播放器菜单，画质从页面顶部「画质」进入。
+4. 进入作品详情并播放。桌面与移动端在设置左侧菜单的「播放器设置」分组调整播放选项，也可以从顶栏「客户端」菜单进入（桌面快捷键 `Ctrl+,`）；Apple TV 使用原生页面和播放器菜单，画质从页面顶部「画质」进入。
 5. 想参与公共讨论时，大河用户可直接进入评论区；自建用户点击「评论账号」注册或登录；Apple TV 请使用已有的公共评论账号登录。
 
 专属服务器的权限与开通说明请查看[作者 B站主页](https://space.bilibili.com/12562485)中的充电说明；下载客户端不会自动获得服务器权限。
@@ -189,11 +189,11 @@ Windows 安装包目前未做 Authenticode 签名。Mac 使用 ad-hoc 签名，�
 
 ### 从旧版更新
 
-Windows、Mac 与 Android 客户端启动时后台检查正式版本；有新版本时每次打开软件弹窗一次，可「从GitHub获取更新」、从夸克或百度网盘下载，或「忽略本次更新」直到下一个版本，右上角更新图标也会显示红点。也可在「客户端」设置中点击「检查客户端更新」。下载会核验文件大小与 SHA-256，支持暂停、继续和中断后的续传；Android 下载完成后交给系统安装器确认安装。
+Windows、Mac 与 Android 客户端启动时后台检查正式版本；有新版本时每次打开软件弹窗一次，可「直接下载」（先经 GitHub 下载加速镜像，最后才连 GitHub 原址）、展开「备用下载」从夸克或百度网盘获取，或「忽略本次更新」直到下一个版本，右上角更新图标也会显示红点。也可在「客户端设置」中点击「检查客户端更新」。下载会按 GitHub 给出的文件大小与 SHA-256 核验，支持暂停、继续和中断后的续传。Windows 安装版点「安装更新」后自动关闭、安装并重新打开（从 2.9.3 及更早版本升级的这一次仍是安装向导）；Android 下载完成后直接交给系统安装，装好后从桌面重新打开。
 
-手动更新前完全退出客户端，包括 Windows 托盘。安装版覆盖安装；便携版备份并保留 `data`，使用完整新版文件；Mac 替换应用；Android 使用同签名正式 APK 覆盖安装。iPad 与 Apple TV 重新签名后覆盖安装，保留原应用标识和签名身份，不要先卸载。
+手动更新前完全退出客户端，包括 Windows 托盘。安装版覆盖安装；便携版备份并保留 `data`，使用完整新版文件；Mac 替换应用；Android 使用同签名正式 APK 覆盖安装。Apple TV 重新签名后覆盖安装，保留原应用标识和签名身份，不要先卸载。iPad 从 2.9.3 及更早的 `ipad.ipa` 换到 2.9.4 的 `universal.ipa` 时会作为新应用安装，登录、设置和离线媒体需要重新来，确认新版正常后可手动删除旧版；之后的通用包更新同样重新签名覆盖安装。
 
-iPad 应用内仅检查和提示更新，不自动替换安装；Apple TV 暂无内置更新检查，请从发行页获取新版。
+iPad／iPhone 应用内仅检查和提示更新，不自动替换安装；Apple TV 暂无内置更新检查，请从发行页获取新版。
 
 旧版 Windows 的内置下载若反复失败，可从发行页手动安装一次。具体操作、跳过版本和校验方式见 [安装与更新](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation)。
 
@@ -241,7 +241,7 @@ iPad 与 Apple TV 复用作品搜索和匹配规则，提供原生弹幕渲染�
 
 桌面内置默认 Anime AA、真人影视、激进测试 Anime4K 三档画质；可以从菜单切换，也可以使用 `Alt+1`～`Alt+3`。日常先使用默认档，再按片源和设备调整。
 
-RIFE 默认关闭，需要大河内置播放配置：
+RIFE 默认关闭：
 
 | 平台 | RIFE 方式 | 输入范围 |
 | --- | --- | --- |
@@ -310,7 +310,7 @@ Apple TV 的轻量增强会在高帧率视频或持续渲染掉帧时暂时降�
 - [Windows 构建](dev/windows/README.md)
 - [macOS 构建](dev/macos/README.md)
 - [Android 构建](android/README.md)
-- [iPad 安装与构建](docs/apple/INSTALL.md)
+- [iPad / iPhone 安装与构建](docs/apple/INSTALL.md)
 - [Apple TV 安装与构建](apple/TV/README.md)
 - [Windows 测试环境要求](dev/windows/TESTING.md)
 - [版本变化](CHANGELOG.md)与本次发布说明（[2.9.5.1](docs/releases/2026-10-30-v2.9.5.1.md)、[2.9.5](docs/releases/2026-10-27-v2.9.5.md)、[2.9.4](docs/releases/2026-10-23-v2.9.4.md)、[2.9.3](docs/releases/2026-10-21-v2.9.3.md)、[2.9.1](docs/releases/2026-10-20-v2.9.1.md)、[2.9.0](docs/releases/2026-10-19-v2.9.0.md)、[2.8.0](docs/releases/2026-10-16-v2.8.0.md)）

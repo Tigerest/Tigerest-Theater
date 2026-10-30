@@ -65,9 +65,9 @@ RIFE 生成中间帧；画质预设处理缩放、边缘和色彩等画面效果
 浏览、播放、评论和弹幕为共同能力。主要区别：
 
 - **RIFE：** Windows 使用 NVIDIA 可选扩展；Mac 和 iPad 随包提供，格式范围不同；Android 和 Apple TV 暂无。
-- **一起看：** Windows、Mac、Android、iPad 可用，Apple TV 暂不支持。
-- **离线下载：** Windows、Mac、iPad 可用；Android 和 Apple TV 暂无。
-- **界面：** Windows、Mac、Android、iPad 使用服务器的 Emby／Jellyfin 网页界面加原生播放器；Apple TV 是独立的原生电视界面，没有「Tigerest Theater 设置」分类。
+- **一起看：** Windows、Mac、Android、iPad／iPhone 可用，Apple TV 暂不支持。
+- **离线下载：** Windows、Mac、iPad／iPhone 可用；Android 和 Apple TV 暂无。
+- **界面：** Windows、Mac、Android、iPad／iPhone 使用服务器的 Emby／Jellyfin 网页界面加原生播放器；Apple TV 是独立的原生电视界面，没有「播放器设置」「媒体库设置」页面。
 - **HDR：** Windows 自动开启系统 HDR；Android、Mac 和 iPad 在支持 HDR 的屏幕上直接输出；Apple TV 未专门适配。
 - Android 没有后台持续播放或画中画。正式 Mac 附件只提供 Apple Silicon。
 
@@ -77,9 +77,9 @@ RIFE 生成中间帧；画质预设处理缩放、边缘和色彩等画面效果
 
 暂时不行。一起看只在大河服务器上提供，房间里每个人都要用自己的大河 Emby 账号登录，并且有权限播放房间里的影片。视频由每个人各自从 Emby 播放，一起看服务只同步进度，不转发视频。见[一起看](https://github.com/Tigerest/Tigerest-Theater/wiki/Watch-Together)。
 
-## iPad 和 Apple TV 为什么要自己签名？
+## iPad、iPhone 和 Apple TV 为什么要自己签名？
 
-发行页的 IPA 不含作者的签名、证书或设备名单，不是 App Store 或 TestFlight 安装包。需要用自己的 Apple 身份签名后才能装到自己的设备上；免费账号的签名有有效期，到期后需要重新签名。见[安装与更新](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation#ipad)。
+发行页的 IPA 不含作者的签名、证书或设备名单，不是 App Store 或 TestFlight 安装包。需要用自己的 Apple 身份签名后才能装到自己的设备上；免费账号的签名有有效期，到期后需要重新签名。见[安装与更新](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation#ipad--iphone)。
 
 ## 便携版更新最需要保留什么？
 
