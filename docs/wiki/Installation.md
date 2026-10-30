@@ -2,12 +2,12 @@
 
 ## 选择正确的包
 
-从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以 2.9.5 的文件名示例说明；安装步骤也适用于后续同类正式包。
+从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以当前正式包的文件名示例说明（Windows 为 2.9.5.1，其他平台为 2.9.5）；安装步骤也适用于后续同类正式包。只给部分平台发的修复版（如 2.9.5.1 只有 Windows）发行页里只有这些平台的包，其他平台的包在上一个完整版本（2.9.5）的发行页。
 
 | 设备 | 包名 | 最低要求 |
 | --- | --- | --- |
-| Windows 安装版 | TigerestTheater-2.9.5-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
-| Windows 便携版 | TigerestTheater-2.9.5-x64.zip | 同上 |
+| Windows 安装版 | TigerestTheater-2.9.5.1-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
+| Windows 便携版 | TigerestTheater-2.9.5.1-x64.zip | 同上 |
 | Android | TigerestTheater-2.9.5-android.apk | Android 15+，arm64-v8a / x86_64 |
 | Apple Silicon Mac | TigerestTheater-2.9.5-arm64.dmg | macOS 26+，M 系列 |
 | iPad / iPhone | TigerestTheater-2.9.5-universal.ipa（2.9.3 及以前为 ipad.ipa） | iPadOS / iOS 26+，需要自行签名 |
@@ -87,6 +87,8 @@ Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新
 
 在「客户端」设置中可以关闭「启动时检查更新」（同时不再弹窗），或点击「检查客户端更新」；手动检查也会包含此前忽略的版本。
 
+小修复用四段版本号（如 2.9.5.1），可能只发部分平台，没有当前平台安装包的修复版不会提示。2.9.4 及更早的版本识别不了四段版本号，会先提示 2.9.5，装好后再检查一次即可。
+
 下载支持暂停和继续；退出后再次检查同一版本可以续传。网络中断会自动重连，连续多次没有新进度后才显示失败。服务器文件变化、无法续传或缓存损坏时，客户端会重新下载。
 
 下载完成后会核验大小和 SHA-256，校验值只取自 GitHub 官方接口，镜像只负责传输；经镜像下载的文件校验不通过时，自动改从 GitHub 原址重新下载一次。Windows 安装版从 2.9.4 起自动安装：大河影院会自己关闭，装好后自动重新打开，不用手动关掉旧版；装在「所有用户」目录时会出现一次系统权限提示，选「是」即可（从更早版本升级时仍是升级向导）。便携版打开 ZIP 后仍需退出并替换程序；Mac 打开 DMG 后替换应用。Android 从 2.9.4 起直接交给系统安装，系统会弹出安装提示，第一次还需要允许大河影院安装应用；安装时应用会被系统关闭，装好后从桌面重新打开（Android 不允许应用在更新后自己启动）。如果正在播放，自动安装会等播放结束。完成下载不等于安装完成。iPad 只提示新版本，需要按上面的方法重新签名安装；Apple TV 没有应用内更新检查。
@@ -95,12 +97,12 @@ Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新
 
 ## 核对 SHA-256
 
-2.9.5 起发行页只有一份校验清单 `TigerestTheater-2.9.5-SHA256SUMS.txt`，覆盖 Windows、Android、Mac、iPhone／iPad 与 Apple TV 的全部文件（2.9.4 及以前，Mac、iPad 和 Apple TV 的文件另列在 `APPLE-SHA256SUMS.txt`）。先找到文件名对应的摘要，再与本机结果对照。
+2.9.5 起每个发行页只有一份校验清单，覆盖这一页的全部文件：`TigerestTheater-2.9.5-SHA256SUMS.txt` 覆盖 Windows、Android、Mac、iPhone／iPad 与 Apple TV，Windows 修复版的 `TigerestTheater-2.9.5.1-SHA256SUMS.txt` 只含 2.9.5.1 发行页上的文件（2.9.4 及以前，Mac、iPad 和 Apple TV 的文件另列在 `APPLE-SHA256SUMS.txt`）。先找到文件名对应的摘要，再与本机结果对照。
 
 Windows PowerShell 示例：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.5-x64.exe'
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.5.1-x64.exe'
 ```
 
 macOS 终端示例：
