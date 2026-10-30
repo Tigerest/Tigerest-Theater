@@ -3,6 +3,7 @@
 #include <QCollator>
 #include <QDir>
 #include <QFileInfo>
+#include <QLocale>
 #include <QUrl>
 #include <QVariantMap>
 #include <algorithm>
@@ -53,9 +54,11 @@ QStringList filesFromArguments(const QStringList& arguments, const QString& work
 
 QStringList sorted(QStringList files)
 {
-  // The C locale compares code points and ignores numeric mode, which would put
-  // episode 10 before episode 2.
-  QCollator collator(QLocale().language() == QLocale::C ? QLocale(QLocale::English) : QLocale());
+  QCollator collator;
+  // The C locale (shells and CI runners without one) compares code points
+  // and ignores numeric mode; English rules keep episodes in order there.
+  if (collator.locale().language() == QLocale::C)
+    collator.setLocale(QLocale(QLocale::English));
   collator.setNumericMode(true);
   collator.setCaseSensitivity(Qt::CaseInsensitive);
   std::stable_sort(files.begin(), files.end(), [&collator](const QString& a, const QString& b) {

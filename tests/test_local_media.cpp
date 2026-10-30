@@ -43,13 +43,13 @@ private slots:
 
   void sortsNaturallyInTheCLocale()
   {
-    // Linux CI runs in the C locale, where QCollator compares code points and
-    // ignores numeric mode.
+    // Shells and CI runners without a locale run in C, where a collator
+    // compares code points and would put episode 10 before episode 2.
     const QLocale previous;
     QLocale::setDefault(QLocale::c());
-    const QStringList files = LocalMedia::sorted({QStringLiteral("D:/ep 10.mkv"), QStringLiteral("D:/ep 2.mkv")});
-    QLocale::setDefault(previous);
-    QCOMPARE(files, QStringList({QStringLiteral("D:/ep 2.mkv"), QStringLiteral("D:/ep 10.mkv")}));
+    const auto restore = qScopeGuard([previous] { QLocale::setDefault(previous); });
+    QCOMPARE(LocalMedia::sorted({QStringLiteral("ep 10.mkv"), QStringLiteral("ep 2.mkv"), QStringLiteral("ep 1.mkv")}),
+             QStringList({QStringLiteral("ep 1.mkv"), QStringLiteral("ep 2.mkv"), QStringLiteral("ep 10.mkv")}));
   }
 
   void folderListsTheOtherEpisodes()
