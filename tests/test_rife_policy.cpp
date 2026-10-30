@@ -67,4 +67,37 @@ int main() {
     assert(!guard.update(3000,120,120,10,30,30,false));
     assert(guard.update(6000,210,210,10,60,30,false)); // renderer loses output despite fast model
 
+    rife::ResumePrime prime;
+    prime.paused(1000);assert(!prime.resumed(5999,true)); // short pauses resume at once
+    assert(!prime.pending());
+    prime.paused(10000);assert(!prime.resumed(15000,false)); // no active graph
+    prime.paused(20000);assert(prime.resumed(25000,true)&&prime.priming());
+    prime.paused(25010); // the hold before the seek
+    assert(!prime.expired(27999)&&prime.ready(26000)&&!prime.ready(26001));
+    assert(prime.pending()&&!prime.priming());
+    assert(!prime.resumed(26020,true)&&!prime.pending()); // our own release edge
+    assert(!prime.resumed(90000,true)); // a resume needs an observed pause first
+    prime.paused(100000);assert(prime.resumed(110000,true));
+    assert(!prime.resumed(110100,true)&&!prime.pending()); // a second toggle plays at once
+    prime.paused(120000);assert(prime.resumed(130000,true));
+    assert(prime.expired(133000)&&prime.ready(133000)); // a seek that never restarts
+    prime.paused(133050);assert(!prime.pending()); // a late hold edge after the release
+    assert(!prime.resumed(133100,true)); // ...is only 50 ms of pause
+    prime.paused(140000);assert(prime.resumed(150000,true));
+    prime.cancel(150100);assert(!prime.pending()&&!prime.ready(150200)); // user pause during the prime
+    assert(!prime.resumed(154000,true)&&!prime.pending());
+    prime.cancel(160000);assert(prime.resumed(165000,true)); // the pause counts from the cancel
+    prime.cancel();prime.paused(170000);prime.cancel();
+    assert(!prime.resumed(190000,true)); // startup resume discards the hold
+
+    rife::DisplaySyncWatch watch;
+    assert(!watch.update(0,0)&&!watch.update(2999,9)); // warmup ignores startup timing
+    assert(!watch.update(3000,9)&&!watch.update(5000,10)&&!watch.update(7000,11)&&!watch.update(9000,12));
+    assert(watch.update(11000,13)); // mistimed frames in four windows in a row
+    watch.reset();watch.update(0,0);watch.update(3000,0);
+    assert(!watch.update(5000,4)&&!watch.update(7000,7)&&!watch.update(9000,7)); // one burst over two windows
+    assert(!watch.update(11000,8)&&!watch.update(13000,9)&&!watch.update(15000,10));
+    assert(!watch.update(16000,0)&&!watch.update(17000,1)); // mpv restarted its count: warm up again
+    assert(!watch.update(19000,2)&&!watch.update(21000,3)&&!watch.update(23000,4)&&!watch.update(25000,5));
+    assert(watch.update(27000,6));
 }

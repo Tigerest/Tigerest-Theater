@@ -168,8 +168,8 @@ int main(int argc,char**argv){
         // Overload remains visible after the refresh transition.
         assert(guard.update(35000,1080,1080,0,oldDrops+windowDrops+2*expected+60,30,false,2,false,0.,0,rates.second));
     }
-    // TensorRT temporarily uses audio for the default resampling clock in every
-    // presentation mode, and restores the configured preference when detached.
+    // Windowed TensorRT playback (the default presentation) temporarily uses audio
+    // for the default resampling clock, and restores the preference when detached.
     properties["vf"]=QVariantList{};properties["video-sync"]="display-resample";
     FrameInterpolationController sync(access,paths);
     sync.beginItem(true,false);sync.onFormatChanged(source);

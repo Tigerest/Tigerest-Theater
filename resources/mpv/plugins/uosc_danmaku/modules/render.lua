@@ -10,11 +10,15 @@ local buffering, seeking = false, false
 local anchor_pos, anchor_time
 local speed, speed_correction = 1, 1
 local clock_correction = 1
-local render_timer
+local render_timer, frame_timer
 local frame_interval, next_frame_time = 1 / 120, nil
+local frame_locked, frame_pos = false, nil
 local owned_sync
 local overlay_low = mp.create_osd_overlay('ass-events')
 local overlay_high = mp.create_osd_overlay('ass-events')
+-- Diagnostics only: with mpv's --dump-stats, each comment position is logged
+-- on the same clock as the frames mpv queues, so pacing can be checked.
+local trace_pacing = (mp.get_property('options/dump-stats') or '') ~= ''
 
 local function update_presentation()
     if mp.get_property_bool('user-data/tigerest/rife-clock-owned', false) then
@@ -157,6 +161,7 @@ function render(pos_arg)
     overlay_high.z = 1
     overlay_high.data = table.concat(ass_events_high, '\n')
     overlay_high:update()
+    if trace_pacing then msg.log('stats', string.format('value %.6f danmaku-pos', pos)) end
 end
 
 local function clock_position(now)
@@ -179,7 +184,16 @@ local function time_pos_callback(_, time_pos)
     end
     anchor_time = now
     if time_pos then
-        if pause or buffering or seeking then render(time_pos) end
+        if pause or buffering or seeking then
+            render(time_pos)
+        elseif frame_locked and shown and ENABLED and COMMENTS ~= nil then
+            -- mpv has just queued this frame while the VO draws the previous
+            -- one with its OSD. Half a frame later is clear of both captures.
+            frame_pos = time_pos
+            frame_timer:kill()
+            frame_timer.timeout = frame_interval / 2
+            frame_timer:resume()
+        end
     else
         overlay_low:remove()
         overlay_high:remove()
@@ -213,6 +227,9 @@ local function animate()
 end
 
 render_timer = mp.add_timeout(frame_interval, animate, true)
+frame_timer = mp.add_timeout(frame_interval / 2, function()
+    if shown and ENABLED and COMMENTS ~= nil and frame_pos then render(frame_pos) end
+end, true)
 
 local function restart_timer()
     next_frame_time = mp.get_time() + frame_interval
@@ -222,10 +239,23 @@ end
 
 local function update_animation()
     render_timer:kill()
+    frame_timer:kill()
     reset_clock()
-    if shown and ENABLED and COMMENTS ~= nil and not pause and not buffering and not seeking then
+    if shown and ENABLED and COMMENTS ~= nil and not pause and not buffering and not seeking
+        and not frame_locked then
         restart_timer()
     end
+end
+
+local function update_frame_lock()
+    -- Audio-clock presentation draws the OSD only with each new video frame.
+    -- A free-running timer beats against that clock (60 vs 59.94 Hz), so a
+    -- comment would stall or jump a step every few seconds. Render once per
+    -- queued frame instead, at that frame's own timestamp.
+    local locked = mp.get_property('video-sync') == 'audio'
+    if locked == frame_locked then return end
+    frame_locked = locked
+    update_animation()
 end
 
 local function update_display_fps()
@@ -311,6 +341,7 @@ function hide_danmaku_func()
     shown = false
     update_presentation()
     render_timer:kill()
+    frame_timer:kill()
     anchor_pos = nil
     stop_time_observer()
     mp.set_property_bool(HAS_DANMAKU, false)
@@ -359,6 +390,7 @@ mp.observe_property('display-fps', 'number', update_display_fps)
 local function update_presentation_clock()
     update_presentation()
     update_display_fps()
+    update_frame_lock()
 end
 mp.observe_property('video-sync', 'string', update_presentation_clock)
 mp.observe_property('user-data/tigerest/rife-clock-owned', 'bool', update_presentation_clock)
@@ -393,6 +425,7 @@ mp.add_hook("on_unload", 50, function()
     shown = false
     update_presentation()
     render_timer:kill()
+    frame_timer:kill()
     anchor_pos = nil
     mp.set_property_bool(HAS_DANMAKU, false)
     COMMENTS, DELAY = nil, 0

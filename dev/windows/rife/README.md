@@ -105,6 +105,17 @@ hwdec 与 queue 的指针/局部副本补丁修复了两个位置，但 f9b11b1 
 无补帧的实际 4K 播放中崩溃，因此拒绝发行。两个 DLL 角色暂时都使用已验收的
 普通 x64 内核，TensorRT GPU 加速保留。不得仅因短片测试或编译成功接受 v3。
 
+2.9.5.1 起两个 DLL 角色都换成加了 `mpv-win32-precise-flip.patch` 的同一份普通 x64
+内核（宿主源码 5122104，CI 40937947776，归档 `Tigerest-mpv-rife-x64-5122104.zip`
+附在 v2.9.5.1 发行页；2.2.0–2.9.5 用的是 v2.2.0 附件里的 7a2b62d 内核）。
+2026-10-30 在 RTX 4090、4K 240 Hz 上验收：真实 EOF/色彩及 tiny TRT 流式测试
+连续 10 轮通过，Player 生命周期、mpv 早/晚激活、VSScript 和 TRT 帧图测试也都通过
+（帧图测试的默认引擎路径不存在，需设 `RIFE_TEST_ENGINE_PATH`、
+`RIFE_TEST_UNALIGNED_ENGINE_PATH` 指向 256×128 与 240×112 的 lite 引擎，并设
+`RIFE_TEST_IMPLEMENTATION=2`）；1080p 23.976 fps 真实片源，三个模型各完成 600 秒默认 4K 输出
+（2.5×、audio 同步、默认 3 个 Shader），全程 Active、0 掉帧、音画偏差最大 0.13 ms，
+没有性能回退。翻页节奏在客户端里另测，见 `mpv-win32-precise-flip.patch` 的提交说明。
+
 发布打包通过 `mpv-runtime-lock.json` 固定实际验收的内核 SHA、大小及 CI 来源，
 不从开发机的 import library 目录恢复 stock DLL。准备独立目录后设置
 `TIGEREST_MPV_RUNTIME_DIR` 再执行 `dev/windows/bundle.bat`：
@@ -114,7 +125,7 @@ python dev/windows/rife/prepare_mpv_runtime.py --output build/rife-mpv-runtime
 $env:TIGEREST_MPV_RUNTIME_DIR=(Resolve-Path build/rife-mpv-runtime).Path
 ```
 
-默认从 v2.2.0 的固定播放内核附件获取归档，并验证外层归档与每份 DLL 的大小、
+默认从锁文件指定的发行页附件（当前为 v2.9.5.1）获取归档，并验证外层归档与每份 DLL 的大小、
 SHA256 和构建来源。发行构建不依赖会到期的 Actions artifact；初次草稿构建需要
 有权读取该草稿的 GitHub token。离线准备可加 `--archive 已下载的归档.zip`。
 

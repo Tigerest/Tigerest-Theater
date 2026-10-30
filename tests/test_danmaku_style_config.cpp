@@ -38,7 +38,14 @@ const QString expectedConfig = QStringLiteral(
   "shadow=2\n"
   "scrolltime=12\n"
   "opacity=0.8\n"
-  "displayarea=0.2\n");
+  "displayarea=0.2\n")
+  // Plain sans-serif lacks CJK there and mixes fallback fonts per glyph.
+#if defined(Q_OS_WIN)
+  + QStringLiteral("fontname=Microsoft YaHei\n")
+#elif defined(Q_OS_MAC)
+  + QStringLiteral("fontname=PingFang SC\n")
+#endif
+  ;
 }
 
 void TestDanmakuStyleConfig::rendersPluginCompatibleOptions()

@@ -39,12 +39,16 @@ public:
     void configureHardwareDecoding(const QString& mode);
     void configureVideoSync(const QString& mode);
     void onVideoSyncChanged(const QString& mode);
+    // Windowed TensorRT playback trades display-resample for audio pacing.
+    // Fullscreen does too for the rest of an item once DWM composes it.
+    void setFullScreen(bool fullScreen);
     void onClockSetReply(uint64_t requestId,int error);
     void onClockReadReply(uint64_t requestId,int error,const QVariant& value);
     void serviceClock();
     void poll(int64_t nowMs,bool suspended);
     void onMetrics(uint64_t generation,const Metrics& metrics,int64_t nowMs,bool suspended,uint64_t drops,
-                   double avsync=std::numeric_limits<double>::quiet_NaN(),uint64_t decoderDrops=0);
+                   double avsync=std::numeric_limits<double>::quiet_NaN(),uint64_t decoderDrops=0,
+                   uint64_t mistimed=0);
     State state()const{return current;}
     uint64_t generation()const{return serial;}
     QString status()const;
@@ -55,6 +59,9 @@ private:
     bool conflict()const;
     bool hasFilter(bool requireEnabled=true)const;
     bool applyVideoSync(const QString& mode,bool interpolating);
+    bool audioPacing()const;
+    bool watchesDisplaySync()const;
+    void fallBackToAudio();
     enum class ClockStep {Idle,Acquire,Read,Write,Restore,Release};
     bool asynchronousClock()const;
     void advanceClock();
@@ -69,7 +76,7 @@ private:
     SourceInfo source;
     uint64_t serial=0,session=0,epoch=0;
     bool requested=false,filterOwned=false,hwdecOwned=false,notified=false;
-    bool performanceWarning=false;
+    bool performanceWarning=false,fullScreen=false,displaySyncFallback=false;
     bool videoSyncOwned=false,videoSyncPending=false;
     QString previousVideoSync;
     ClockStep clockStep=ClockStep::Idle;
@@ -83,6 +90,7 @@ private:
     Metrics latest;
     QVariantMap lastFailure;
     PerformanceGuard guard;
+    DisplaySyncWatch displaySyncWatch;
     int64_t preparingSince=-1;
 };
 SourceInfo sourceInfo(const QVariantMap& params,const QVariantMap& frame,double fps);

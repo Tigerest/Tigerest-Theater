@@ -1,0 +1,258 @@
+diff --git a/video/out/d3d11/context.c b/video/out/d3d11/context.c
+--- a/video/out/d3d11/context.c
++++ b/video/out/d3d11/context.c
+@@ -356,6 +356,37 @@ static void d3d11_get_vsync(struct ra_swapchain *sw, struct vo_vsync_info *info)
+     if (p->vsync_duration_qpc)
+         info->vsync_duration = qpc_to_ns(sw, p->vsync_duration_qpc);
+ 
++    // SyncQPCTime is a physical vsync, whether or not mpv presents on every
++    // vsync (the estimate below assumes it does).
++    if (stats.SyncQPCTime.QuadPart) {
++        info->last_vsync_time = mp_time_ns() +
++            (qpc_to_ns(sw, stats.SyncQPCTime.QuadPart) - qpc_ns_now(sw));
++    }
++
++    // DWM composition, as opposed to an independent flip or an overlay.
++    IDXGISwapChainMedia *media;
++    hr = IDXGISwapChain_QueryInterface(p->swapchain, &IID_IDXGISwapChainMedia,
++                                       (void **)&media);
++    if (SUCCEEDED(hr)) {
++        DXGI_FRAME_STATISTICS_MEDIA media_stats;
++        hr = IDXGISwapChainMedia_GetFrameStatisticsMedia(media, &media_stats);
++        info->composed = SUCCEEDED(hr) && media_stats.CompositionMode ==
++                         DXGI_FRAME_PRESENTATION_MODE_COMPOSED;
++        IDXGISwapChainMedia_Release(media);
++    }
++
++    // The frame shown last, and the vsync it was shown on.
++    info->submit_id = submit_count;
++    if (stats.PresentCount && stats.SyncQPCTime.QuadPart &&
++        p->vsync_duration_qpc)
++    {
++        int64_t shown_qpc = stats.SyncQPCTime.QuadPart + p->vsync_duration_qpc *
++            (int)(stats.PresentRefreshCount - stats.SyncRefreshCount);
++        info->shown_id = stats.PresentCount;
++        info->shown_vsync = mp_time_ns() +
++            (qpc_to_ns(sw, shown_qpc) - qpc_ns_now(sw));
++    }
++
+     // If the physical frame rate is known and the other members of
+     // DXGI_FRAME_STATISTICS are non-0, estimate the timing of the next frame
+     if (p->vsync_duration_qpc && stats.PresentCount &&
+diff --git a/video/out/vo.c b/video/out/vo.c
+--- a/video/out/vo.c
++++ b/video/out/vo.c
+@@ -149,6 +149,20 @@ struct vo_internal {
+     int num_vsync_samples;
+     int64_t num_total_vsync_samples;
+     int64_t prev_vsync;
++    int64_t last_vsync_time;        // physical vsync reported by the VO, or 0
++    bool composed;                  // the VO reports DWM composition
++    struct {                        // see score_composed_flips()
++        bool place;                 // 0: half way between vsyncs, 1: before one
++        int64_t id[8], vsync[8];    // recent composed flips: present ID, vsync
++        bool place_of[8];
++        int counts[4], scored;      // shown -1, 0, 1, 2+ vsyncs after it
++        double share[2];            // last window per place, 0 if unknown
++        int age[2];                 // windows since share[] was measured
++    } flips;
++    struct {                        // see count_missing_grid()
++        int frames, no_vsync, no_match;
++        double refresh;             // last refresh period off the display's, ms
++    } grid;
+     double base_vsync;
+     int drop_point;
+     double estimated_vsync_interval;
+@@ -909,12 +923,144 @@ static void wait_until(struct vo *vo, int64_t target)
+     while (target > mp_time_ns()) {
+         if (in->queued_events & VO_EVENT_LIVE_RESIZING)
+             break;
++#if HAVE_WIN32_THREADS
++        // Win32 condition waits take whole milliseconds, and a timed-out wait
++        // returns before target: breaking out there flipped audio-synced frames
++        // up to 1 ms early. Frame times close to a vsync then alternate between
++        // neighbouring vsyncs (3/5 refresh holds instead of 4/4 for 60 fps on
++        // 240 Hz). Sleep with a 1 ms margin, then poll the rest of the way.
++        mp_cond_timedwait(&in->wakeup, &in->lock,
++                          target - mp_time_ns() - MP_TIME_MS_TO_NS(1));
++#else
+         if (mp_cond_timedwait_until(&in->wakeup, &in->lock, target))
+             break;
++#endif
+     }
+     mp_mutex_unlock(&in->lock);
+ }
+ 
++// Frames that are not display-synced are flipped at their pts, which has no
++// relation to the vsync grid. A flip close to a vsync catches it or misses it
++// depending on how long the present takes (mostly 0.5-2 ms, now and then
++// nearly a whole vsync), so a constant frame rate alternates between
++// neighbouring hold counts (3/5 vsyncs instead of 4/4 for 59.94 fps on 240 Hz).
++// Keep the first vsync at or after target, but flip just before the vsync
++// before it: too late for that vsync, the present gets a whole vsync to reach
++// the next one. DWM instead takes presents until a deadline before each vsync,
++// and flips close to it alternate between neighbouring vsyncs. The deadline
++// moves with DWM's timing (0.3-0.5 ms before a vsync, or anywhere from 1.3 to
++// 3 ms before it): when composed, flip half way between the two vsyncs or
++// just before the earlier one, whichever keeps the frames on their vsync (see
++// score_composed_flips()). *aligned is the vsync of a composed flip, or 0.
++// Called locked.
++static int64_t align_flip_to_vsync(struct vo_internal *in, int64_t target,
++                                   int64_t duration, int64_t *aligned)
++{
++    double interval = in->vsync_interval;
++    int64_t vsync = in->last_vsync_time;
++    *aligned = 0;
++    // Each frame must keep a vsync of its own, and the grid must be recent.
++    if (vsync <= 0 || interval <= 1 || duration < interval * 3 / 2 ||
++        in->paused || llabs(target - vsync) > MP_TIME_S_TO_NS(1))
++        return target;
++    double vsyncs = ceil((target - vsync) / interval);
++    if (in->composed) {
++        *aligned = vsync + (int64_t)(vsyncs * interval);
++        if (!in->flips.place)
++            return vsync + (int64_t)((vsyncs - 0.5) * interval);
++    }
++    return vsync + (int64_t)((vsyncs - 1) * interval) - MP_TIME_US_TO_NS(50);
++}
++
++// Composed flips: the VO reports the vsync each present was shown on. After a
++// window of 120, the place they were flipped at stays if at least 90% were
++// shown the same number of vsyncs after their aligned one. Otherwise it moves
++// to the other place, unless that one did worse when it was last measured
++// (forgotten after 16 windows). Both places show on the same vsync when the
++// deadline is far from both, so moving costs nothing there.
++// Called locked.
++static void score_composed_flips(struct vo *vo,
++                                 const struct vo_vsync_info *vsync,
++                                 int64_t aligned)
++{
++    struct vo_internal *in = vo->in;
++    if (vsync->submit_id <= 0)
++        return;
++    int n = vsync->submit_id & 7;
++    in->flips.id[n] = aligned ? vsync->submit_id : 0;
++    in->flips.vsync[n] = aligned;
++    in->flips.place_of[n] = in->flips.place;
++    n = vsync->shown_id & 7;
++    if (!vsync->shown_id || in->flips.id[n] != vsync->shown_id ||
++        in->flips.place_of[n] != in->flips.place)
++        return;
++    in->flips.id[n] = 0; // score each present once
++    double late = (vsync->shown_vsync - in->flips.vsync[n]) / in->vsync_interval;
++    in->flips.counts[MPCLAMP(lrint(late), -1, 2) + 1]++;
++    if (++in->flips.scored < 120)
++        return;
++    int kept = 0;
++    for (int i = 0; i < 4; i++)
++        kept = MPMAX(kept, in->flips.counts[i]);
++    double share = kept / (double)in->flips.scored;
++    bool place = in->flips.place;
++    in->flips.share[place] = share;
++    in->flips.age[place] = 0;
++    if (++in->flips.age[!place] > 16)
++        in->flips.share[!place] = 0;
++    if (share < 0.9 && (!in->flips.share[!place] ||
++                        in->flips.share[!place] > share))
++    {
++        MP_VERBOSE(vo, "%.0f%% of composed frames kept their vsync, flipping "
++                   "them %s.\n", share * 100,
++                   place ? "half way between vsyncs" : "before a vsync");
++        in->flips.place = !place;
++    }
++    in->flips.scored = 0;
++    memset(in->flips.counts, 0, sizeof(in->flips.counts));
++}
++
++// Composed frames are flipped at their pts while there is no vsync grid. Every
++// 600 composed frames, log how many had none and why if more than 1% did: no
++// vsync reported, or a measured refresh period off the display's. A few miss
++// it at the start and after each DXGI statistics disjoint.
++// Called locked.
++static void count_missing_grid(struct vo *vo, const struct vo_vsync_info *vsync)
++{
++    struct vo_internal *in = vo->in;
++    if (!vsync->composed)
++        return;
++    if (vsync->last_vsync_time <= 0) {
++        in->grid.no_vsync++;
++    } else if (!in->last_vsync_time) {
++        in->grid.no_match++;
++        in->grid.refresh = vsync->vsync_duration / 1e6;
++    }
++    if (++in->grid.frames < 600)
++        return;
++    int missing = in->grid.no_vsync + in->grid.no_match;
++    if (missing > in->grid.frames / 100) {
++        MP_VERBOSE(vo, "%d of %d composed frames had no vsync grid: %d without "
++                   "a vsync, %d with a refresh of %.3f ms (display %.3f ms).\n",
++                   missing, in->grid.frames, in->grid.no_vsync,
++                   in->grid.no_match, in->grid.refresh, in->vsync_interval / 1e6);
++    }
++    memset(&in->grid, 0, sizeof(in->grid));
++}
++
++// The physical vsync to align flips to, or 0. There is no vsync grid with VRR:
++// the display refreshes when a frame arrives, and the measured refresh period
++// follows the frame rate instead of the nominal interval.
++// Called locked.
++static int64_t vsync_grid_anchor(struct vo_internal *in,
++                                 const struct vo_vsync_info *vsync)
++{
++    double interval = in->vsync_interval;
++    if (fabs(vsync->vsync_duration - interval) >= interval / 20)
++        return 0;
++    return vsync->last_vsync_time;
++}
++
+ static bool render_frame(struct vo *vo)
+ {
+     struct vo_internal *in = vo->in;
+@@ -951,6 +1097,9 @@ static bool render_frame(struct vo *vo)
+ 
+     // Time at which we should flip_page on the VO.
+     int64_t target = frame->display_synced ? 0 : pts - in->flip_queue_offset;
++    int64_t aligned = 0;
++    if (!frame->display_synced)
++        target = align_flip_to_vsync(in, target, duration, &aligned);
+ 
+     // "normal" strict drop threshold.
+     in->dropped_frame = duration >= 0 && end_time < now;
+@@ -1034,6 +1183,10 @@ static bool render_frame(struct vo *vo)
+         mp_mutex_lock(&in->lock);
+         in->dropped_frame = prev_drop_count < vo->in->drop_count;
+         in->rendering = false;
++        in->last_vsync_time = vsync_grid_anchor(in, &vsync);
++        in->composed = vsync.composed;
++        score_composed_flips(vo, &vsync, aligned);
++        count_missing_grid(vo, &vsync);
+ 
+         update_vsync_timing_after_swap(vo, &vsync);
+     }
+diff --git a/video/out/vo.h b/video/out/vo.h
+--- a/video/out/vo.h
++++ b/video/out/vo.h
+@@ -312,6 +312,23 @@ struct vo_vsync_info {
+     // swap_buffers() for every physical vsync.
+     // -1 if unset or unsupported.
+     int64_t skipped_vsyncs;
++
++    // mp_time_ns() timestamp of a recent physical vsync. Unlike
++    // last_queue_display_time, this stays on the vsync grid when frames are
++    // not presented on every vsync.
++    // 0 or lower if unset or unsupported.
++    int64_t last_vsync_time;
++
++    // Whether a compositor (DWM) shows the frames instead of flipping them
++    // directly. It takes presents until a deadline before each vsync.
++    bool composed;
++
++    // Present ID of the frame just submitted, and of the last frame shown with
++    // the mp_time_ns() timestamp of the vsync it was shown on.
++    // 0 if unset or unsupported.
++    int64_t submit_id;
++    int64_t shown_id;
++    int64_t shown_vsync;
+ };
+ 
+ struct vo_driver {

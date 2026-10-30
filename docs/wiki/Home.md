@@ -1,6 +1,6 @@
 # Tigerest Theater 使用教程
 
-这里是 EMBY 大河版的中文使用说明，对应 2.9.5（Windows、Android、Mac、iPhone／iPad 与 Apple TV）。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
+这里是 EMBY 大河版的中文使用说明，对应 Windows 2.9.5.1，以及 Android、Mac、iPhone／iPad 与 Apple TV 2.9.5。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
 
 ## 第一次使用
 
@@ -29,6 +29,12 @@
 | [常见问题](https://github.com/Tigerest/Tigerest-Theater/wiki/FAQ) | 平台区别、账号范围、补帧与共享功能的常见疑问 |
 | [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture) | 各客户端的实现与架构、播放链路、一起看同步、评论和弹幕的数据流 |
 | [引用来源与鸣谢](https://github.com/Tigerest/Tigerest-Theater/wiki/Credits) | 用到的开源项目、用途和许可证，源码与许可文件在哪里 |
+
+## 2.9.5.1 更新了什么（只有 Windows）
+
+- **高刷新率屏幕上的播放节奏：** 按音频时钟播放时（窗口补帧，或音画同步选了「音频」），播放内核把每一帧对准屏幕刷新提交，240 Hz 屏幕上 59.94 帧在 3 次、5 次刷新之间交替的情况大幅减少，弹幕移动更平稳。
+- **全屏补帧保留显示器重采样：** 弹幕每次屏幕刷新都移动；被系统合成时自动改回音频时钟。补帧暂停 5 秒以上再继续时先重新准备画面，实测恢复后不再掉帧。见 [AI 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE#windows-的同步方式)。
+- **字幕字体：** 默认改为微软雅黑粗体，中文整行同一字体；新增「字幕粗体」设置。见[字幕](https://github.com/Tigerest/Tigerest-Theater/wiki/Subtitles)。
 
 ## 2.9.5 更新了什么
 
@@ -86,7 +92,7 @@
 
 2.6.1 起 Windows 网页界面按屏幕刷新率运行，并新增 iPad 客户端；2.7.0 起首页「继续观看」按观看记录排序，兼容 Emby 4.8–4.10 和 .strm 媒体库，并补充了 Apple TV 首版。完整记录见[更新记录](https://github.com/Tigerest/Tigerest-Theater/blob/main/CHANGELOG.md)。
 
-**已知问题：** 部分 Windows 高刷新率环境下，窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.5 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
+**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.5.1 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
 
 ## 各平台功能范围
 

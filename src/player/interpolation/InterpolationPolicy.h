@@ -39,6 +39,55 @@ private:
     int64_t since=0,started=0;
     uint64_t serial=0;
 };
+// A TensorRT graph left paused for a few seconds stalls its first frames after
+// a resume: video falls 70-150 ms behind and 10-25 frames drop. Holding the
+// clock and re-decoding the current position refills the graph first.
+class ResumePrime {
+public:
+    static constexpr int64_t idleMs=5000,timeoutMs=3000;
+    // Edges of mpv's pause property. A resume returns true when the caller
+    // must pause again, seek to the current position and wait for ready().
+    void paused(int64_t now){if(step!=Step::Priming){step=Step::Idle;since=now;}}
+    bool resumed(int64_t now,bool eligible){
+        const bool prime=step==Step::Idle&&eligible&&since>=0&&now-since>=idleMs;
+        step=prime?Step::Priming:Step::Idle;since=-1;started=now;
+        return prime;
+    }
+    // The seek finished or timed out: release the clock once.
+    bool ready(int64_t now){if(step!=Step::Priming)return false;step=Step::Releasing;started=now;return true;}
+    bool expired(int64_t now)const{return step!=Step::Idle&&now-started>=timeoutMs;}
+    bool pending()const{return step!=Step::Idle;}
+    bool priming()const{return step==Step::Priming;}
+    void cancel(int64_t pausedSince=-1){step=Step::Idle;since=pausedSince;}
+private:
+    enum class Step {Idle,Priming,Releasing};
+    Step step=Step::Idle;
+    int64_t since=-1,started=0;
+};
+// Fullscreen display-resample relies on DWM flipping the video directly. When
+// DWM composes it instead, mpv misjudges the refresh interval and mistimes
+// frames for as long as composition lasts. A stall mistimes one burst, which
+// spans at most two windows; composition mistimes frames in every window.
+class DisplaySyncWatch {
+public:
+    static constexpr int64_t warmupMs=3000,windowMs=2000;
+    static constexpr unsigned windows=4;
+    void reset(){start=-1;streak=0;warming=true;}
+    // True once frames were mistimed in each of the last four windows.
+    bool update(int64_t now,uint64_t mistimed){
+        if(start<0||now<start||mistimed<first){reset();start=now;first=mistimed;return false;}
+        if(now-start<(warming?warmupMs:windowMs))return false;
+        if(warming)warming=false;
+        else streak=mistimed>first?streak+1:0;
+        start=now;first=mistimed;
+        return streak>=windows;
+    }
+private:
+    int64_t start=-1;
+    uint64_t first=0;
+    unsigned streak=0;
+    bool warming=true;
+};
 struct GuardParameters {
     bool windowsBackend=false;
     int64_t warmupMs=5000,windowMs=10000;

@@ -241,10 +241,21 @@ def test_settings() -> None:
 
     subtitles = next(item for item in settings if item.get("section") == "subtitles")
     subtitle_values = {item["value"]: item for item in subtitles["values"]}
-    require(subtitle_values["font"]["default"] == "Segoe UI",
-            "subtitle font does not match the reference mpv.conf")
+    require(subtitle_values["font"]["default"] == [
+                {"value": "Microsoft YaHei", "platforms": ["windows"]},
+                {"value": "PingFang SC", "platforms": ["osx"]},
+                {"value": "Segoe UI"},
+            ],
+            "Windows and Mac subtitles need a system font with CJK glyphs; others keep the reference Segoe UI")
     require(subtitle_values["referenceMpvDefaultsMigrated"]["hidden"] is True,
             "legacy sans-serif subtitle default needs a one-time migration")
+    require(subtitle_values["bold"]["default"] == [
+                {"value": True, "platforms": ["windows", "osx"]},
+                {"value": False},
+            ],
+            "Windows and Mac plain-text subtitles default to bold; others keep regular weight")
+    require(subtitle_values["cjkFontMigrated"]["hidden"] is True,
+            "the former Windows Segoe UI subtitle default needs a one-time migration")
 
     danmaku = next((item for item in settings if item.get("section") == "danmaku"), None)
     require(danmaku is not None, "persistent danmaku style settings section is missing")
@@ -345,6 +356,9 @@ def test_mpv_bundle() -> None:
     require("referenceMpvDefaultsMigrated" in manager and
             'QStringLiteral("Segoe UI")' in manager,
             "legacy subtitle font is not migrated to the requested default")
+    require("cjkFontMigrated" in manager and 'QStringLiteral("Microsoft YaHei")' in manager and
+            'QStringLiteral("PingFang SC")' in manager and 'QStringLiteral("fontname=%1")' in manager,
+            "Windows and Mac subtitles and danmaku must name a font with CJK glyphs")
     settings_header = read("src/settings/SettingsComponent.h")
     require('#define SETTINGS_SECTION_DANMAKU "danmaku"' in settings_header and
             "writeDanmakuStyleConfig(bundleDir" in manager and

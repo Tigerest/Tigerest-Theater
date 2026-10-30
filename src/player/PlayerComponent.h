@@ -365,6 +365,12 @@ private:
   void checkInterpolationResume(qint64 now);
   void failInterpolationResume();
 #endif
+#ifdef Q_OS_WIN
+  rife::ResumePrime m_rifeResumePrime;
+  void onInterpolationPauseChanged();
+  void releaseInterpolationResumePrime();
+  void updateInterpolationPresentation();
+#endif
   // this is the function actually implemented in the backends. the variantmap contains
   // a few known keys:
   // * subtitleStreamIndex

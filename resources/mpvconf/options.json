@@ -21,7 +21,7 @@
   "pageOwned": [
     { "page": "视频", "section": "video", "keys": ["video-sync", "hwdec", "hwdec-image-format", "deinterlace", "demuxer-max-bytes", "display-fps-override"] },
     { "page": "视频", "section": "video", "keys": ["video-unscaled", "video-aspect-override", "keepaspect", "panscan"], "unlessSetting": ["video", "aspect", "custom"] },
-    { "page": "字幕", "section": "subtitles", "keys": ["sub-ass-style-overrides", "sub-ass-override", "sub-scale", "sub-font", "sub-color", "sub-border-color", "sub-border-size", "sub-back-color", "sub-align-x", "sub-pos"] },
+    { "page": "字幕", "section": "subtitles", "keys": ["sub-ass-style-overrides", "sub-ass-override", "sub-scale", "sub-font", "sub-bold", "sub-color", "sub-border-color", "sub-border-size", "sub-back-color", "sub-align-x", "sub-pos"] },
     { "page": "音频", "section": "audio", "keys": ["audio-exclusive", "audio-normalize-downmix", "audio-swresample-o", "audio-spdif", "audio-channels", "audio-device"] }
   ],
   "conditional": [

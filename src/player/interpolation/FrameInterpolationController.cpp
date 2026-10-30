@@ -69,7 +69,7 @@ void FrameInterpolationController::detach(){
     filterOwned=false;
     if(hwdecOwned&&optionText(mpv.read("hwdec"))=="auto-copy")mpv.set("hwdec",oldHwdec);
     restoreVideoSync();
-    hwdecOwned=false;guard.reset();preparingSince=-1;
+    hwdecOwned=false;guard.reset();displaySyncWatch.reset();preparingSince=-1;
 }
 void FrameInterpolationController::configureHardwareDecoding(const QString& mode){
     // Settings refreshes and new loads use the same entry point. Remember the
@@ -177,7 +177,7 @@ void FrameInterpolationController::onClockReadReply(uint64_t id,int error,const 
     clockRestore=false;clockExplicit=false;advanceClock();
 }
 bool FrameInterpolationController::applyVideoSync(const QString& mode,bool interpolating){
-    const bool override=paths.backend==Backend::TensorRT&&interpolating&&mode=="display-resample";
+    const bool override=paths.backend==Backend::TensorRT&&interpolating&&mode=="display-resample"&&audioPacing();
     if(asynchronousClock()&&(override||clockMarker||clockRequest)){
         ++clockIntent;oldVideoSync=mode;clockWanted=override;clockRestore=!override;clockExplicit=!override;
         if(override){clockReleaseOnly=false;clockTakenOver=false;clockItem=itemSequence;}
@@ -221,11 +221,35 @@ void FrameInterpolationController::onVideoSyncChanged(const QString& mode){
         }
         if(videoSyncPending&&mode==previousVideoSync)return;
         videoSyncOwned=false;videoSyncPending=false;previousVideoSync.clear();
-        oldVideoSync=mode;
+        oldVideoSync=mode;clockTakenOver=true;
         // Property callbacks must not block mpv's VO teardown.
         mpv.setAsync("user-data/tigerest/rife-clock-owned",false);
     }
     effectiveVideoSync=mode;
+}
+bool FrameInterpolationController::audioPacing()const{return !fullScreen||displaySyncFallback;}
+bool FrameInterpolationController::watchesDisplaySync()const{
+    // Only the user's own fullscreen display-resample, while this item keeps it.
+    return paths.backend==Backend::TensorRT&&filterOwned&&!audioPacing()&&!clockTakenOver&&
+           !videoSyncOwned&&!clockMarker&&!clockRequest&&effectiveVideoSync=="display-resample";
+}
+void FrameInterpolationController::fallBackToAudio(){
+    // Pace the rest of this item like windowed playback. The guard starts
+    // over, so drops that continue under audio still warn.
+    displaySyncFallback=true;displaySyncWatch.reset();guard.reset();
+    qInfo()<<"RIFE fullscreen display-resample keeps mistiming frames; pacing this item by audio";
+    if(!applyVideoSync(effectiveVideoSync,true))disable("video-sync-error");
+}
+void FrameInterpolationController::setFullScreen(bool enabled){
+    if(fullScreen==enabled)return;
+    fullScreen=enabled;displaySyncWatch.reset();
+    // A graph still waiting for its engine applies this when it attaches.
+    if(paths.backend!=Backend::TensorRT||!filterOwned)return;
+    if(!audioPacing()){restoreVideoSync();return;}
+    // Never reclaim a clock that an external writer took during this item.
+    if(clockTakenOver)return;
+    const auto mode=videoSyncOwned||clockMarker||clockRequest?oldVideoSync:effectiveVideoSync;
+    if(mode=="display-resample"&&!applyVideoSync(mode,true))disable("video-sync-error");
 }
 void FrameInterpolationController::restoreVideoSync(bool asynchronous){
     if(asynchronousClock()){
@@ -253,11 +277,11 @@ void FrameInterpolationController::stopOnEndFile(){
     filterOwned=false;
     if(hwdecOwned)mpv.setAsync("hwdec",oldHwdec);
     restoreVideoSync(true);
-    hwdecOwned=false;guard.reset();preparingSince=-1;
+    hwdecOwned=false;guard.reset();displaySyncWatch.reset();preparingSince=-1;
     current=State::Off;reason.clear();source={};latest={};
 }
 void FrameInterpolationController::beginItem(bool enabled,bool systemConfig){
-    stop();++itemSequence;clockTakenOver=false;requested=enabled;notified=false;
+    stop();++itemSequence;clockTakenOver=false;displaySyncFallback=false;requested=enabled;notified=false;
     if(!enabled)return;
     if(systemConfig){disable("system-config",true);return;}
     if(!paths.available){disable("runtime-missing",true);return;}
@@ -287,7 +311,7 @@ void FrameInterpolationController::onFormatChanged(const SourceInfo& info){
     if(filterOwned){
         ++serial;closeSession(session);session=0;
         mpv.command({"vf","remove","@tigerest-rife"});filterOwned=false;
-        guard.reset();epoch=0;latest={};preparingSince=-1;
+        guard.reset();displaySyncWatch.reset();epoch=0;latest={};preparingSince=-1;
         current=State::Preparing;
     }
     if(conflict()){disable("external-filter",true);return;}
@@ -297,9 +321,11 @@ void FrameInterpolationController::onFormatChanged(const SourceInfo& info){
     }
     if(paths.backend==Backend::TensorRT){
         if(!asynchronousClock()||!clockWanted)oldVideoSync=effectiveVideoSync;
-        // Audio pacing avoids the display-clock stalls observed with GPU-next
-        // and the VS graph in both windowed and fullscreen presentation.
-        if((!asynchronousClock()||(!clockWanted&&!clockTakenOver))&&effectiveVideoSync=="display-resample"&&!applyVideoSync(effectiveVideoSync,true)){
+        // DWM composition presents unevenly and display-resample drops frames
+        // against it, so windowed playback paces by audio. Fullscreen usually
+        // flips directly; keeping display-resample there moves comments every
+        // refresh, until mistimed frames show DWM composing it (onMetrics).
+        if(audioPacing()&&(!asynchronousClock()||(!clockWanted&&!clockTakenOver))&&effectiveVideoSync=="display-resample"&&!applyVideoSync(effectiveVideoSync,true)){
             disable("video-sync-error");return;
         }
         // Keep the coordinator's synchronous attach contract. Clock requests
@@ -325,7 +351,7 @@ void FrameInterpolationController::onFormatChanged(const SourceInfo& info){
     if(!filterOwned)disable("filter-error");
 }
 void FrameInterpolationController::onSeek(){
-    ++serial;guard.reset();preparingSince=-1;latest={};
+    ++serial;guard.reset();displaySyncWatch.reset();preparingSince=-1;latest={};
     if(filterOwned){current=State::Preparing;}
     // mpv rebuilds its VS graph on seek. A new monitor instance rotates the
     // native epoch and rejects any callback belonging to the previous graph.
@@ -345,12 +371,13 @@ void FrameInterpolationController::poll(int64_t now,bool suspended){
     const auto voDrops=mpv.read("frame-drop-count").toULongLong(),decoderDrops=mpv.read("decoder-frame-drop-count").toULongLong();
     const auto av=mpv.read("avsync");
     onMetrics(serial,readMetrics(session),now,suspended,paths.backend==Backend::TensorRT?voDrops:voDrops+decoderDrops,
-              av.isValid()?av.toDouble():std::numeric_limits<double>::quiet_NaN(),decoderDrops);
+              av.isValid()?av.toDouble():std::numeric_limits<double>::quiet_NaN(),decoderDrops,
+              mpv.read("mistimed-frame-count").toULongLong());
 }
 void FrameInterpolationController::onMetrics(uint64_t generation,const Metrics&m,int64_t now,bool suspended,uint64_t drops,
-                                             double avsync,uint64_t decoderDrops){
+                                             double avsync,uint64_t decoderDrops,uint64_t mistimed){
     if(generation!=serial||!filterOwned)return;
-    if(m.epoch!=epoch){epoch=m.epoch;guard.reset();preparingSince=-1;}
+    if(m.epoch!=epoch){epoch=m.epoch;guard.reset();displaySyncWatch.reset();preparingSince=-1;}
     latest=m;
     if(!m.error.empty()){
         const auto why=QString::fromStdString(m.error);
@@ -360,10 +387,16 @@ void FrameInterpolationController::onMetrics(uint64_t generation,const Metrics&m
     if(suspended)preparingSince=-1;
     else if(preparingSince<0)preparingSince=now;
     else if(!m.epoch&&now-preparingSince>15000){disable("filter-error");return;}
+    // DWM sometimes composes fullscreen video. display-resample then misjudges
+    // the refresh interval and mistimes frames until composition ends.
+    if(suspended||!watchesDisplaySync())displaySyncWatch.reset();
+    else if(displaySyncWatch.update(now,mistimed)){fallBackToAudio();return;}
     const auto display=mpv.read("display-fps");
     const double displayFps=display.isValid()?display.toDouble():std::numeric_limits<double>::quiet_NaN();
     if(!performanceWarning&&guard.update(now,m.predictions,m.pairs,m.p95Ms,drops,double(source.fpsNum)/source.fpsDen,suspended,
                     paths.factor,m.timingAvailable,avsync,decoderDrops,displayFps)){
+        // Fullscreen display-resample tries audio pacing before any warning.
+        if(watchesDisplaySync()){fallBackToAudio();return;}
         lastFailure={{"voDrops",qulonglong(drops)},{"decoderDrops",qulonglong(decoderDrops)},
             {"avsyncSeconds",std::isfinite(avsync)?QVariant(avsync):QVariant()},
             {"displayFps",std::isfinite(displayFps)?QVariant(displayFps):QVariant()},
@@ -389,7 +422,8 @@ QVariantMap FrameInterpolationController::diagnostics()const{
                                latest.predictions>30&&latest.timingAvailable;
     return {
     {"requestedForItem",requested},{"runtimeAvailable",paths.available},{"state",int(current)},{"status",status()},{"reason",reason},
-    {"effectiveSync",effectiveVideoSync},{"savedSync",oldVideoSync},{"ownsVideoSync",videoSyncOwned},
+    {"effectiveSync",effectiveVideoSync},{"savedSync",oldVideoSync},{"ownsVideoSync",videoSyncOwned},{"fullScreen",fullScreen},
+    {"displaySyncFallback",displaySyncFallback},
     {"clockRequest",clockRequest},{"clockMarkerOwned",clockMarker},{"clockCleanupFailed",clockCleanupFailed},
     {"generation",qulonglong(serial)},{"epoch",qulonglong(latest.epoch)},
     {"generatedFrames",qulonglong(latest.predictions)},{"cutBypasses",qulonglong(latest.cuts)},

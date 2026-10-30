@@ -4,6 +4,7 @@
 #include "core/ProfileManager.h"
 #include "player/MpvConfigManager.h"
 #include "settings/SettingsComponent.h"
+#include "settings/SettingsSection.h"
 
 #include <QFile>
 #include <QTemporaryDir>
@@ -25,6 +26,7 @@ private slots:
   void startupProfileFallsBackToDefault();
   void shaderLibraryKeepsUserFiles();
   void reportsMissingShaders();
+  void subtitleFontCoversChinese();
 
 private:
   QTemporaryDir m_root;
@@ -205,6 +207,49 @@ void TestMpvConfManager::reportsMissingShaders()
   QVERIFY(missingGone());
   QVERIFY(MpvConfigManager::restoreDefault().ok);
   QVERIFY(!missingGone());
+}
+
+void TestMpvConfManager::subtitleFontCoversChinese()
+{
+#if defined(Q_OS_WIN)
+  const QString cjk = QStringLiteral("Microsoft YaHei");
+#elif defined(Q_OS_MAC)
+  const QString cjk = QStringLiteral("PingFang SC");
+#else
+  QSKIP("Other desktops keep the reference Segoe UI default");
+#endif
+#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
+  auto& settings = SettingsComponent::Get();
+  // The danmaku file is written in text mode, so CRLF on Windows.
+  const auto text = [this](const QString& name) {
+    return QString::fromUtf8(read(path(name))).replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+  };
+  QCOMPARE(settings.getSection(SETTINGS_SECTION_SUBTITLES)->defaultValue("font").toString(), cjk);
+
+  // A profile from 2.9.5 or earlier stored the former Segoe UI default.
+  settings.setValue(SETTINGS_SECTION_SUBTITLES, "font", "Segoe UI");
+  settings.setValue(SETTINGS_SECTION_SUBTITLES, "cjkFontMigrated", false);
+  QVERIFY(MpvConfigManager::prepare());
+  QCOMPARE(settings.value(SETTINGS_SECTION_SUBTITLES, "font").toString(), cjk);
+  QVERIFY(text("mpv.conf").contains("\nsub-font=" + cjk + "\n"));
+  // Bold stands in for the Yu Gothic UI Semibold look the user preferred.
+  QVERIFY(settings.getSection(SETTINGS_SECTION_SUBTITLES)->defaultValue("bold").toBool());
+  QVERIFY(text("mpv.conf").contains("\nsub-bold=yes\n"));
+  QVERIFY(text("script-opts/uosc_danmaku.conf").contains("\nfontname=" + cjk + "\n"));
+
+  // Choosing Segoe UI again after the move is deliberate and stays.
+  settings.setValue(SETTINGS_SECTION_SUBTITLES, "font", "Segoe UI");
+  QVERIFY(MpvConfigManager::prepare());
+  QCOMPARE(settings.value(SETTINGS_SECTION_SUBTITLES, "font").toString(), QStringLiteral("Segoe UI"));
+  QVERIFY(text("mpv.conf").contains("\nsub-font=Segoe UI\n"));
+
+  // Any other font is never part of the move.
+  settings.setValue(SETTINGS_SECTION_SUBTITLES, "font", "LXGW WenKai");
+  settings.setValue(SETTINGS_SECTION_SUBTITLES, "cjkFontMigrated", false);
+  QVERIFY(MpvConfigManager::prepare());
+  QCOMPARE(settings.value(SETTINGS_SECTION_SUBTITLES, "font").toString(), QStringLiteral("LXGW WenKai"));
+  settings.setValue(SETTINGS_SECTION_SUBTITLES, "font", cjk);
+#endif
 }
 
 QTEST_GUILESS_MAIN(TestMpvConfManager)
