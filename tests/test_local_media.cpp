@@ -41,6 +41,17 @@ private slots:
                                  QStringLiteral("D:/b/第2集.mkv"), QStringLiteral("D:/b/第10集.mkv")}));
   }
 
+  void sortsNaturallyInTheCLocale()
+  {
+    // Shells and CI runners without a locale run in C, where a collator
+    // compares code points and would put episode 10 before episode 2.
+    const QLocale previous;
+    QLocale::setDefault(QLocale::c());
+    const auto restore = qScopeGuard([previous] { QLocale::setDefault(previous); });
+    QCOMPARE(LocalMedia::sorted({QStringLiteral("ep 10.mkv"), QStringLiteral("ep 2.mkv"), QStringLiteral("ep 1.mkv")}),
+             QStringList({QStringLiteral("ep 1.mkv"), QStringLiteral("ep 2.mkv"), QStringLiteral("ep 10.mkv")}));
+  }
+
   void folderListsTheOtherEpisodes()
   {
     QTemporaryDir root;
