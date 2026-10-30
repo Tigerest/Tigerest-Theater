@@ -13,9 +13,14 @@ const { randomUUID } = require('node:crypto');
 const { setTimeout: delay } = require('node:timers/promises');
 const configVersion = JSON.parse(fs.readFileSync(path.join(__dirname, '../resources/settings/settings_description.json'), 'utf8')).find(section => section.section === '__meta__').version;
 
+// Switching between the bundled chooser and a server page replaces the
+// document (and its renderer); a CDP call caught in that swap is answered
+// with one of these errors instead of a value.
+const documentReplaced = error => /Inspected target navigated or closed|Execution context was destroyed/.test(error?.message);
 async function until(check, label) {
     for (let i = 0; i < 150; i++) {
-        const value = await check();
+        let value;
+        try { value = await check(); } catch (error) { if (!documentReplaced(error)) throw error; }
         if (value) return value;
         await delay(100);
     }
@@ -139,6 +144,9 @@ async function devtools(url) {
         async function submit(address) {
             await cdp.evaluate(`document.querySelector('#address').value = ${JSON.stringify(address)}; document.querySelector('#address').dispatchEvent(new Event('input')); document.querySelector('#connect-form').requestSubmit()`);
         }
+        // The switch replaces this document, sometimes before its WebChannel
+        // reply arrives, so the chooser is awaited instead of the reply.
+        const switchServer = () => cdp.evaluate('void window.tigerestSwitchServer()');
         await submit(`${origin}/blocked`);
         await until(() => cdp.evaluate("document.querySelector('#connection-error').textContent.includes('403')"), 'native HTTP error');
         await submit(`${origin}/emby`);
@@ -161,7 +169,7 @@ async function devtools(url) {
         const remembered = () => JSON.parse(JSON.parse(fs.readFileSync(path.join(profile, 'Tigerest Theater.conf'), 'utf8')).sections.main.knownServers).servers;
         assert.deepEqual(remembered().map(x => x.address), [`${origin}/emby/`], 'real Qt commits remembered metadata after HTML success');
         const nativeChecks = requests.filter(value => value === 'GET /emby/System/Info/Public').length;
-        await cdp.evaluate("window.tigerestSwitchServer()");
+        await switchServer();
         await until(() => cdp.evaluate("Boolean(document.querySelector('#choose-custom') && window.api && !document.querySelector('#choose-custom').disabled)"), 'explicit server choices');
         assert.equal(await cdp.evaluate("document.querySelector('#server-choice').hidden"), false);
         assert.equal(requests.filter(value => value === 'GET /emby/System/Info/Public').length, nativeChecks, 'switch must not auto-connect');
@@ -171,7 +179,7 @@ async function devtools(url) {
         await until(() => cdp.evaluate("Boolean(document.querySelector('#fixture'))"), 'cancel returns to previous server');
         assert.equal(await cdp.evaluate("JSON.parse(localStorage.getItem('servercredentials3')).Servers[0].Id"), 'onboarding-test-server');
         assert.equal(JSON.parse(fs.readFileSync(path.join(profile, 'Tigerest Theater.conf'), 'utf8')).sections.main.userWebClient, `${origin}/emby`);
-        await cdp.evaluate("window.tigerestSwitchServer()");
+        await switchServer();
         await until(() => cdp.evaluate("Boolean(document.querySelector('#choose-custom') && window.api && !document.querySelector('#choose-custom').disabled)"), 'switch before failed web document');
         await cdp.evaluate("document.querySelector('#choose-custom').click()");
         await submit(`${origin}/badweb`);
@@ -182,7 +190,7 @@ async function devtools(url) {
         assert.equal(await cdp.evaluate("document.querySelector('#address').value"), `${origin}/emby`, 'chooser session cache cannot restore the failed address');
         await cdp.evaluate("document.querySelector('#cancel-switch-button').click()");
         await until(() => cdp.evaluate("Boolean(document.querySelector('#fixture'))"), 'failed switch still permits cancel to original server');
-        await cdp.evaluate("window.tigerestSwitchServer()");
+        await switchServer();
         await until(() => cdp.evaluate("Boolean(document.querySelector('#choose-custom') && window.api && !document.querySelector('#choose-custom').disabled)"), 'chooser before disconnected document');
         await cdp.evaluate("document.querySelector('#choose-custom').click()");
         await submit(`${origin}/disconnect`);
@@ -191,7 +199,7 @@ async function devtools(url) {
         await cdp.evaluate("document.querySelector('#cancel-switch-button').click()");
         await until(() => cdp.evaluate("Boolean(document.querySelector('#fixture'))"), 'cancel after disconnected document');
         assert.deepEqual(remembered().map(x => x.address), [`${origin}/emby/`], 'failed and cancelled HTML loads never enter history');
-        await cdp.evaluate("window.tigerestSwitchServer()");
+        await switchServer();
         await until(() => cdp.evaluate("Boolean(document.querySelector('#choose-custom') && window.api && !document.querySelector('#choose-custom').disabled)"), 'chooser before second base path');
         await cdp.evaluate("document.querySelector('#choose-custom').click()");
         await submit(`${origin}/jellyfin`);
@@ -199,7 +207,7 @@ async function devtools(url) {
         // Qt writes the profile settings shortly after the page has loaded.
         const rememberedAs = (addresses, label) => until(() => remembered().map(x => x.address).join() === addresses.join(), label);
         await rememberedAs([`${origin}/jellyfin/`, `${origin}/emby/`], 'same hostname and server ID retain different base paths');
-        await cdp.evaluate("window.tigerestSwitchServer()");
+        await switchServer();
         await until(() => cdp.evaluate("document.querySelectorAll('.saved-server-open').length === 2"), 'saved cards');
         await cdp.evaluate(`document.querySelector('[data-key="custom:${origin}/emby/"] .saved-server-open').click()`);
         await until(() => cdp.evaluate("location.pathname === '/emby/web/index.html' && !!document.querySelector('#fixture')"), 'saved card returns to first server');

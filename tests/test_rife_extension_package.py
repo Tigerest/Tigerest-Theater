@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import struct
 import sys
@@ -80,7 +81,9 @@ class ExtensionPackageTests(unittest.TestCase):
 
     def test_shipped_catalog_supports_the_actual_release_version(self):
         catalog = json.loads((ROOT/'resources/rife/windows-catalog.json').read_text())
-        app = (ROOT/'VERSION').read_text().strip()
+        # The client checks extensions with its canonical major.minor.patch
+        # version (VERSION_BASE), so a fix release such as 2.9.5.1 asks as 2.9.5.
+        app = re.match(r'\d+\.\d+\.\d+', (ROOT/'VERSION').read_text().strip()).group(0)
         item = catalog_item(catalog, 'rife-nvidia-r79', app)
         self.assertTrue(item['url'].startswith('https://github.com/Tigerest/'))
 
