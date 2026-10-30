@@ -43,6 +43,21 @@ const QString BackupName = QStringLiteral("旧版自定义配置备份.txt");
 const QString HashLabel = QStringLiteral("# 默认配置校验值：");
 const QString VersionLabel = QStringLiteral("# 配置版本：");
 
+#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
+// A system font with complete simplified Chinese. A font without CJK (Segoe
+// UI, or whatever "sans-serif" resolves to) makes libass ask the system once
+// per missing glyph. On Windows DirectWrite answers Yu Gothic UI Semibold for
+// kanji it covers but Microsoft JhengHei for simplified-only characters such
+// as 难, so one line ends up in two weights; CoreText falls back the same
+// per-glyph way. Microsoft YaHei's Latin glyphs are Segoe UI's, and PingFang
+// SC has a semibold face for bold subtitles.
+#ifdef Q_OS_WIN
+const QString CjkFont = QStringLiteral("Microsoft YaHei");
+#else
+const QString CjkFont = QStringLiteral("PingFang SC");
+#endif
+#endif
+
 bool copyResourceTree(const QString& sourceRoot, const QString& targetRoot)
 {
   QDirIterator it(sourceRoot, QDir::Files, QDirIterator::Subdirectories);
@@ -445,6 +460,10 @@ QString MpvConfigManager::danmakuStyleConfigText(const QVariantMap& values)
   lines << QStringLiteral("scrolltime=%1").arg(number(QStringLiteral("scrolltime"), 15));
   lines << QStringLiteral("opacity=%1").arg(number(QStringLiteral("opacity"), 0.7));
   lines << QStringLiteral("displayarea=%1").arg(number(QStringLiteral("displayarea"), 0.2));
+#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
+  // The plugin's own default is sans-serif; see CjkFont.
+  lines << QStringLiteral("fontname=%1").arg(CjkFont);
+#endif
   return lines.join('\n') + '\n';
 }
 
@@ -565,6 +584,9 @@ QList<MpvConfigManager::ManagedOption> MpvConfigManager::subtitleOptions()
   const QString font = settings.value(SETTINGS_SECTION_SUBTITLES, "font").toString();
   if (!font.isEmpty())
     options << ManagedOption{QStringLiteral("sub-font"), font, QStringLiteral("字幕字体（字幕 → 字体）。")};
+  options << ManagedOption{QStringLiteral("sub-bold"),
+                           settings.value(SETTINGS_SECTION_SUBTITLES, "bold").toBool() ? QStringLiteral("yes") : QStringLiteral("no"),
+                           QStringLiteral("纯文本字幕是否用粗体（字幕 → 字幕粗体）；ASS 字幕保留脚本自带样式。")};
   const QString color = settings.value(SETTINGS_SECTION_SUBTITLES, "color").toString();
   if (!color.isEmpty())
     options << ManagedOption{QStringLiteral("sub-color"), color, QStringLiteral("字幕颜色（字幕 → 颜色）。")};
@@ -885,6 +907,17 @@ bool MpvConfigManager::prepare()
       settings.setValue(SETTINGS_SECTION_SUBTITLES, "font", QStringLiteral("Segoe UI"));
     settings.setValue(SETTINGS_SECTION_SUBTITLES, "referenceMpvDefaultsMigrated", true);
   }
+#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
+  // Segoe UI was the desktop default through 2.9.5 (and no Mac has it); see
+  // CjkFont. Move only that former default, once, so picking Segoe UI again
+  // later sticks.
+  if (!settings.value(SETTINGS_SECTION_SUBTITLES, "cjkFontMigrated").toBool())
+  {
+    if (settings.value(SETTINGS_SECTION_SUBTITLES, "font").toString() == QStringLiteral("Segoe UI"))
+      settings.setValue(SETTINGS_SECTION_SUBTITLES, "font", CjkFont);
+    settings.setValue(SETTINGS_SECTION_SUBTITLES, "cjkFontMigrated", true);
+  }
+#endif
 
   const QString legacyPreset = settings.value(SETTINGS_SECTION_MPV, "shaderPreset").toString();
   if (legacyPreset != QStringLiteral("default") &&
