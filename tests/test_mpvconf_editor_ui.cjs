@@ -41,6 +41,40 @@ withBrowser({
  assert.equal(await evaluate('document.querySelector("#tgs-mpvconf-preset").value'),'tigerest-default');
  assert.equal(await evaluate('document.querySelector("#tgs-mpvconf-deband-threshold").value'),'24');
 
+ // Long lines wrap instead of scrolling sideways: moving the caret to the end
+ // of a long Chinese comment used to push the text under the line numbers.
+ // Every line's number, "+" and highlight follow its wrapped height. This runs
+ // before the first save and takes its lines out again unsaved; the error line
+ // stops a check that fires in between from saving them.
+ const wrapLines=['# '+'这一行说明故意写得很长，用来检查编辑器会不会把它换行显示。'.repeat(5),
+  'glsl-shader=~~/shaders/user/'+'long-shader-name-'.repeat(16)+'glsl','# 行尾留了很多空格'+' '.repeat(160),'\tdeband=yes','cache-pause=maybe'];
+ await evaluate(`(()=>{const t=document.querySelector(".tgs-conf-text"),lines=${JSON.stringify(wrapLines)};
+  window.tigerestWrapBefore=t.value;t.value=lines.join("\\n")+"\\n"+t.value;t.dispatchEvent(new Event("input"));
+  t.focus();t.setSelectionRange(lines[0].length-1,lines[0].length-1);})()`);
+ for(const type of ['rawKeyDown','keyUp'])await call('Input.dispatchKeyEvent',{type,key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
+ await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
+ const wrap=await evaluate(`(()=>{
+  const t=document.querySelector(".tgs-conf-text"),scroll=document.querySelector(".tgs-conf-scroll");
+  const rows=[...document.querySelectorAll(".tgs-conf-row")],plus=[...document.querySelectorAll(".tgs-conf-plus")];
+  const probe=t.cloneNode();probe.style.height="0";t.after(probe);
+  const mismatched=t.value.split("\\n").flatMap((line,i)=>{probe.value=line;return probe.scrollHeight===rows[i]?.offsetHeight?[]:[i+1];});
+  probe.remove();
+  const box=plus[1]?.getBoundingClientRect();
+  return {caret:t.selectionStart,shift:[t.scrollLeft,scroll.scrollLeft],
+   sideways:[scroll,t,...document.querySelectorAll(".tgs-conf-managed pre")].map(n=>n.scrollWidth-n.clientWidth),
+   hidden:t.scrollHeight-t.clientHeight,wrapped:rows[0]?.offsetHeight/20,mismatched,
+   plusOffset:box&&rows[0]&&Math.round(box.top+box.height/2-rows[0].getBoundingClientRect().bottom)};})()`);
+ assert.equal(wrap.caret,wrapLines[0].length,'the caret did not reach the end of the long line');
+ assert.deepEqual(wrap.shift,[0,0],'the caret at the end of a long line shifted the text sideways');
+ assert.deepEqual(wrap.sideways,[0,0,0,0],'the editor or its managed blocks still scroll sideways');
+ assert.equal(wrap.hidden,0,'the textarea is taller than the numbered rows beside it');
+ assert.ok(wrap.wrapped>1,'the long line did not wrap');
+ assert.deepEqual(wrap.mismatched,[],'these lines wrap differently from their numbered rows');
+ assert.equal(wrap.plusOffset,0,'the "+" after a wrapped line is not on its bottom edge');
+ await evaluate('(()=>{const t=document.querySelector(".tgs-conf-text");t.value=window.tigerestWrapBefore;t.dispatchEvent(new Event("input"));})()');
+ await until(evaluate,'document.querySelector(".tgs-conf-status").textContent.startsWith("已保存")','the editor did not return to the saved text');
+ assert.equal(fs.readFileSync(conf,'utf8'),original,'the wrap check must not save its test lines');
+
  // Form edit: the live-action threshold is inherited (48); setting it adds
  // exactly one line in that profile and saves the file.
  await evaluate(`(()=>{const s=document.querySelector("#tgs-mpvconf-preset");s.value="tigerest-liveaction";s.dispatchEvent(new Event("change"));})()`);
@@ -129,35 +163,7 @@ withBrowser({
  const userOf=text=>text.slice(text.indexOf('==== 头部结束 ===='),text.indexOf('==== 大河影院管理区·尾部'));
  assert.equal(userOf(fs.readFileSync(conf,'utf8')),userOf(beforeReset),'page reset must not touch the user area');
  assert.equal(await evaluate('jmpInfo.settings.mpv.mpvConfEditorMigrated'),true,'page reset must keep the migration marker');
- // Long lines wrap instead of scrolling sideways: moving the caret to the end
- // of a long Chinese comment used to push the text under the line numbers.
- // Every line's number, "+" and highlight follow its wrapped height.
- const wrapLines=['# '+'这一行说明故意写得很长，用来检查编辑器会不会把它换行显示。'.repeat(5),
-  'glsl-shader=~~/shaders/user/'+'long-shader-name-'.repeat(16)+'glsl','# 行尾留了很多空格'+' '.repeat(160),'\tdeband=yes'];
- await evaluate(`(()=>{const t=document.querySelector(".tgs-conf-text"),lines=${JSON.stringify(wrapLines)};
-  t.value=lines.join("\\n")+"\\n"+t.value;t.dispatchEvent(new Event("input"));
-  t.focus();t.setSelectionRange(lines[0].length-1,lines[0].length-1);})()`);
- for(const type of ['rawKeyDown','keyUp'])await call('Input.dispatchKeyEvent',{type,key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
- await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
- const wrap=await evaluate(`(()=>{
-  const t=document.querySelector(".tgs-conf-text"),scroll=document.querySelector(".tgs-conf-scroll");
-  const rows=[...document.querySelectorAll(".tgs-conf-row")],plus=[...document.querySelectorAll(".tgs-conf-plus")];
-  const probe=t.cloneNode();probe.style.height="0";t.after(probe);
-  const mismatched=t.value.split("\\n").flatMap((line,i)=>{probe.value=line;return probe.scrollHeight===rows[i]?.offsetHeight?[]:[i+1];});
-  probe.remove();
-  const box=plus[1]?.getBoundingClientRect();
-  return {caret:t.selectionStart,shift:[t.scrollLeft,scroll.scrollLeft],
-   sideways:[scroll,t,...document.querySelectorAll(".tgs-conf-managed pre")].map(n=>n.scrollWidth-n.clientWidth),
-   hidden:t.scrollHeight-t.clientHeight,wrapped:rows[0]?.offsetHeight/20,mismatched,
-   plusOffset:box&&rows[0]&&Math.round(box.top+box.height/2-rows[0].getBoundingClientRect().bottom)};})()`);
- assert.equal(wrap.caret,wrapLines[0].length,'the caret did not reach the end of the long line');
- assert.deepEqual(wrap.shift,[0,0],'the caret at the end of a long line shifted the text sideways');
- assert.deepEqual(wrap.sideways,[0,0,0,0],'the editor or its managed blocks still scroll sideways');
- assert.equal(wrap.hidden,0,'the textarea is taller than the numbered rows beside it');
- assert.ok(wrap.wrapped>1,'the long line did not wrap');
- assert.deepEqual(wrap.mismatched,[],'these lines wrap differently from their numbered rows');
- assert.equal(wrap.plusOffset,0,'the "+" after a wrapped line is not on its bottom edge');
- console.log('mpv.conf editor: form, validation, leave guard, "+" insert, lock, restore, RIFE suspension, page reset and line wrapping verified');
+ console.log('mpv.conf editor: line wrapping, form, validation, leave guard, "+" insert, lock, restore, RIFE suspension and page reset verified');
 },{startupTimeout:30000}).then(()=>withBrowser({
  '/':{type:'text/html',body:'<!doctype html><meta charset="utf-8"><title>mpv.conf notice fixture</title><body style="background:#141414;color:#eee"></body>'}
 },async({evaluate})=>{
