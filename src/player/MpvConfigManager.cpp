@@ -49,12 +49,13 @@ const QString VersionLabel = QStringLiteral("# 配置版本：");
 // per missing glyph. On Windows DirectWrite answers Yu Gothic UI Semibold for
 // kanji it covers but Microsoft JhengHei for simplified-only characters such
 // as 难, so one line ends up in two weights; CoreText falls back the same
-// per-glyph way. Microsoft YaHei's Latin glyphs are Segoe UI's, and PingFang
-// SC has a semibold face for bold subtitles.
+// per-glyph way. Microsoft YaHei's Latin glyphs are Segoe UI's. Hiragino Sans
+// GB ships on every Mac's system volume, and libass takes its W6 face for bold
+// subtitles; for PingFang SC it takes Medium and emboldens it.
 #ifdef Q_OS_WIN
 const QString CjkFont = QStringLiteral("Microsoft YaHei");
 #else
-const QString CjkFont = QStringLiteral("PingFang SC");
+const QString CjkFont = QStringLiteral("Hiragino Sans GB");
 #endif
 #endif
 

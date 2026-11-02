@@ -668,14 +668,14 @@
       {
         "value": "font",
         "display_name": "字幕字体",
-        "help": "Windows 默认微软雅黑（西文与 Segoe UI 同一设计），Mac 默认苹方，都带完整中文字形。Segoe UI 不含中文，中文会逐字回退到不同的系统字体，同一行可能粗细不一。ASS 字幕仍会优先遵循字幕脚本自带字体。",
+        "help": "Windows 默认微软雅黑（西文与 Segoe UI 同一设计），Mac 默认冬青黑体（每台 Mac 都自带），都带完整中文字形。Segoe UI 不含中文，中文会逐字回退到不同的系统字体，同一行可能粗细不一。ASS 字幕仍会优先遵循字幕脚本自带字体。",
         "default": [
           {
             "value": "Microsoft YaHei",
             "platforms": [ "windows" ]
           },
           {
-            "value": "PingFang SC",
+            "value": "Hiragino Sans GB",
             "platforms": [ "osx" ]
           },
           {
@@ -685,7 +685,8 @@
         "possible_values": [
           [ "", "默认" ],
           [ "Microsoft YaHei", "微软雅黑（Windows 默认）", { "platforms": [ "windows" ] } ],
-          [ "PingFang SC", "苹方（Mac 默认）", { "platforms": [ "osx" ] } ],
+          [ "Hiragino Sans GB", "冬青黑体（Mac 默认）", { "platforms": [ "osx" ] } ],
+          [ "PingFang SC", "苹方", { "platforms": [ "osx" ] } ],
           [ "Segoe UI", "Segoe UI（参考配置）" ],
           [ "serif", "衬线体" ],
           [ "sans-serif", "无衬线体" ],
@@ -699,7 +700,7 @@
       {
         "value": "bold",
         "display_name": "字幕粗体",
-        "help": "用字体的粗体显示 SRT 等纯文本字幕；ASS 字幕保留脚本自带样式。Windows 与 Mac 默认开启，分别使用微软雅黑粗体和苹方中粗体。",
+        "help": "用字体的粗体显示 SRT 等纯文本字幕；ASS 字幕保留脚本自带样式。Windows 与 Mac 默认开启，分别使用微软雅黑粗体和冬青黑体 W6。",
         "default": [
           {
             "value": true,

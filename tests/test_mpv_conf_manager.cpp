@@ -214,7 +214,7 @@ void TestMpvConfManager::subtitleFontCoversChinese()
 #if defined(Q_OS_WIN)
   const QString cjk = QStringLiteral("Microsoft YaHei");
 #elif defined(Q_OS_MAC)
-  const QString cjk = QStringLiteral("PingFang SC");
+  const QString cjk = QStringLiteral("Hiragino Sans GB");
 #else
   QSKIP("Other desktops keep the reference Segoe UI default");
 #endif

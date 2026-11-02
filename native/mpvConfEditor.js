@@ -2,7 +2,6 @@
 // The native player owns parsing, validation and saving; this file renders
 // the form, the line editor with its "+" gutter, diagnostics and dialogs.
 
-const MPVCONF_LINE_HEIGHT = 20;
 const MPVCONF_DRAFT_KEY = 'tigerestMpvConfDraft';
 const MPVCONF_PRESETS = {
     'tigerest-default': 'default',
@@ -83,30 +82,29 @@ function createMpvConfEditor({element, player, settings, saveSetting, notify}) {
         .tgs-conf-editor { border: 1px solid #3a3a3a; border-radius: 3px; background: #191919; overflow: hidden; }
         .tgs-conf-managed { margin: 0; }
         .tgs-conf-managed summary { padding: 8px 12px; color: #999; font-size: 12px; cursor: pointer; background: #1e1e1e; }
-        .tgs-conf-managed pre { margin: 0; padding: 6px 12px 10px 68px; color: #777; font: 13px/20px Consolas, Menlo, monospace; white-space: pre; overflow-x: auto; }
-        .tgs-conf-scroll { max-height: 62vh; overflow: auto; border-top: 1px solid #2c2c2c; border-bottom: 1px solid #2c2c2c; }
-        .tgs-conf-grid { display: flex; min-width: 100%; width: max-content; }
-        .tgs-conf-gutter { position: relative; flex: none; width: 56px; padding: 6px 0; background: #1e1e1e; color: #666;
-            font: 12px/20px Consolas, Menlo, monospace; text-align: right; user-select: none; }
-        .tgs-conf-gutter .num { position: relative; height: 20px; padding-right: 8px; }
-        .tgs-conf-gutter .num[data-mark]::before { content: ''; position: absolute; left: 6px; top: 7px; width: 7px; height: 7px; border-radius: 50%; }
-        .tgs-conf-gutter .num[data-mark="error"]::before { background: #e5534b; }
-        .tgs-conf-gutter .num[data-mark="warning"]::before { background: #d29922; }
-        .tgs-conf-gutter .num[data-mark="info"]::before { background: #6e7681; }
-        .tgs-conf-plus { position: absolute; left: 14px; width: 18px; height: 18px; margin-top: -9px; padding: 0; z-index: 2;
+        .tgs-conf-managed pre { margin: 0; padding: 6px 12px 10px 68px; color: #777; font: 13px/20px Consolas, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .tgs-conf-scroll { max-height: 62vh; overflow: hidden auto; border-top: 1px solid #2c2c2c; border-bottom: 1px solid #2c2c2c; }
+        .tgs-conf-code { position: relative; padding: 6px 0; background: linear-gradient(90deg, #1e1e1e 56px, transparent 56px); }
+        .tgs-conf-grid { display: grid; grid-template-columns: 56px minmax(0, 1fr); }
+        .tgs-conf-grid .num { position: relative; padding-right: 8px; color: #666; font: 12px/20px Consolas, Menlo, monospace; text-align: right; user-select: none; }
+        .tgs-conf-grid .num[data-mark]::before { content: ''; position: absolute; left: 6px; top: 7px; width: 7px; height: 7px; border-radius: 50%; }
+        .tgs-conf-grid .num[data-mark="error"]::before { background: #e5534b; }
+        .tgs-conf-grid .num[data-mark="warning"]::before { background: #d29922; }
+        .tgs-conf-grid .num[data-mark="info"]::before { background: #6e7681; }
+        .tgs-conf-plus { position: absolute; top: 0; left: 14px; width: 18px; height: 18px; margin-top: -9px; padding: 0; z-index: 2;
             border: 0; border-radius: 50%; color: #141414; background: #ffbe38; font: 600 14px/18px system-ui; cursor: pointer; opacity: .18; }
+        .tgs-conf-plus.last { top: 100%; }
         .tgs-conf-plus:hover, .tgs-conf-plus:focus-visible { opacity: 1; }
-        .tgs-conf-code { position: relative; flex: 1; padding: 6px 0; }
-        .tgs-conf-backdrop { position: absolute; inset: 6px 0 auto 0; pointer-events: none; }
-        .tgs-conf-backdrop div { height: 20px; }
-        .tgs-conf-backdrop .error { background: #e5534b2e; }
-        .tgs-conf-backdrop .warning { background: #d2992224; }
-        .tgs-conf-backdrop .suspended { background: #bb800926; }
-        .tgs-conf-backdrop .ignored { background: #6e768130; }
-        .tgs-conf-backdrop .flash { background: #ffbe3840; }
-        .tgs-conf-text { position: relative; display: block; box-sizing: content-box; min-width: calc(100% - 24px); margin: 0; padding: 0 12px;
-            border: 0; outline: none; resize: none; overflow: hidden; white-space: pre; color: #ddd; background: transparent;
-            font: 13px/20px Consolas, Menlo, monospace; tab-size: 4; caret-color: #ffbe38; }
+        .tgs-conf-row, .tgs-conf-text { box-sizing: border-box; padding: 0 12px; font: 13px/20px Consolas, Menlo, monospace;
+            letter-spacing: normal; word-spacing: normal; text-indent: 0; tab-size: 4; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .tgs-conf-row { min-height: 20px; color: transparent; }
+        .tgs-conf-row.error { background: #e5534b2e; }
+        .tgs-conf-row.warning { background: #d2992224; }
+        .tgs-conf-row.suspended { background: #bb800926; }
+        .tgs-conf-row.ignored { background: #6e768130; }
+        .tgs-conf-row.flash { background: #ffbe3840; }
+        .tgs-conf-text { position: absolute; top: 6px; left: 56px; width: calc(100% - 56px); height: calc(100% - 12px); margin: 0;
+            border: 0; outline: none; resize: none; overflow: hidden; color: #ddd; background: transparent; caret-color: #ffbe38; }
         .tgs-conf-status { color: #aaa; font-size: 13px; }
         .tgs-conf-status.error { color: #ff8b84; }
         .tgs-conf-diagnostics { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.5; }
@@ -133,7 +131,7 @@ function createMpvConfEditor({element, player, settings, saveSetting, notify}) {
         .tgs-conf-pick-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
         .tgs-conf-pick .meta { color: #999; font-size: 12px; }
         .tgs-conf-pick.disabled { opacity: .55; }
-        .tgs-conf-diff { margin: 0; font: 12px/18px Consolas, Menlo, monospace; white-space: pre; overflow: auto; max-height: 50vh; }
+        .tgs-conf-diff { margin: 0; font: 12px/18px Consolas, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; max-height: 50vh; }
         .tgs-conf-diff .add { color: #7ee787; background: #2ea04326; display: block; }
         .tgs-conf-diff .del { color: #ffa198; background: #f8514926; display: block; }
     `;
@@ -178,20 +176,20 @@ function createMpvConfEditor({element, player, settings, saveSetting, notify}) {
     const tailDetails = element('details', 'tgs-conf-managed');
     tailDetails.open = true;
     tailDetails.append(element('summary', '', '尾部管理区（只读：由软件和其他设置页决定的配置，及播放时软件执行的动作；点击折叠）'), element('pre'));
+    // Long lines wrap instead of scrolling sideways. Each line is a grid row of
+    // its number and an invisible copy of its text, which wraps exactly like
+    // the textarea laid over the copies; numbers, "+" and highlights therefore
+    // keep to the wrapped height of their line.
     const scroll = element('div', 'tgs-conf-scroll');
-    const grid = element('div', 'tgs-conf-grid');
-    const gutter = element('div', 'tgs-conf-gutter');
     const code = element('div', 'tgs-conf-code');
-    const backdrop = element('div', 'tgs-conf-backdrop');
+    const grid = element('div', 'tgs-conf-grid');
     const textarea = element('textarea', 'tgs-conf-text');
     textarea.spellcheck = false;
-    textarea.wrap = 'off';
     textarea.setAttribute('aria-label', 'mpv.conf 用户区');
     textarea.setAttribute('autocapitalize', 'off');
     textarea.setAttribute('autocomplete', 'off');
-    code.append(backdrop, textarea);
-    grid.append(gutter, code);
-    scroll.appendChild(grid);
+    code.append(grid, textarea);
+    scroll.appendChild(code);
     editor.append(headDetails, scroll, tailDetails);
     const status = element('div', 'tgs-conf-status');
     status.setAttribute('role', 'status');
@@ -219,12 +217,12 @@ function createMpvConfEditor({element, player, settings, saveSetting, notify}) {
         let start = 0;
         for (let i = 0; i < number - 1 && i < lines.length; i++) start += lines[i].length + 1;
         const end = start + (lines[number - 1] || '').length;
-        scroll.scrollTop = Math.max(0, (number - 1) * MPVCONF_LINE_HEIGHT - 120);
+        const row = grid.querySelectorAll('.tgs-conf-row')[number - 1];
+        scroll.scrollTop = Math.max(0, (row?.offsetTop || 0) - 120);
         if (select) {
             textarea.focus({preventScroll: true});
             textarea.setSelectionRange(start, end);
         }
-        const row = backdrop.children[number - 1];
         if (row) {
             row.classList.add('flash');
             setTimeout(() => row.classList.remove('flash'), 1200);
@@ -234,18 +232,22 @@ function createMpvConfEditor({element, player, settings, saveSetting, notify}) {
     // ---- rendering ----
     const renderLines = () => {
         const lines = textarea.value.split('\n');
-        textarea.style.height = `${lines.length * MPVCONF_LINE_HEIGHT}px`;
-        const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
-        textarea.style.width = `max(calc(100% - 24px), ${longest + 4}ch)`;
         const marks = new Map(), messages = new Map();
         const rank = {error: 3, warning: 2, info: 1};
         for (const item of analysis?.diagnostics || []) {
             if ((rank[item.severity] || 0) > (rank[marks.get(item.line)] || 0)) marks.set(item.line, item.severity);
             messages.set(item.line, [...(messages.get(item.line) || []), item.message]);
         }
-        gutter.replaceChildren();
-        backdrop.replaceChildren();
-        lines.forEach((_, index) => {
+        // The "+" before a line sits on the top edge of its number; the one
+        // after the last line on the bottom edge.
+        const plus = boundary => {
+            const node = button('+', 'tgs-conf-plus', () => openPicker(boundary));
+            node.title = boundary === 0 ? '在第 1 行之前插入' : `在第 ${boundary} 行之后插入`;
+            node.setAttribute('aria-label', node.title);
+            return node;
+        };
+        grid.replaceChildren();
+        lines.forEach((line, index) => {
             const number = index + 1;
             const num = element('div', 'num', String(number));
             const mark = marks.get(number);
@@ -253,19 +255,19 @@ function createMpvConfEditor({element, player, settings, saveSetting, notify}) {
                 num.dataset.mark = mark;
                 num.title = messages.get(number).join('\n');
             }
-            gutter.appendChild(num);
+            num.appendChild(plus(index));
+            if (number === lines.length) {
+                const last = plus(number);
+                last.classList.add('last');
+                num.appendChild(last);
+            }
             const kind = lineInfo(number)?.kind;
-            const row = element('div', mark === 'error' || mark === 'warning' ? mark
-                : kind === 'suspended' || kind === 'ignored' ? kind : '');
-            backdrop.appendChild(row);
+            const row = element('div', 'tgs-conf-row', line);
+            if (mark === 'error' || mark === 'warning') row.classList.add(mark);
+            else if (kind === 'suspended' || kind === 'ignored') row.classList.add(kind);
+            row.setAttribute('aria-hidden', 'true');
+            grid.append(num, row);
         });
-        for (let boundary = 0; boundary <= lines.length; boundary++) {
-            const plus = button('+', 'tgs-conf-plus', () => openPicker(boundary));
-            plus.style.top = `${6 + boundary * MPVCONF_LINE_HEIGHT}px`;
-            plus.title = boundary === 0 ? '在第 1 行之前插入' : `在第 ${boundary} 行之后插入`;
-            plus.setAttribute('aria-label', plus.title);
-            gutter.appendChild(plus);
-        }
     };
 
     const renderDiagnostics = () => {
