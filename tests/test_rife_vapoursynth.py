@@ -69,6 +69,13 @@ class RifePluginTests(unittest.TestCase):
                    for n in range(4)),Fraction())
         self.assertEqual(total,Fraction(2*1001,24000))
 
+    def test_even_denominator_rate_is_reduced(self):
+        # container-fps 23.9988 arrives as 59997/2500. VapourSynth rejects an
+        # unreduced doubled rate, which used to abort mpv during teardown.
+        blank=self.core.std.BlankClip(width=128,height=128,length=2,format=vs.RGBS,fpsnum=59997,fpsden=2500)
+        output=self.core.tigerest.RIFE(blank,model_path=str(self.model),fps_num=59997,fps_den=2500)
+        self.assertEqual((output.num_frames,output.fps_num,output.fps_den),(4,59997,1250))
+
     def test_hdr_unknown_and_vfr_bypass(self):
         source=self.source()
         cases=[self.core.std.SetFrameProps(source,_Transfer=16),
