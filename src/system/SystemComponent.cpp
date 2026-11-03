@@ -664,16 +664,16 @@ void SystemComponent::jsLog(int level, QString text)
 {
   switch (level) {
     case 0: // Info
-      qInfo() << "JS:" << qPrintable(text);
+      qInfo() << "JS:" << qUtf8Printable(text);
       break;
     case 1: // Warning
-      qWarning() << "JS:" << qPrintable(text);
+      qWarning() << "JS:" << qUtf8Printable(text);
       break;
     case 2: // Error
-      qCritical() << "JS:" << qPrintable(text);
+      qCritical() << "JS:" << qUtf8Printable(text);
       break;
     default:
-      qDebug() << "JS: [uncaught level=" << level << "]" << qPrintable(text);
+      qDebug() << "JS: [uncaught level=" << level << "]" << qUtf8Printable(text);
       break;
   }
 }

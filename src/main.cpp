@@ -603,7 +603,7 @@ int main(int argc, char *argv[])
     // Rotate temp log to main log file and rotate old logs
     Log::RotateLog();
 
-    qInfo() << "Config directory:" << qPrintable(ProfileManager::activeProfile().dataDir());
+    qInfo() << "Config directory:" << qUtf8Printable(ProfileManager::activeProfile().dataDir());
 
     Log::ApplyConfigLogLevel();
 
@@ -743,7 +743,7 @@ int main(int argc, char *argv[])
   }
   catch (FatalException& e)
   {
-    qFatal("Unhandled FatalException: %s", qPrintable(e.message()));
+    qFatal("Unhandled FatalException: %s", qUtf8Printable(e.message()));
     QApplication errApp(argc, argv);
 
     auto  msg = new ErrorMessage(e.message(), true);

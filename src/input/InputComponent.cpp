@@ -131,7 +131,7 @@ void InputComponent::handleAction(const QString& action)
         }
         else
         {
-          qDebug() << "Invoking slot" << qPrintable(recvSlot->m_slot.data());
+          qDebug() << "Invoking slot" << qUtf8Printable(recvSlot->m_slot.data());
 
           bool success;
           if (recvSlot->m_hasArguments)
@@ -147,7 +147,7 @@ void InputComponent::handleAction(const QString& action)
 
           if (!success)
           {
-            qCritical() << "Invoking slot" << qPrintable(recvSlot->m_slot.data()) << "failed!";
+            qCritical() << "Invoking slot" << qUtf8Printable(recvSlot->m_slot.data()) << "failed!";
           }
         }
       }
@@ -287,8 +287,8 @@ void InputComponent::registerHostCommand(const QString& command, QObject* receiv
   recvSlot->m_slot = QMetaObject::normalizedSignature(slot);
   recvSlot->m_hasArguments = false;
 
-  qDebug() << "Adding host command:" << qPrintable(command) << "mapped to"
-               << qPrintable(QString(receiver->metaObject()->className()) + "::" + recvSlot->m_slot);
+  qDebug() << "Adding host command:" << qUtf8Printable(command) << "mapped to"
+               << qUtf8Printable(QString(receiver->metaObject()->className()) + "::" + recvSlot->m_slot);
 
   m_hostCommands.insert(command, recvSlot);
 
@@ -315,7 +315,7 @@ void InputComponent::registerHostCommand(const QString& command, std::function<v
 {
   auto recvSlot = new ReceiverSlot;
   recvSlot->m_function = function;
-  qDebug() << "Adding host command:" << qPrintable(command) << "mapped to anonymous function";
+  qDebug() << "Adding host command:" << qUtf8Printable(command) << "mapped to anonymous function";
   m_hostCommands.insert(command, recvSlot);
 }
 
