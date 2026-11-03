@@ -1,6 +1,6 @@
 # Tigerest Theater 使用教程
 
-这里是 EMBY 大河版的中文使用说明，对应 Windows 与 Mac 2.9.5.2，以及 Android、iPhone／iPad 与 Apple TV 2.9.5。客户端支持 Windows、Apple Silicon Mac、Android、iPad 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
+这里是 EMBY 大河版的中文使用说明，对应 Mac 2.9.5.3、Windows 2.9.5.2，以及 Android、iPhone／iPad 与 Apple TV 2.9.5。客户端支持 Windows、Apple Silicon Mac、Android、iPad 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
 
 ## 第一次使用
 
@@ -29,6 +29,12 @@
 | [常见问题](https://github.com/Tigerest/Tigerest-Theater/wiki/FAQ) | 平台区别、账号范围、补帧与共享功能的常见疑问 |
 | [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture) | 各客户端的实现与架构、播放链路、一起看同步、评论和弹幕的数据流 |
 | [引用来源与鸣谢](https://github.com/Tigerest/Tigerest-Theater/wiki/Credits) | 用到的开源项目、用途和许可证，源码与许可文件在哪里 |
+
+## 2.9.5.3 更新了什么（只有 Mac）
+
+- **补帧不再闪退：** 开着 RIFE 播放帧率带零头的视频（例如容器标 23.9988 帧）时，不再一开始播放就闪退；补帧滤镜创建失败时只是不补帧。每帧时长和容器帧率对不上的视频仍保持原帧播放。见 [AI 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE)。
+- **鼠标自动隐藏：** 播放窗口里鼠标停住后按 mpv.conf 的 `cursor-autohide`（默认 0.8 秒）隐藏，移到进度条等控件上照常显示。
+- **同时带上的修复：** 缓存还在加载时不再 30 秒报启动超时；加载外挂字幕、音轨和切换画质档位时窗口不再卡住。这些改动 Windows 要等 Windows 版 2.9.5.3。
 
 ## 2.9.5.2 更新了什么（Windows、Mac）
 
