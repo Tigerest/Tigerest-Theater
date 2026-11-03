@@ -197,6 +197,20 @@ target_compile_definitions(test_emby_uosc_playlist PRIVATE ${TEST_COMPILE_DEFS})
 add_test(NAME test_emby_uosc_playlist COMMAND test_emby_uosc_playlist)
 set_tests_properties(test_emby_uosc_playlist PROPERTIES TIMEOUT 30 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+add_executable(test_player_async_mpv test_player_async_mpv.cpp)
+qt_add_resources(test_player_async_mpv "test_player_async_mpv_resources"
+  PREFIX "/" BASE "${CMAKE_SOURCE_DIR}/resources"
+  FILES "${CMAKE_SOURCE_DIR}/resources/mpv/mpv.default.conf"
+        "${CMAKE_SOURCE_DIR}/resources/mpv/input.conf"
+        "${CMAKE_SOURCE_DIR}/resources/mpvconf/options.json"
+        "${CMAKE_SOURCE_DIR}/resources/mpvconf/mpv-options.json"
+        "${CMAKE_SOURCE_DIR}/resources/settings/settings_description.json")
+target_link_libraries(test_player_async_mpv jmp_core Qt6::Test)
+target_include_directories(test_player_async_mpv PRIVATE ${TEST_INCLUDE_DIRS})
+target_compile_definitions(test_player_async_mpv PRIVATE ${TEST_COMPILE_DEFS})
+add_test(NAME test_player_async_mpv COMMAND test_player_async_mpv)
+set_tests_properties(test_player_async_mpv PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
   add_test(NAME test_macos_rife_runtime_pin COMMAND "${Python3_EXECUTABLE}" -B -X utf8
