@@ -57,7 +57,8 @@ vs.core.std.ModifyFrame(output,clips=output,selector=record('output')).set_outpu
             self.assertEqual(sum((Fraction(f['num'],f['den']) for f in frames),Fraction()),Fraction(count*fps_den,fps_num))
 
     def test_real_stream_generates_frames_keeps_originals_and_finishes_last_frame(self):
-        for fps_num,fps_den,count in [(24000,1001,1),(24000,1001,3),(30000,1001,131)]:
+        # 59997/2500 is container-fps 23.9988; doubling it used to abort mpv.
+        for fps_num,fps_den,count in [(24000,1001,1),(24000,1001,3),(30000,1001,131),(59997,2500,3)]:
             with self.subTest(rate=(fps_num,fps_den),frames=count):
                 self.exercise_stream(fps_num,fps_den,count)
 
