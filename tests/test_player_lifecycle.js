@@ -426,6 +426,51 @@ async function main() {
     assert.deepStrictEqual([...timers.keys()], [currentTimer], 'stale status changed the new startup watchdog');
     await preparationInstance.stop(false);
 
+    // A cold server: the moov-at-end MP4 opens in 11 s, the resume seek shows
+    // the first frame at 28.5 s and mpv refills its cache past the deadline.
+    async function fireTimerAt(time) {
+        const [id, callback] = timers.entries().next().value;
+        now = time;
+        timers.delete(id);
+        timerDelays.delete(id);
+        callback();
+        await flush();
+    }
+    player.rifeExtensionStatus = async () => ({runtime: {startupWaiting: false, preparationElapsedMs: 0}});
+    await preparationInstance.play(options);
+    const slowStart = now;
+    const stopsBeforeSlowStart = nativeStops;
+    now = slowStart + 28500;
+    player.buffering.emit(0);
+    player.buffering.emit(3);
+    player.buffering.emit(48);
+    await fireTimerAt(slowStart + 30000);
+    assert.strictEqual(nativeStops, stopsBeforeSlowStart, 'the startup watchdog stopped a filling cache');
+    assert.deepStrictEqual([...timerDelays.values()], [10000], 'a filling cache was not rechecked');
+    now = slowStart + 35000;
+    player.buffering.emit(60);
+    await fireTimerAt(slowStart + 40000);
+    assert.strictEqual(nativeStops, stopsBeforeSlowStart, 'continued cache progress was stopped');
+    await fireTimerAt(slowStart + 50000);
+    assert.strictEqual(nativeStops, stopsBeforeSlowStart + 1, 'a cache that stopped filling never timed out');
+    assert.strictEqual(timers.size, 0);
+
+    // Progress belongs to one session: the next load starts from 0 %.
+    await preparationInstance.play(options);
+    const nextStart = now;
+    now = nextStart + 29000;
+    player.buffering.emit(5);
+    await fireTimerAt(nextStart + 30000);
+    assert.strictEqual(nativeStops, stopsBeforeSlowStart + 1, 'cache progress of the new load was ignored');
+    preparationInstance.onPlaying();
+    assert.strictEqual(timers.size, 0, 'playing after a slow start left a watchdog armed');
+    await preparationInstance.stop(false);
+    await preparationInstance.play(options);
+    const repeatStart = now;
+    await fireTimerAt(repeatStart + 30000);
+    assert.strictEqual(nativeStops, stopsBeforeSlowStart + 3,
+        'old cache progress kept a new load without progress alive');
+
     player.rifeExtensionStatus = async () => ({runtime: {startupWaiting: true, preparationElapsedMs: 30000}});
     await preparationInstance.play(options);
     const stopsBeforeStuckPreparation = nativeStops;
