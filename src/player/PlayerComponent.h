@@ -184,7 +184,10 @@ public:
   Q_INVOKABLE bool mpvConfOpenShaderFolder();
 
   // Applies a quality profile from the current mpv.conf (settings page,
-  // uosc menu and Alt+1..3). Returns false when it did not apply fully.
+  // uosc menu and Alt+1..3). The options are queued to mpv without waiting:
+  // each one can make the VO recompile its shaders. Returns false when the
+  // profile could not be resolved; rejected options are logged (and shown
+  // when announcing) once mpv has answered.
   bool applyQualityProfile(const QString& profile, bool announce);
 
   Q_INVOKABLE QVariantList getWebPlaylist() const;
@@ -307,7 +310,9 @@ Q_SIGNALS:
 
 private:
   bool applyMpvConfOption(const QString& key, const QString& value);
+  int requestMpvConfOption(const QString& key, const QString& value, uint64_t reply);
   void resetMpvConfOption(const QString& key, const QList<MpvConf::Line>& lines);
+  void handleProfileReply(const mpv_event* event);
   // Applies the difference between two user areas to the running player.
   void applyUserConfLive(const QString& previous, const QString& current);
   // Re-renders the managed parts of mpv.conf after a deciding setting changed.
@@ -317,6 +322,7 @@ private:
 
 private:
   friend class RifePlayerPlayback;
+  friend class TestPlayerAsyncMpv;
 #ifdef Q_OS_WIN
   // Release the installed-version lease after controllers and runtime helpers.
   std::unique_ptr<rife::RifeExtensionManager> m_rifeExtension;
@@ -402,6 +408,10 @@ private:
                  const QString& loadMode);
   QVariantList findStreamsForURL(const QString &url);
   void reselectStream(const QVariant &streamSelection, MediaType target);
+  void selectStream(MediaType target, const QString& streamID, const QString& streamName);
+  void holdPreloadedHook(std::function<void()> resume);
+  void completeStreamAdd(uint64_t reply, int error);
+  void finishPreloadedStreams();
   QString sanitizeMediaUrl(const QString& url, bool retainExistingCredential = false);
   void applyMediaAccessToken(const QString& token);
 
@@ -471,6 +481,36 @@ private:
   QVariantMap m_serverMediaInfo;
   QVariant m_currentSubtitleStream;
   QVariant m_currentAudioStream;
+  // External sub-add/audio-add requests awaiting mpv's reply. A stale entry
+  // belongs to an item that has ended; its reply only releases the hook.
+  struct PendingStreamAdd {
+    MediaType target;
+    QVariant selection;
+    QString streamID;
+    QString streamName;
+    bool stale = false;
+  };
+  QHash<uint64_t, PendingStreamAdd> m_pendingStreamAdds;
+  uint32_t m_streamAddSerial = 0;
+  // Continues the on_preloaded hook once the item's stream adds have answered.
+  std::function<void()> m_preloadedResume;
+  // Quality profiles queued to mpv. Requests run in order, so the shader
+  // count read last in a batch answers after all of its options.
+  struct ProfileApplication {
+    QString title;
+    bool announce = false;
+    int expectedShaders = 0;
+    QStringList failed;
+  };
+  struct ProfileRequest {
+    uint32_t batch = 0;
+    QString key;
+    bool shaderCount = false;
+  };
+  QHash<uint32_t, ProfileApplication> m_profileApplications;
+  QHash<uint64_t, ProfileRequest> m_profileRequests;
+  uint32_t m_profileBatchSerial = 0;
+  uint32_t m_profileRequestSerial = 0;
   QRect m_videoRectangle;
   QStringList m_baseHttpHeaders;
 

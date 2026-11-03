@@ -46,6 +46,8 @@ void VS_CC monitorCreate(const VSMap* in,VSMap* out,void*,VSCore* core,const VSA
         // the shared counters. Serializing here also serializes upstream RIFE.
         api->createVideoFilter(out,"TigerestRIFEMonitor",api->getVideoInfo(monitor->input),monitorFrame,monitorFree,
             fmParallel,&dependency,1,monitor.get(),core);
+        // A rejected filter never calls monitorFree; release its input here.
+        if(api->mapGetError(out)){api->freeNode(monitor->input);return;}
         monitor.release();
     } catch(const std::exception& error) {
         if(monitor->input)api->freeNode(monitor->input);

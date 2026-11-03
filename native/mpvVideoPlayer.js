@@ -161,6 +161,8 @@
             this._windowSessionActive = false;
             this._startupTimer = null;
             this._errorHandling = false;
+            this._bufferingPercent = 0;
+            this._bufferingProgressAt = null;
             /**
              * @type {Array<{start: number, end: number}>}
              */
@@ -216,7 +218,13 @@
                 this.onError(error);
             };
             this.onSubtitleStreamRequested = (index) => this.setSubtitleStreamIndex(Number(index));
-            this.onBuffering = (percent) => console.log(`[MPV Signal] buffering: ${percent}`);
+            this.onBuffering = (percent) => {
+                console.log(`[MPV Signal] buffering: ${percent}`);
+                // mpv reports rising percentages only while it refills its
+                // cache after the first frame: data is arriving.
+                if (percent > this._bufferingPercent) this._bufferingProgressAt = Date.now();
+                this._bufferingPercent = percent;
+            };
             this.onStateChanged = (newState, oldState) => console.log(`[MPV Signal] stateChanged: ${oldState} -> ${newState}`);
             this.onVideoPlaybackActive = (active) => console.log(`[MPV Signal] videoPlaybackActive: ${active}`);
             this.onWindowVisible = (visible) => console.log(`[MPV Signal] windowVisible: ${visible}`);
@@ -360,6 +368,8 @@
             this._timeUpdated = false;
             this._currentTime = null;
             this._bufferedRanges = [];
+            this._bufferingPercent = 0;
+            this._bufferingProgressAt = null;
             this._sessionActive = true;
             this._sessionId += 1;
             this._nativeStopRequested = false;
@@ -420,10 +430,23 @@
                 if (!isCurrent()) return;
                 this._startupTimer = null;
                 const player = window.api.player;
-                // Keep normal startup bounded. Only the native startup hold can
-                // extend it, and a hung bridge or stale native clock cannot wait
-                // forever (worker: 950 s; first-frame gate: 15 s).
-                if (!player.rifeExtensionStatus || Date.now() - startedAt >= 1000000) {
+                // Keep normal startup bounded. Only a growing cache or the
+                // native startup hold can extend it, and neither a hung bridge
+                // nor a stale native clock can wait forever (worker: 950 s;
+                // first-frame gate: 15 s).
+                if (Date.now() - startedAt >= 1000000) {
+                    fail();
+                    return;
+                }
+                // A slow server can show the first frame near the deadline and
+                // still be refilling the cache. Keep waiting while the cache
+                // grows; one that stops filling still times out.
+                const progressAt = this._bufferingProgressAt;
+                if (progressAt != null && Date.now() - progressAt < 10000) {
+                    this._startupTimer = setTimeout(check, 10000);
+                    return;
+                }
+                if (!player.rifeExtensionStatus) {
                     fail();
                     return;
                 }

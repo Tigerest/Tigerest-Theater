@@ -2,6 +2,7 @@
 #include <initializer_list>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QScopeGuard>
 #include "../src/system/SystemComponent.h"
 #include "../src/settings/SettingsComponent.h"
 #include "../src/settings/SettingsSection.h"
@@ -18,7 +19,31 @@ private slots:
   void testConnectivityUsesEnteredAddressBeforeWebRedirects();
   void testConnectivityUsesEnteredAddressBeforeWebRedirects_data();
   void testConnectivityReportsHttpStatus();
+  void testJsLogKeepsChineseText();
 };
+
+namespace {
+QStringList* g_jsLogMessages = nullptr;
+
+void captureJsLog(QtMsgType, const QMessageLogContext&, const QString& message)
+{
+  if (g_jsLogMessages)
+    g_jsLogMessages->append(message);
+}
+}
+
+// qPrintable() handed QDebug the local code page (GBK on Chinese Windows),
+// which QDebug reads as UTF-8: diagnostics reports showed U+FFFD instead.
+void TestSystemComponent::testJsLogKeepsChineseText()
+{
+  QStringList messages;
+  g_jsLogMessages = &messages;
+  const QtMessageHandler previous = qInstallMessageHandler(captureJsLog);
+  const auto restore = qScopeGuard([&] { qInstallMessageHandler(previous); g_jsLogMessages = nullptr; });
+  SystemComponent::Get().jsLog(2, QStringLiteral(":912 media error: 播放器启动超时（30 秒）"));
+  QCOMPARE(messages.size(), 1);
+  QVERIFY2(messages.first().contains(QStringLiteral("播放器启动超时（30 秒）")), qUtf8Printable(messages.first()));
+}
 
 void TestSystemComponent::testExtractBaseUrl_data()
 {

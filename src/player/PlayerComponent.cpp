@@ -80,6 +80,15 @@ static void wakeup_cb(void *context)
 // Settle time after Windows switches HDR mode, before the video output opens.
 static constexpr int HdrSwitchDelayMs = 1000;
 
+// Reply ids of external stream adds and quality-profile requests: a tag plus
+// a 24-bit serial.
+static constexpr uint64_t StreamAddReply = 0x55000000;
+static constexpr uint64_t ProfileReply = 0x56000000;
+static bool isStreamAddReply(uint64_t reply)
+{
+  return (reply & ~uint64_t(0xffffff)) == StreamAddReply;
+}
+
 #ifdef Q_OS_WIN
 namespace {
 constexpr uint64_t ApplicationQuitStop = 0x54000001;
@@ -589,7 +598,10 @@ void PlayerComponent::initializeMpv()
   m_mpv->command(QStringList()
                  << "define-section" << "tigerest-host"
                  << hostBindings << "force");
-  m_mpv->command(QStringList() << "enable-section" << "tigerest-host");
+  // A section covers the whole window for mouse purposes unless it allows
+  // cursor hiding. These bindings are keys only; without the flag mpv keeps
+  // the cursor visible over native Mac playback, where cursor-autohide is mpv's.
+  m_mpv->command(QStringList() << "enable-section" << "tigerest-host" << "allow-hide-cursor");
 
   if (auto* s = SettingsComponent::Get().getSection(SETTINGS_SECTION_AUDIO))
     connect(s, &SettingsSection::valuesUpdated, this, &PlayerComponent::updateAudioConfiguration);
@@ -1252,8 +1264,19 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
     return;
   }
 #endif
+  if ((event->event_id == MPV_EVENT_COMMAND_REPLY || event->event_id == MPV_EVENT_SET_PROPERTY_REPLY ||
+       event->event_id == MPV_EVENT_GET_PROPERTY_REPLY) &&
+      (event->reply_userdata & ~uint64_t(0xffffff)) == ProfileReply)
+  {
+    handleProfileReply(event);
+    return;
+  }
   switch (event->event_id)
   {
+    case MPV_EVENT_COMMAND_REPLY:
+      if (isStreamAddReply(event->reply_userdata))
+        completeStreamAdd(event->reply_userdata, event->error);
+      break;
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
     case MPV_EVENT_SET_PROPERTY_REPLY:
       if(m_rifeAccess)m_rifeAccess->completeTaggedSet(int(event->reply_userdata),event->error);
@@ -1324,6 +1347,10 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
     case MPV_EVENT_END_FILE:
     {
       m_nativeVideoReady = false;
+      // mpv aborts an add still fetching when its item ends; the reply must
+      // not select a track for the next item.
+      for (auto& add : m_pendingStreamAdds)
+        add.stale = true;
 #ifdef Q_OS_WIN
       if(recoverWindowsRifeError(*static_cast<mpv_event_end_file*>(event->data)))break;
       if(m_windowsRifePlayback)m_windowsRifePlayback->endItem();
@@ -1594,13 +1621,13 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
         len -= 1;
       QString logline = QString::fromUtf8(msg->prefix) + ": " + QString::fromUtf8(msg->text, static_cast<int>(len));
       if (msg->log_level >= MPV_LOG_LEVEL_V)
-        qDebug() << qPrintable(logline);
+        qDebug() << qUtf8Printable(logline);
       else if (msg->log_level >= MPV_LOG_LEVEL_INFO)
-        qInfo() << qPrintable(logline);
+        qInfo() << qUtf8Printable(logline);
       else if (msg->log_level >= MPV_LOG_LEVEL_WARN)
-        qWarning() << qPrintable(logline);
+        qWarning() << qUtf8Printable(logline);
       else
-        qCritical() << qPrintable(logline);
+        qCritical() << qUtf8Printable(logline);
       break;
     }
     case MPV_EVENT_CLIENT_MESSAGE:
@@ -1698,15 +1725,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       // Used to initialize stream selections.
       if (!strcmp(msg->args[1], "2"))
       {
-        reselectStream(m_currentSubtitleStream, MediaType::Subtitle);
-        reselectStream(m_currentAudioStream, MediaType::Audio);
-#ifdef Q_OS_WIN
-        if(m_windowsRifeReloaded) {
-          if(m_windowsCurrentLoad.restoreAudioId.isValid())m_mpv->setProperty("aid",m_windowsCurrentLoad.restoreAudioId);
-          if(m_windowsCurrentLoad.restoreSubtitleId.isValid())m_mpv->setProperty("sid",m_windowsCurrentLoad.restoreSubtitleId);
-        }
-#endif
-        m_mpv->command( QStringList() << "hook-ack" << resumeId);
+        holdPreloadedHook([=] { m_mpv->commandAsync(QStringList() << "hook-ack" << resumeId); });
         break;
       }
       break;
@@ -1748,15 +1767,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       }
       if (!strcmp(hook->name, "on_preloaded"))
       {
-        reselectStream(m_currentSubtitleStream, MediaType::Subtitle);
-        reselectStream(m_currentAudioStream, MediaType::Audio);
-#ifdef Q_OS_WIN
-        if(m_windowsRifeReloaded) {
-          if(m_windowsCurrentLoad.restoreAudioId.isValid())m_mpv->setProperty("aid",m_windowsCurrentLoad.restoreAudioId);
-          if(m_windowsCurrentLoad.restoreSubtitleId.isValid())m_mpv->setProperty("sid",m_windowsCurrentLoad.restoreSubtitleId);
-        }
-#endif
-        mpv_hook_continue(m_mpv->mpv(), id);
+        holdPreloadedHook([=] { mpv_hook_continue(m_mpv->mpv(), id); });
         break;
       }
       break;
@@ -1844,7 +1855,7 @@ void PlayerComponent::publishInterpolationPause()
     if(waiting){
       mpv.commandAsync({"define-section","tigerest-rife-startup",
           "SPACE script-message tigerest-rife-toggle-pause\np script-message tigerest-rife-toggle-pause","force"});
-      mpv.commandAsync({"enable-section","tigerest-rife-startup"});
+      mpv.commandAsync({"enable-section","tigerest-rife-startup","allow-hide-cursor"});
     }else mpv.commandAsync({"disable-section","tigerest-rife-startup"});
     m_rifePauseBindings=waiting;
   }
@@ -2223,9 +2234,18 @@ void PlayerComponent::requestApplicationQuit()
   if (m_windowsRifePlayback) m_windowsRifePlayback->endItem();
   m_rifeStartup.cancel();
   publishInterpolationPause();
+  m_pendingStreamAdds.clear();
   if (!m_mpv) {
+    m_preloadedResume = nullptr;
     finishApplicationQuit();
     return;
+  }
+  // The shutdown event path ignores stream-add replies; a held on_preloaded
+  // hook would keep mpv from stopping.
+  if (m_preloadedResume) {
+    auto resume = std::move(m_preloadedResume);
+    m_preloadedResume = nullptr;
+    resume();
   }
   // Keep the main HWND and its event loop alive while mpv's Windows VO thread
   // removes the embedded window. Never synchronously wait for the core here.
@@ -2525,17 +2545,14 @@ void PlayerComponent::reselectStream(const QVariant &streamSelection, MediaType 
 
   QString streamIdPropertyName;
   QString streamAddCommandName;
-  QString mpvStreamTypeName;
 
   switch (target)
   {
   case MediaType::Subtitle:
-    mpvStreamTypeName = "sub";
     streamIdPropertyName = "sid";
     streamAddCommandName = "sub-add";
     break;
   case MediaType::Audio:
-    mpvStreamTypeName = "audio";
     streamIdPropertyName = "aid";
     streamAddCommandName = "audio-add";
     break;
@@ -2594,11 +2611,26 @@ void PlayerComponent::reselectStream(const QVariant &streamSelection, MediaType 
     auto streams = findStreamsForURL(streamName);
     if (streams.isEmpty())
     {
-      QStringList args = (QStringList() << streamAddCommandName << streamName);
-      m_mpv->command( args);
+      // Emby can take seconds to extract an external subtitle. mpv fetches it
+      // on its own thread and the track is selected when the reply arrives,
+      // so the GUI thread never waits for the server.
+      const uint64_t reply = StreamAddReply | (++m_streamAddSerial & 0xffffff);
+      m_pendingStreamAdds.insert(reply, {target, streamSelection, streamID, streamName});
+      QStringList args = (QStringList() << streamAddCommandName << streamName << "auto");
+      if (m_mpv->commandAsync(args, int(reply)) >= 0)
+        return;
+      m_pendingStreamAdds.remove(reply);
     }
   }
 
+  selectStream(target, streamID, streamName);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::selectStream(MediaType target, const QString& streamID, const QString& streamName)
+{
+  const QString mpvStreamTypeName = target == MediaType::Subtitle ? "sub" : "audio";
+  const QString streamIdPropertyName = target == MediaType::Subtitle ? "sid" : "aid";
   QString selection = "no";
 
   if (!streamID.isEmpty())
@@ -2625,6 +2657,56 @@ void PlayerComponent::reselectStream(const QVariant &streamSelection, MediaType 
     selection = "1";
 
   m_mpv->setProperty( streamIdPropertyName, selection);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::holdPreloadedHook(std::function<void()> resume)
+{
+  // on_preloaded sets the item's initial tracks. External adds keep the hook
+  // (mpv waits for it) until they answer; the GUI thread keeps running.
+  m_preloadedResume = std::move(resume);
+  reselectStream(m_currentSubtitleStream, MediaType::Subtitle);
+  reselectStream(m_currentAudioStream, MediaType::Audio);
+  finishPreloadedStreams();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::completeStreamAdd(uint64_t reply, int error)
+{
+  const auto it = m_pendingStreamAdds.constFind(reply);
+  if (it == m_pendingStreamAdds.cend())
+    return;
+  const PendingStreamAdd add = *it;
+  m_pendingStreamAdds.erase(it);
+  if (error < 0)
+    qWarning() << "Unable to add external" << (add.target == MediaType::Subtitle ? "subtitle" : "audio")
+               << "stream:" << mpv_error_string(error);
+
+  // The item ended or a newer selection replaced this one while mpv waited
+  // for the server.
+  const QVariant& current = add.target == MediaType::Subtitle ? m_currentSubtitleStream : m_currentAudioStream;
+  if (!add.stale && current == add.selection)
+    selectStream(add.target, add.streamID, add.streamName);
+  finishPreloadedStreams();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::finishPreloadedStreams()
+{
+  if (!m_preloadedResume)
+    return;
+  for (const auto& add : std::as_const(m_pendingStreamAdds))
+    if (!add.stale)
+      return;
+  auto resume = std::move(m_preloadedResume);
+  m_preloadedResume = nullptr;
+#ifdef Q_OS_WIN
+  if(m_windowsRifeReloaded) {
+    if(m_windowsCurrentLoad.restoreAudioId.isValid())m_mpv->setProperty("aid",m_windowsCurrentLoad.restoreAudioId);
+    if(m_windowsCurrentLoad.restoreSubtitleId.isValid())m_mpv->setProperty("sid",m_windowsCurrentLoad.restoreSubtitleId);
+  }
+#endif
+  resume();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3092,7 +3174,7 @@ void PlayerComponent::setAudioConfiguration()
                                                                    layout.toString(),
                                                                    passthroughCodecs.isEmpty() ? "none" : passthroughCodecs,
                                                                    m_doAc3Transcoding ? "yes" : "no");
-  qInfo() << qPrintable(audioConfig);
+  qInfo() << qUtf8Printable(audioConfig);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3255,64 +3337,132 @@ bool PlayerComponent::applyQualityProfile(const QString& profile, bool announce)
   // The profile comes from the current mpv.conf, so edits made in the
   // settings page apply without restarting. List-valued options accumulate
   // across runtime switches; start from an empty shader list.
-  QStringList failed;
-  m_mpv->command(QStringList() << "change-list" << "glsl-shaders" << "clr" << "");
+  // While paused, every option makes the VO redraw and recompile its shaders
+  // (up to ~0.6 s each), so nothing here waits for mpv on the GUI thread.
+  const uint32_t batch = ++m_profileBatchSerial;
+  m_profileApplications.insert(batch, {title, announce, MpvConf::shaderCount(steps), {}});
+  const auto request = [&](const QString& key) {
+    const uint64_t reply = ProfileReply | (++m_profileRequestSerial & 0xffffff);
+    m_profileRequests.insert(reply, {batch, key, false});
+    return reply;
+  };
+  const uint64_t clear = request(QString());
+  if (m_mpv->commandAsync(QStringList() << "change-list" << "glsl-shaders" << "clr" << "", int(clear)) < 0)
+    m_profileRequests.remove(clear);
   for (const MpvConf::ProfileStep& step : steps)
   {
-    if (!applyMpvConfOption(step.builtin ? QStringLiteral("profile") : step.key, step.value))
-      failed << step.key;
+    const uint64_t reply = request(step.key);
+    if (requestMpvConfOption(step.builtin ? QStringLiteral("profile") : step.key, step.value, reply) < 0)
+    {
+      m_profileRequests.remove(reply);
+      m_profileApplications[batch].failed << step.key;
+    }
   }
-  int actual = 0;
-  for (const QVariant& shader : m_mpv->getProperty("glsl-shaders").toList())
-    if (!shader.toString().trimmed().isEmpty())
-      ++actual;
-  const int expected = MpvConf::shaderCount(steps);
+  const uint64_t count = request(QString());
+  m_profileRequests[count].shaderCount = true;
+  if (mpv_get_property_async(m_mpv->mpv(), count, "glsl-shaders", MPV_FORMAT_NODE) < 0)
+  {
+    m_profileRequests.remove(count);
+    m_profileApplications.remove(batch);
+  }
   m_appliedProfile = profile;
-  m_mpv->setProperty("user-data/profile_menu/current", profile);
-  if (!failed.isEmpty())
-    qWarning() << "MPV profile" << profile << "options were rejected:" << failed;
+  m_mpv->setPropertyAsync("user-data/profile_menu/current", profile);
 
   // Switching in the player (uosc menu, Alt+1..3) also moves the settings
   // page's preset, so the page always edits the profile that is playing.
   const QString preset = MpvConfigManager::presetForProfile(profile);
   if (SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "shaderPreset").toString() != preset)
     SettingsComponent::Get().setValue(SETTINGS_SECTION_MPV, "shaderPreset", preset);
-
-  if (announce)
-  {
-    const bool ok = actual == expected;
-    const QString message = ok
-        ? QStringLiteral("已切换滤镜: %1（%2 个 shader）").arg(title).arg(actual)
-        : QStringLiteral("滤镜切换失败: %1（预期 %2，实际 %3 个 shader）").arg(title).arg(expected).arg(actual);
-    m_mpv->commandAsync(QStringList{QStringLiteral("show-text"), message,
-                                    ok ? QStringLiteral("2400") : QStringLiteral("3200")});
-  }
-  return actual == expected && failed.isEmpty();
+  return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-bool PlayerComponent::applyMpvConfOption(const QString& key, const QString& value)
+void PlayerComponent::handleProfileReply(const mpv_event* event)
+{
+  const auto found = m_profileRequests.constFind(event->reply_userdata);
+  if (found == m_profileRequests.cend())
+    return;
+  const ProfileRequest request = *found;
+  m_profileRequests.erase(found);
+  const auto application = m_profileApplications.find(request.batch);
+  if (application == m_profileApplications.end())
+    return;
+  if (!request.shaderCount)
+  {
+    if (event->error < 0 && !request.key.isEmpty())
+      application->failed << request.key;
+    return;
+  }
+
+  // Every option of the batch has answered before its shader count.
+  int actual = 0;
+  const auto* property = static_cast<const mpv_event_property*>(event->data);
+  if (event->error >= 0 && property && property->format == MPV_FORMAT_NODE && property->data)
+    for (const QVariant& shader : mpv::qt::node_to_variant(static_cast<const mpv_node*>(property->data)).toList())
+      if (!shader.toString().trimmed().isEmpty())
+        ++actual;
+  const ProfileApplication done = *application;
+  m_profileApplications.erase(application);
+  if (!done.failed.isEmpty())
+    qWarning() << "MPV profile" << done.title << "options were rejected:" << done.failed;
+  if (done.announce)
+  {
+    const bool ok = actual == done.expectedShaders;
+    const QString message = ok
+        ? QStringLiteral("已切换滤镜: %1（%2 个 shader）").arg(done.title).arg(actual)
+        : QStringLiteral("滤镜切换失败: %1（预期 %2，实际 %3 个 shader）").arg(done.title).arg(done.expectedShaders).arg(actual);
+    m_mpv->commandAsync(QStringList{QStringLiteral("show-text"), message,
+                                    ok ? QStringLiteral("2400") : QStringLiteral("3200")});
+  }
+  return;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+namespace {
+// One mpv.conf option as an mpv request: a command, or a property write when
+// the command is empty.
+struct MpvConfRequest {
+  QStringList command;
+  QString property;
+  QString value;
+};
+
+MpvConfRequest mpvConfRequest(const QString& key, const QString& value)
 {
   static const QStringList listSuffixes = {
     QStringLiteral("-append"), QStringLiteral("-add"), QStringLiteral("-pre"), QStringLiteral("-set"),
     QStringLiteral("-clr"), QStringLiteral("-remove"), QStringLiteral("-del"), QStringLiteral("-toggle")};
-  const auto succeeded = [](const QVariant& result) {
-    return result.metaType() != QMetaType::fromType<ErrorReturn>();
-  };
   if (key == QStringLiteral("profile"))
-    return succeeded(m_mpv->command(QStringList() << "apply-profile" << value));
+    return {QStringList() << "apply-profile" << value, {}, {}};
   if (key == QStringLiteral("glsl-shader"))
-    return succeeded(m_mpv->command(QStringList() << "change-list" << "glsl-shaders" << "append" << value));
+    return {QStringList() << "change-list" << "glsl-shaders" << "append" << value, {}, {}};
   const QString base = MpvConfigManager::rules().baseKey(key);
   if (base != key)
   {
     if (key == QStringLiteral("no-") + base)
-      return m_mpv->setProperty(base, QStringLiteral("no")) >= 0;
+      return {{}, base, QStringLiteral("no")};
     for (const QString& suffix : listSuffixes)
       if (key == base + suffix)
-        return succeeded(m_mpv->command(QStringList() << "change-list" << base << suffix.mid(1) << value));
+        return {QStringList() << "change-list" << base << suffix.mid(1) << value, {}, {}};
   }
-  return m_mpv->setProperty(key, value) >= 0;
+  return {{}, key, value};
+}
+}
+
+bool PlayerComponent::applyMpvConfOption(const QString& key, const QString& value)
+{
+  const MpvConfRequest request = mpvConfRequest(key, value);
+  if (!request.command.isEmpty())
+    return m_mpv->command(request.command).metaType() != QMetaType::fromType<ErrorReturn>();
+  return m_mpv->setProperty(request.property, request.value) >= 0;
+}
+
+int PlayerComponent::requestMpvConfOption(const QString& key, const QString& value, uint64_t reply)
+{
+  const MpvConfRequest request = mpvConfRequest(key, value);
+  if (!request.command.isEmpty())
+    return m_mpv->commandAsync(request.command, int(reply));
+  return m_mpv->setPropertyAsync(request.property, request.value, int(reply));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

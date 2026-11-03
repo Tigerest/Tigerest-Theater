@@ -243,11 +243,11 @@ void Log::Init()
   logFile = new QFile(tempLogPath);
   logFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate);
 
-  qInfo() << "Starting Jellyfin version:" << qPrintable(Version::GetVersionString()) << "build date:" << qPrintable(Version::GetBuildDate());
-  qInfo() << qPrintable(QString("  Running on: %1 [%2] arch %3").arg(QSysInfo::prettyProductName()).arg(QSysInfo::kernelVersion()).arg(QSysInfo::currentCpuArchitecture()));
-  qInfo() << "  Qt Version:" << QT_VERSION_STR << qPrintable(QString("[%1]").arg(QSysInfo::buildAbi()));
+  qInfo() << "Starting Jellyfin version:" << qUtf8Printable(Version::GetVersionString()) << "build date:" << qUtf8Printable(Version::GetBuildDate());
+  qInfo() << qUtf8Printable(QString("  Running on: %1 [%2] arch %3").arg(QSysInfo::prettyProductName()).arg(QSysInfo::kernelVersion()).arg(QSysInfo::currentCpuArchitecture()));
+  qInfo() << "  Qt Version:" << QT_VERSION_STR << qUtf8Printable(QString("[%1]").arg(QSysInfo::buildAbi()));
 
-  qDebug() << "Logging to " << qPrintable(getLogDir() + "/" + Names::DataName() + ".log");
+  qDebug() << "Logging to " << qUtf8Printable(getLogDir() + "/" + Names::DataName() + ".log");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
