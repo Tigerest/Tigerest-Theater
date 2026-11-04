@@ -3,6 +3,8 @@
     let actionsHost, more, menu, secondary=[];
     // The client menu holds server switching, so it stays on the compact row.
     const primary='#tigerest-message-entry,#tigerest-update-button,#tigerest-mpv-settings-button,.headerUserButton';
+    const remainsPrimary=action=>action.matches(primary)||
+        (window.TigerestServer?.isJellyfin?.()===true&&action.matches('.headerSyncButton'));
     function closeMenu() {
         if (menu?.open) menu.close();
         more?.setAttribute('aria-expanded','false');
@@ -62,7 +64,7 @@
         const condensed=host.classList.contains('tgs-header-condensed');
         host.classList.remove('tgs-header-condensed');more.hidden=true;
         const actions=[...host.children].filter(action=>action!==more&&action.getClientRects().length&&!action.hidden&&action.getAttribute('aria-hidden')!=='true');
-        secondary=actions.filter(action=>!action.matches(primary));
+        secondary=actions.filter(action=>!remainsPrimary(action));
         const css=getComputedStyle(host),gap=parseFloat(css.columnGap)||0;
         const width=actions.reduce((sum,action)=>{const style=getComputedStyle(action);return sum+action.getBoundingClientRect().width+(parseFloat(style.marginLeft)||0)+(parseFloat(style.marginRight)||0);},0)+Math.max(0,actions.length-1)*gap;
         const available=host.clientWidth-(parseFloat(css.paddingLeft)||0)-(parseFloat(css.paddingRight)||0);
@@ -132,7 +134,9 @@
                     }
                     if(!header?.contains(record.target)||record.target===more)continue;
                     if(record.attributeName==='class'&&withoutOwnClasses(record.oldValue)===withoutOwnClasses(record.target.className))continue;
-                    closeMenu();
+                    const overflowAction=secondary.includes(record.target)||
+                        record.target.closest?.('.tgs-header-secondary')?.parentElement===actionsHost;
+                    if(menu?.hasAttribute('open')&&overflowAction)closeMenu();
                     changed=true;
                 }
                 if(changed)scheduleHeaderMeasure();
@@ -142,6 +146,7 @@
         scheduleHeaderMeasure();
     }
     window.addEventListener('tigerest-window-changed', apply);
+    window.addEventListener('tigerest-server-kind', apply);
     window.addEventListener('resize', apply);
     document.addEventListener('DOMContentLoaded', apply);
     // Jellyfin's web client dispatches its own pagehide from view elements;
@@ -153,6 +158,7 @@
         disposed=true; headerResize?.disconnect(); headerChanges?.disconnect();
         cancelAnimationFrame(frame); restoreHeaderHeight();
         window.removeEventListener('tigerest-window-changed',apply);
+        window.removeEventListener('tigerest-server-kind',apply);
         window.removeEventListener('resize',apply);
     };
     window.addEventListener('pagehide', leave);
