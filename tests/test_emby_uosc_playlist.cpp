@@ -72,7 +72,10 @@ private slots:
     player.setMpvController(controller); player.initializeMpv();
     controller->command(QStringList{"load-script",profile.filePath("uosc.lua")});
     QTRY_VERIFY_WITH_TIMEOUT(controller->getProperty("user-data/tigerest-test/uosc-ready").toBool(),3000);
-    player.setWebPlaylist(queue(),"queue-2");
+    // setWebPlaylist publishes asynchronously and a synchronous command can run
+    // first, so wait until mpv holds the queue before UOSC reads it.
+    const auto published=[&](const QString& current){ return QJsonDocument::fromJson(controller->getProperty("user-data/tigerest/web-playlist").toString().toUtf8()).object()["currentItemId"].toString()==current; };
+    player.setWebPlaylist(queue(),"queue-2"); QTRY_VERIFY_WITH_TIMEOUT(published("queue-2"),3000);
     QSignalSpy actions(&InputComponent::Get(),&InputComponent::hostInput);
     controller->command(QStringList{"script-binding","uosc/prev"});
     QTRY_COMPARE_WITH_TIMEOUT(actions.size(),1,3000);
@@ -99,9 +102,9 @@ private slots:
     controller->command(QStringList{"keypress","ENTER"});
     QTRY_COMPARE_WITH_TIMEOUT(actions.size(),3,3000);
     QCOMPARE(actions[2][0].toStringList(),QStringList{"playlist-item:queue-1"});
-    player.setWebPlaylist(queue(),"queue-3");
+    player.setWebPlaylist(queue(),"queue-3"); QTRY_VERIFY_WITH_TIMEOUT(published("queue-3"),3000);
     controller->command(QStringList{"script-binding","uosc/next"}); QTest::qWait(100); QCOMPARE(actions.size(),3);
-    player.setWebPlaylist({},QString());
+    player.setWebPlaylist({},QString()); QTRY_VERIFY_WITH_TIMEOUT(published(QString()),3000);
     controller->command(QStringList{"script-binding","uosc/items"});
     QTRY_COMPARE_WITH_TIMEOUT(controller->getProperty("user-data/uosc/menu/type").toString(),QString("open-file"),3000);
   }

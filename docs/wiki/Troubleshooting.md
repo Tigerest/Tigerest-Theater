@@ -11,9 +11,11 @@
 - 局域网正常、外网失败：确认使用的是有效的远程地址。
 - 刚升级到 2.9.5 就回到 Emby 登录页：大河专属服务器的公网连接改用了加密连接，网页端需要重新登录一次（Apple TV 不用），服务器列表和设置都在。2.9.4 及更早的版本在旧地址关闭后无法从公网连接，请升级。
 
-更换入口可用「重置已保存的服务器地址」。详细地址示例见[服务器与登录](https://github.com/Tigerest/Tigerest-Theater/wiki/Server)。
+更换入口：点顶栏「客户端」按钮，选择「切换 / 管理服务器」。详细地址示例见[服务器与登录](https://github.com/Tigerest/Tigerest-Theater/wiki/Server)。
 
 ## 公共评论不显示或要求登录
+
+**已知问题：** 评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。这不是评论账号的问题，不需要为此注册评论账号。
 
 自建 Emby 用户需要在「评论账号」中注册或登录，才能读取和发送公共评论。Emby 已登录不等于独立评论账号已登录。
 
@@ -86,7 +88,7 @@ Mac 上本次运行中开始播放过以后，在设置里保存 mpv.conf 会丢
 
 ## RIFE 没有生效
 
-核对大河内置配置、扩展安装状态、完全重启、当前片源格式和速度。更改模型／目标后要重新打开视频。
+核对扩展安装状态、完全重启、当前片源格式和速度。更改模型／目标后要重新打开视频。2.9.4 起不再有配置模式；mpv.conf 里改帧率的 vf 滤镜和 `interpolation=yes` 会在开启 RIFE 时自动暂停，设置页底部会提示。
 
 准备引擎时显示暂停与进度属于正常过程；真正失败会显示原因。持续丢帧时先降低目标、换 lite 或减轻画质负载。详见 [RIFE 教程](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE)。
 
@@ -94,13 +96,13 @@ Mac 上本次运行中开始播放过以后，在设置里保存 mpv.conf 会丢
 
 Windows 请完整安装或完整解压，避免只复制 EXE 或混用旧 DLL。旧版内置下载失败时，手动下载当前正式包覆盖安装一次。
 
-便携版保留 `data`，Mac 替换完整应用包，Android 使用同签名正式包，iPad 和 Apple TV 用原来的签名身份重新签名后覆盖安装。校验失败时重新下载；系统架构或版本不满足要求时，应先核对[安装要求](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation)。
+便携版保留 `data`，Mac 替换完整应用包，Android 使用同签名正式包，iPad／iPhone 和 Apple TV 用原来的签名身份重新签名后覆盖安装。iPad 从 2.9.3 及更早的 `ipad.ipa` 换到 2.9.4 的 `universal.ipa` 时会作为新应用安装，登录和设置需要重新来，这不是安装失败。校验失败时重新下载；系统架构或版本不满足要求时，应先核对[安装要求](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation)。
 
 Windows 媒体库页面闪烁／花屏时，确认完整更新。仍有异常可在完全退出后用 `"Tigerest Theater.exe" --disable-gpu` 比较网页 GPU 渲染；这与视频硬件解码是独立设置。
 
 Mac 来源拦截按「系统设置 → 隐私与安全性」处理，前提是已确认来自本项目。不要把来源提示当作 RIFE 格式不支持。
 
-iPad 或 Apple TV 的应用突然打不开时，先检查签名是否过期：免费 Apple 账号的签名有有效期，过期后需要重新签名安装。
+iPad／iPhone 或 Apple TV 的应用突然打不开时，先检查签名是否过期：免费 Apple 账号的签名有有效期，过期后需要重新签名安装。
 
 ## 日志在哪里
 
@@ -109,7 +111,7 @@ iPad 或 Apple TV 的应用突然打不开时，先检查签名是否过期：�
 | Windows 安装版 | `%LOCALAPPDATA%\Tigerest Theater\profiles\<profile-id>\logs\` |
 | Windows 便携版 | `程序目录\data\profiles\<profile-id>\logs\` |
 | Mac | `~/Library/Logs/Tigerest Theater/profiles/<profile-id>/` |
-| Android、iPad | 使用「上报问题」附带应用内诊断日志，无需连接电脑 |
+| Android、iPad／iPhone | 使用「上报问题」附带应用内诊断日志，无需连接电脑 |
 
 保留出错时间附近记录，避免发送整个用户数据目录。公开反馈前检查并移除密码、令牌、私人网址和个人信息；评论错误中的请求编号可以帮助定位。
 
