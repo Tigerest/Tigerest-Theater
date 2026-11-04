@@ -10,6 +10,7 @@ Run dev/macos/sign_bundle.py and tests/test_macos_bundle.py afterwards.
 """
 import argparse
 import json
+import os
 import plistlib
 import re
 import shutil
@@ -69,7 +70,8 @@ def main():
         version = plistlib.load(info).get('CFBundleShortVersionString')
     commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
     provenance = {
-        'type': 'local', 'version': version, 'sourceCommit': commit,
+        'type': 'ci' if os.environ.get('GITHUB_ACTIONS') == 'true' else 'local',
+        'version': version, 'sourceCommit': commit,
         'qtWebEngineCoreUUID': PATCHED_UUID,
         'enginePatchCommit': origin.get('enginePatchCommit'), 'patches': origin.get('patches'),
         'engineSourceRelease': origin.get('version'), 'engineSourceCommit': origin.get('sourceCommit'),

@@ -16,6 +16,8 @@ const wait = async (condition, label, timeout = 5000) => {
     while (Date.now() < end) {const value = condition(); if (value) return value; await delay(40);}
     throw Error(label);
 };
+// The probe creates a result file before writing it; only complete JSON counts.
+const readJson = file => { try { return JSON.parse(fs.readFileSync(file)); } catch { return null; } };
 
 (async () => {
     const hits = {}, rows = [];
@@ -70,14 +72,13 @@ const wait = async (condition, label, timeout = 5000) => {
                     await wait(() => hits.cancel?.length === 1, 'cancel request reached server');
                     await delay(100);
                     await command('script-message http-probe-cancel');
-                    await wait(() => fs.existsSync(path.join(output,'cancelled.json')), 'cancel completed');
+                    await wait(() => readJson(path.join(output,'cancelled.json')), 'cancel completed');
                     await delay(1300);
                     assert.equal(hits.cancel.length, 1); assert.equal(fs.existsSync(file), false);
                     assert.equal(JSON.parse(fs.readFileSync(path.join(output,'cancelled.json'))).running, false);
                     rows.push({name, attempts:1, cancelled:true}); continue;
                 }
-                await wait(() => fs.existsSync(file), name + ': response timeout', 27000);
-                const result = JSON.parse(fs.readFileSync(file));
+                const result = await wait(() => readJson(file), name + ': response timeout', 27000);
                 const expected = name === 'timeout' || name === 'gateway' ? 2 : 1;
                 if (!hits[name]) {
                     const diagnostics = fs.readdirSync(profile, {recursive:true}).filter(file => path.basename(file) === 'Tigerest Theater.log')
