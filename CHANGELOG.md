@@ -2,7 +2,7 @@
 
 ## v2.9.5.3 — 2026-11-04
 
-只发布 Mac；Windows 仍是 2.9.5.2，Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，这些平台的检查更新不会提示这一版。下面标着 Windows 的改动已经在代码里，要等 Windows 版 2.9.5.3 打包后才会到 Windows 用户手上。
+发布 Mac 与 Windows（安装版和便携版）；Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，检查更新不会提示这一版。Mac 版先发布，Windows 版随后加入同一个发行页。
 
 **RIFE 补帧（Mac）**
 

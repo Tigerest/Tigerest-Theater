@@ -2,12 +2,12 @@
 
 ## 选择正确的包
 
-从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以当前正式包的文件名示例说明（Mac 为 2.9.5.3，Windows 为 2.9.5.2，其他平台为 2.9.5）；安装步骤也适用于后续同类正式包。只给部分平台发的修复版（如 2.9.5.3 只有 Mac，2.9.5.2 只有 Windows 与 Mac）发行页里只有这些平台的包，其他平台的包在上一个完整版本（2.9.5）的发行页。
+从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以当前正式包的文件名示例说明（Windows 与 Mac 为 2.9.5.3，其他平台为 2.9.5）；安装步骤也适用于后续同类正式包。只给部分平台发的修复版（如 2.9.5.3 和 2.9.5.2 只有 Windows 与 Mac）发行页里只有这些平台的包，其他平台的包在上一个完整版本（2.9.5）的发行页。
 
 | 设备 | 包名 | 最低要求 |
 | --- | --- | --- |
-| Windows 安装版 | TigerestTheater-2.9.5.2-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
-| Windows 便携版 | TigerestTheater-2.9.5.2-x64.zip | 同上 |
+| Windows 安装版 | TigerestTheater-2.9.5.3-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
+| Windows 便携版 | TigerestTheater-2.9.5.3-x64.zip | 同上 |
 | Android | TigerestTheater-2.9.5-android.apk | Android 15+，arm64-v8a / x86_64 |
 | Apple Silicon Mac | TigerestTheater-2.9.5.3-arm64.dmg | macOS 26+，M 系列 |
 | iPad / iPhone | TigerestTheater-2.9.5-universal.ipa（2.9.3 及以前为 ipad.ipa） | iPadOS / iOS 26+，需要自行签名 |
@@ -97,12 +97,12 @@ Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新
 
 ## 核对 SHA-256
 
-2.9.5 起每个发行页只有一份校验清单，覆盖这一页的全部文件：`TigerestTheater-2.9.5-SHA256SUMS.txt` 覆盖 Windows、Android、Mac、iPhone／iPad 与 Apple TV；修复版的清单只含它那一页上的文件，例如 `TigerestTheater-2.9.5.3-SHA256SUMS.txt` 只含 2.9.5.3 的 Mac 文件，`TigerestTheater-2.9.5.2-SHA256SUMS.txt` 只含 2.9.5.2 的 Windows 与 Mac 文件（2.9.4 及以前，Mac、iPad 和 Apple TV 的文件另列在 `APPLE-SHA256SUMS.txt`）。先找到文件名对应的摘要，再与本机结果对照。
+2.9.5 起每个发行页只有一份校验清单，覆盖这一页的全部文件：`TigerestTheater-2.9.5-SHA256SUMS.txt` 覆盖 Windows、Android、Mac、iPhone／iPad 与 Apple TV；修复版的清单只含它那一页上的文件，例如 `TigerestTheater-2.9.5.3-SHA256SUMS.txt` 只含 2.9.5.3 的 Windows 与 Mac 文件（2.9.4 及以前，Mac、iPad 和 Apple TV 的文件另列在 `APPLE-SHA256SUMS.txt`）。先找到文件名对应的摘要，再与本机结果对照。
 
 Windows PowerShell 示例：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.5.2-x64.exe'
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.5.3-x64.exe'
 ```
 
 macOS 终端示例：
