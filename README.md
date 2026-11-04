@@ -8,9 +8,9 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
 
 [下载正式版](https://github.com/Tigerest/Tigerest-Theater/releases/latest) · [使用教程](https://github.com/Tigerest/Tigerest-Theater/wiki) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/Tigerest/Tigerest-Theater/issues) · [作者 B站](https://space.bilibili.com/12562485)
 
-**当前版本：Mac 2.9.5.3；Windows 2.9.5.2；Android、iPhone／iPad 与 Apple TV 2.9.5。** 2.9.5 起大河专属服务器的公网连接改用加密连接，升级后需要重新登录一次 Emby（Apple TV 不用）；2.9.4 及更早的版本在旧地址关闭后无法从公网连接，请尽快升级。Wiki 由 [docs/wiki](docs/wiki/Home.md) 自动同步，修改请提交到这里。
+**当前版本：Windows 与 Mac 2.9.5.3；Android、iPhone／iPad 与 Apple TV 2.9.5。** 2.9.5 起大河专属服务器的公网连接改用加密连接，升级后需要重新登录一次 Emby（Apple TV 不用）；2.9.4 及更早的版本在旧地址关闭后无法从公网连接，请尽快升级。Wiki 由 [docs/wiki](docs/wiki/Home.md) 自动同步，修改请提交到这里。
 
-**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.5.2 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
+**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.5.3 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
 
 客户端不包含影视资源。你需要已有的 Emby 或 Jellyfin 服务器地址和账号；媒体库、播放与下载权限由所连接的服务器提供。本项目是非官方客户端，与 Emby LLC 及 Jellyfin 项目无隶属关系。
 
@@ -79,13 +79,15 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
   </tr>
 </table>
 
-## 2.9.5.3 更新（Mac）
+## 2.9.5.3 更新（Windows、Mac）
 
-只发布 Mac，Windows 仍是 2.9.5.2，其他平台仍是 2.9.5。
+发布 Windows（安装版和便携版）与 Mac，其他平台仍是 2.9.5。
 
-- **补帧不再闪退：** 开着 RIFE 播放帧率带零头的视频（例如容器标 23.9988 帧）时，不再一开始播放就闪退；补帧滤镜创建失败时只是不补帧。
-- **鼠标自动隐藏：** 播放窗口里鼠标停住后按 `cursor-autohide`（默认 0.8 秒）隐藏，移到进度条等控件上照常显示。
-- 同时带上缓存加载中不再 30 秒报启动超时、外挂字幕和画质档位不再卡住窗口的修复。见 [2.9.5.3 发布说明](docs/releases/2026-11-04-v2.9.5.3.md)。
+- **补帧不再闪退（Mac）：** 开着 RIFE 播放帧率带零头的视频（例如容器标 23.9988 帧）时，不再一开始播放就闪退；补帧滤镜创建失败时只是不补帧。
+- **鼠标自动隐藏（Mac）：** 播放窗口里鼠标停住后按 `cursor-autohide`（默认 0.8 秒）隐藏，移到进度条等控件上照常显示。
+- **启动超时（Windows、Mac）：** 缓存还在加载时，不再在 30 秒时报「播放器启动超时」并停止；缓存在 10 秒内有增长就继续等。
+- **外挂字幕和画质档位不再卡住窗口（Windows、Mac）：** Emby 的外挂字幕和音轨在后台加载，视频仍等选中的字幕加载好再开始；切换画质档位时各项设置在后台依次生效。
+- **诊断报告（Windows）：** 日志里的中文不再是乱码。见 [2.9.5.3 发布说明](docs/releases/2026-11-04-v2.9.5.3.md)。
 
 ## 2.9.5.2 更新（Windows、Mac）
 
@@ -176,8 +178,8 @@ iPad 与 Apple TV 的 IPA 均未签名，需使用自己的 Apple 身份签名�
 
 | 平台 | 安装包 | 系统要求 |
 | --- | --- | --- |
-| Windows 安装版 | [2.9.5.2 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.2/TigerestTheater-2.9.5.2-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
-| Windows 便携版 | [2.9.5.2 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.2/TigerestTheater-2.9.5.2-x64.zip) | 同上；完整解压后运行 |
+| Windows 安装版 | [2.9.5.3 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5.3 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-x64.zip) | 同上；完整解压后运行 |
 | Android | [2.9.5 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-android.apk) | Android 15+，arm64-v8a / x86_64 |
 | Apple Silicon Mac | [2.9.5.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-arm64.dmg) | macOS 26+，M 系列芯片 |
 | iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
@@ -187,7 +189,7 @@ iPad 与 Apple TV 的 IPA 均未签名，需使用自己的 Apple 身份签名�
 
 无法访问 GitHub 时，可从[夸克网盘](https://pan.quark.cn/s/88e6f7a795b4)或[百度网盘](https://pan.baidu.com/s/58azzOU4piiB3miyZqA1dig)下载 Windows／Android 安装包，每个版本一个文件夹，内容与发行页附件相同；Mac、iPad 与 Apple TV 的安装包目前只在 GitHub 发行页提供。
 
-Mac 使用 [2.9.5.3 SHA-256 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-SHA256SUMS.txt)，Windows 使用 [2.9.5.2 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.2/TigerestTheater-2.9.5.2-SHA256SUMS.txt)，其他平台使用 [2.9.5 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-SHA256SUMS.txt)。来源与验证记录见各发行页的 `RELEASE-MANIFEST.json` 附件。
+Windows 与 Mac 使用 [2.9.5.3 SHA-256 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-SHA256SUMS.txt)，其他平台使用 [2.9.5 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-SHA256SUMS.txt)。来源与验证记录见各发行页的 `RELEASE-MANIFEST.json` 附件。
 
 ### 第一次使用
 
