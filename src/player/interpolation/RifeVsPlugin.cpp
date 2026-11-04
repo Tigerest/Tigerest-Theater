@@ -6,6 +6,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <string>
 
 namespace {
@@ -195,11 +196,17 @@ void VS_CC create(const VSMap* in, VSMap* out, void*, VSCore* core, const VSAPI*
         }
         d->generation=uint64_t(integer(api,in,"generation",0));
         d->streaming=integer(api,in,"streaming",0)!=0;
-        d->info.numFrames*=2; d->info.fpsNum=d->fps.num*2; d->info.fpsDen=d->fps.den;
+        // VapourSynth rejects an unreduced rate. Doubling an even denominator,
+        // e.g. 59997/2500 from container-fps 23.9988, would otherwise fail.
+        const int64_t outputNum=d->fps.num*2,outputDen=d->fps.den,divisor=std::gcd(outputNum,outputDen);
+        d->info.numFrames*=2; d->info.fpsNum=outputNum/divisor; d->info.fpsDen=outputDen/divisor;
         VSFilterDependency dependency{d->input,rpGeneral};
         // The streaming bridge and reused Core ML buffers retain state for one
         // frame request, including its second activation after lookahead.
         api->createVideoFilter(out,"TigerestRIFE",&d->info,getFrame,freeFilter,fmFrameState,&dependency,1,d.get(),core);
+        // A rejected filter never calls freeFilter. Keeping its input alive
+        // pins mpv's Input node, and mpv asserts when it tears the script down.
+        if (api->mapGetError(out)) {api->freeNode(d->input);return;}
         d.release();
     } catch (const std::exception& e) {
         if (d->input) api->freeNode(d->input);

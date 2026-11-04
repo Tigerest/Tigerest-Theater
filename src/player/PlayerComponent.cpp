@@ -598,7 +598,10 @@ void PlayerComponent::initializeMpv()
   m_mpv->command(QStringList()
                  << "define-section" << "tigerest-host"
                  << hostBindings << "force");
-  m_mpv->command(QStringList() << "enable-section" << "tigerest-host");
+  // A section covers the whole window for mouse purposes unless it allows
+  // cursor hiding. These bindings are keys only; without the flag mpv keeps
+  // the cursor visible over native Mac playback, where cursor-autohide is mpv's.
+  m_mpv->command(QStringList() << "enable-section" << "tigerest-host" << "allow-hide-cursor");
 
   if (auto* s = SettingsComponent::Get().getSection(SETTINGS_SECTION_AUDIO))
     connect(s, &SettingsSection::valuesUpdated, this, &PlayerComponent::updateAudioConfiguration);
@@ -1852,7 +1855,7 @@ void PlayerComponent::publishInterpolationPause()
     if(waiting){
       mpv.commandAsync({"define-section","tigerest-rife-startup",
           "SPACE script-message tigerest-rife-toggle-pause\np script-message tigerest-rife-toggle-pause","force"});
-      mpv.commandAsync({"enable-section","tigerest-rife-startup"});
+      mpv.commandAsync({"enable-section","tigerest-rife-startup","allow-hide-cursor"});
     }else mpv.commandAsync({"disable-section","tigerest-rife-startup"});
     m_rifePauseBindings=waiting;
   }
