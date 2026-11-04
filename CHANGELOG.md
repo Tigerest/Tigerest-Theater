@@ -2,6 +2,12 @@
 
 ## v2.9.5.3 — 2026-11-04
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.5.3 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5.3 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-x64.zip) | 同上；完整解压后运行 |
+| Apple Silicon Mac | [2.9.5.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 发布 Mac 与 Windows（安装版和便携版）；Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，检查更新不会提示这一版。Mac 版先发布，Windows 版随后加入同一个发行页。
 
 **RIFE 补帧（Mac）**
@@ -35,6 +41,12 @@
 
 ## v2.9.5.2 — 2026-11-03
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.5.2 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.2/TigerestTheater-2.9.5.2-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5.2 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.2/TigerestTheater-2.9.5.2-x64.zip) | 同上；完整解压后运行 |
+| Apple Silicon Mac | [2.9.5.2 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.2/TigerestTheater-2.9.5.2-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 发布 Windows（安装版和便携版）与 Mac；Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，检查更新不会提示这一版。
 
 **mpv.conf 编辑器（Windows、Mac）**
@@ -42,6 +54,12 @@
 - 长行自动换行，不再左右滚动。以前编辑器不换行，一行太长时整个编辑区可以被左右拖动，行首的字符被挡住，长的中文注释最明显。现在超出宽度的行在编辑器里折行显示，行号、错误和警告标记、「+」插入按钮都跟着折行后的行对齐；客户端维护的头部和尾部，以及恢复默认配置和粘贴时显示的改动对比，也改为折行。折行只影响显示，保存的 mpv.conf 不变。
 
 ## v2.9.5.1 — 2026-10-30
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.5.1 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.1/TigerestTheater-2.9.5.1-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5.1 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.1/TigerestTheater-2.9.5.1-x64.zip) | 同上；完整解压后运行 |
+| Apple Silicon Mac | [2.9.5.1 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.1/TigerestTheater-2.9.5.1-arm64.dmg) | macOS 26+，M 系列芯片 |
 
 发布 Windows（安装版和便携版）与 Mac；Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，检查更新不会提示这一版。
 
@@ -78,6 +96,15 @@
 - 音画同步选了「音频」时，弹幕跟着每一帧画面绘制，不再每隔一段时间顿一下或跳一步。默认的「显示器重采样」不受影响。
 
 ## v2.9.5 — 2026-10-27
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.5 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.5 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.9.5 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
 
 **本地播放器（Windows）**
 
@@ -143,6 +170,15 @@
 
 ## v2.9.4 — 2026-10-23
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.4 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.4 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.4 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.9.4 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [2.9.4 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [2.9.4 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.4/TigerestTheater-2.9.4-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
 **更新（Windows、Android 与 Mac）**
 
 - **更新下载更快：** 更新窗口里的「从GitHub获取更新」改叫「直接下载」，默认从 GitHub 加速镜像下（先 gh-proxy.com，不行换 ghproxy.net，再不行才连 GitHub），进度旁边能看到正在用哪个。下完仍按 GitHub 上的 SHA-256 核对，对不上就直接从 GitHub 重下一次。Mac 下载 DMG 同样走镜像。
@@ -201,6 +237,15 @@
 
 ## v2.9.3 — 2026-10-21
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.3 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.3/TigerestTheater-2.9.3-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.3 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.3/TigerestTheater-2.9.3-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.3 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.3/TigerestTheater-2.9.3-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.9.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.3/TigerestTheater-2.9.3-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad | [2.9.3 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.3/TigerestTheater-2.9.3-ipad.ipa) | iPadOS 26+，须自行签名安装 |
+| Apple TV | [2.9.3 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.3/TigerestTheater-2.9.3-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
 **Windows、Android、Mac、iPad 与 Apple TV**（苹果三端由 2.8.0 直接升到 2.9.3，同日补充到发行页）
 
 - **HDR：** Windows 播放 HDR 片源时，显示器支持 HDR 而系统未开启会自动开启，结束后恢复（「播放 HDR 时自动开启系统 HDR」，默认开启），并以真正的 HDR10 输出；Android 在 HDR 屏幕上把 HDR 视频直接交给系统显示，开始播放时与 Mac、iPad 一样提示 HDR／SDR 输出方式，旋转屏幕不再重启解码。
@@ -214,6 +259,12 @@
 
 ## v2.9.1 — 2026-10-20
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.1 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.1/TigerestTheater-2.9.1-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.1 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.1/TigerestTheater-2.9.1-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.1 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.1/TigerestTheater-2.9.1-android.apk) | Android 15+，arm64-v8a / x86_64 |
+
 **Windows 与 Android**（Mac、iPad 与 Apple TV 的 2.9.x 随后在 Mac 上构建验证后补充）
 
 - Jellyfin：服务器提供的自定义 CSS 默认禁用（相当于在 Jellyfin「显示」设置里勾选「禁用服务器提供的自定义 CSS」），客户端按 Jellyfin 默认主题统一外观；在该设置里取消勾选会保留你的选择。
@@ -226,6 +277,12 @@
 - 合入 Mac 回传的共享修复：原生桥更早就绪、客户端菜单与服务器标签在页面切换后仍可点击、无演员详情页的评论区对齐、剧集列表图片的飞入动画、Modern 布局卡片链接走同一套跳转动画，以及 iPad 宽屏详情页海报与标题的布局隔离。
 
 ## v2.9.0 — 2026-10-20
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.0 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.0/TigerestTheater-2.9.0-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.0 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.0/TigerestTheater-2.9.0-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.0 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.0/TigerestTheater-2.9.0-android.apk) | Android 15+，arm64-v8a / x86_64 |
 
 **Windows 与 Android**（Mac、iPad 与 Apple TV 随后补充到同一发行页）
 
@@ -251,6 +308,15 @@
 
 ## v2.8.0 — 2026-10-16
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.8.0 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.0/TigerestTheater-2.8.0-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.8.0 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.0/TigerestTheater-2.8.0-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.8.0 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.0/TigerestTheater-2.8.0-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.8.0 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.0/TigerestTheater-2.8.0-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad | [2.8.0 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.0/TigerestTheater-2.8.0-ipad.ipa) | iPadOS 26+，须自行签名安装 |
+| Apple TV | [2.8.0 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.8.0/TigerestTheater-2.8.0-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
 **Windows 与 Android**（Mac、iPad 与 Apple TV 随后补充到同一发行页，见下方）
 
 - 新增「一起看」（大河服务器）：创建房间后把 6 位房间码发给朋友，每个房间最多 4 人，服务器管理员账号最多 20 人。所有成员都可以播放、暂停、拖动和换片，房主可以移出成员和解散房间。
@@ -272,6 +338,15 @@
 
 ## v2.7.0 — 2026-10-15
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.7.0 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.7.0/TigerestTheater-2.7.0-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.7.0 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.7.0/TigerestTheater-2.7.0-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.7.0 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.7.0/TigerestTheater-2.7.0-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.7.0 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.7.0/TigerestTheater-2.7.0-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad | [2.7.0 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.7.0/TigerestTheater-2.7.0-ipad.ipa) | iPadOS 26+，须自行签名安装 |
+| Apple TV | [2.7.0 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.7.0/TigerestTheater-2.7.0-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
 **Windows 与 Android**（Mac、iPad 随后补充，10 月 16 日补充 Apple TV 首版，见下方）
 
 - 首页「继续观看」按观看记录排序：看过的作品按最近一次观看在前，看过后又有未看新集入库的剧集随之提前，从未播放的作品按最近入库在后；进度条只跟随最近一次播放，首页大图标出未看的新一集。
@@ -291,6 +366,14 @@
 **已知问题：** 部分 Windows 高刷新率环境下窗口播放掉帧的问题仍未修复，请先使用全屏播放。
 
 ## v2.6.1 — 2026-10-14
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.6.1 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.6.1/TigerestTheater-2.6.1-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.6.1 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.6.1/TigerestTheater-2.6.1-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.6.1 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.6.1/TigerestTheater-2.6.1-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.6.1 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.6.1/TigerestTheater-2.6.1-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad | [2.6.1 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.6.1/TigerestTheater-2.6.1-ipad.ipa) | iPadOS 26+，须自行签名安装 |
 
 **Windows 与 Android**
 
@@ -315,6 +398,13 @@
 
 ## v2.6.0 — 2026-10-13
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.6.0 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.6.0/TigerestTheater-2.6.0-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.6.0 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.6.0/TigerestTheater-2.6.0-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.6.0 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.6.0/TigerestTheater-2.6.0-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.6.0 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.6.0/TigerestTheater-2.6.0-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 - 新增跨服务器公共评论：大河 Emby 登录自动建立评论身份；自建 Emby 用户注册／登录独立评论账号后查看和发送评论，自己的 Emby 凭据不交给中央评论服务。
 - 公共讨论按可靠 TMDB 和播出季集关联，缺少元数据或集序不明确时显示原因；评论入口自动适配服务器，移除公共／本服切换，保留旧回复、私人报错和统一消息，外服使用公共消息。
 - 注册和改密按服务端能力显示密码规则：新服务为 8–128 个 Unicode 码点，旧服务保持 12–128；允许中文、emoji、普通空格，禁止控制字符，已有密码登录不受新注册规则影响。
@@ -335,6 +425,13 @@ PR #5 的提前路由性能改动未纳入本次发布。
 
 ## v2.5.3 — 2026-10-10（转场点击响应优化）
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.5.3 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.3/TigerestTheater-2.5.3-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.5.3 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.3/TigerestTheater-2.5.3-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.5.3 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.3/TigerestTheater-2.5.3-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.5.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.3/TigerestTheater-2.5.3-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 - 采用 PR #3 的转场准备方案：海报转场优先使用预热的低分辨率背景位图，减少点击时复制整页和重新布局的开销。
 - 悬停切换作品后立即点击时，不再等待标题与简介入场动画结束才准备背景。
 - 缓存未就绪时先模糊当前页面，目标页使用实时毛玻璃衔接，减少海报起飞前的页面复制和图片解码。
@@ -342,6 +439,13 @@ PR #5 的提前路由性能改动未纳入本次发布。
 - 保留现有海报落点校准、首页排序、触屏聚焦点击与媒体夹返回逻辑；Windows RIFE 扩展继续兼容。
 
 ## v2.5.2 — 2026-10-10（首页排序与海报转场）
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.5.2 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.2/TigerestTheater-2.5.2-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.5.2 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.2/TigerestTheater-2.5.2-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.5.2 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.2/TigerestTheater-2.5.2-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.5.2 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.2/TigerestTheater-2.5.2-arm64.dmg) | macOS 26+，M 系列芯片 |
 
 - 首页默认展示继续观看，不足时按近期入库补足；新增「首页」设置，可改为最近入库、发行时间或评分排序。
 - 首页进入作品详情后，返回对应媒体夹；底部轮播右上方增加「查看更多」入口。
@@ -353,6 +457,13 @@ PR #5 的提前路由性能改动未纳入本次发布。
 
 ## v2.5.1 — 2026-10-09（更新下载与弹幕识别修复）
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.5.1 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.1/TigerestTheater-2.5.1-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.5.1 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.1/TigerestTheater-2.5.1-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.5.1 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.1/TigerestTheater-2.5.1-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.5.1 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.1/TigerestTheater-2.5.1-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 - **本次 Windows 请手动更新**：旧版 2.4.4～2.5.0 的内置更新下载可能中断，请从发行页面手动下载 Windows 安装包并在退出客户端后安装。安装修复版后，后续更新可继续使用内置下载。
 - Windows 正式包内置并校验 OpenSSL 及 Qt TLS 插件，使应用更新和 RIFE 扩展下载使用一致的网络后端，不再依赖开发机器的运行库。
 - 桌面和 Android 更新下载支持暂停、继续及退出后续传。断流后按 2/5/10/20/30 秒重连，取得新进度就重置重试预算；连续五次重试没有新进度才提示失败。
@@ -363,6 +474,13 @@ PR #5 的提前路由性能改动未纳入本次发布。
 - 补充发布 Apple Silicon Mac 2.5.1，合并桌面更新器及无日期弹幕策略，并支持“第二期／第2期”等季度名称，修复《转生成为魔剑了》S02E02 的匹配案例。
 
 ## v2.5.0 — 2026-10-09
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.5.0 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.0/TigerestTheater-2.5.0-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.5.0 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.0/TigerestTheater-2.5.0-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.5.0 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.0/TigerestTheater-2.5.0-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.5.0 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.5.0/TigerestTheater-2.5.0-arm64.dmg) | macOS 26+，M 系列芯片 |
 
 - 重建沉浸式首页：左侧媒体库入口、右侧大海报及底部作品轮播；悬停切换预览，点击媒体库或作品后沿用原有页面。作品按最新一集入库时间排列，展示作品简介，海报与文字独立过渡。
 - 首页媒体库与当前账号权限对应；大河服务器保留前三个指定媒体库及收藏，自建服务器展示自己的媒体库与收藏。首页隐藏原有菜单、顶栏及底部导航，其他页面的首页入口统一返回新首页。
@@ -385,6 +503,13 @@ PR #5 的提前路由性能改动未纳入本次发布。
 
 ## v2.4.4 — 2026-10-08
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.4.4 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.4/TigerestTheater-2.4.4-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.4.4 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.4/TigerestTheater-2.4.4-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.4.4 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.4/TigerestTheater-2.4.4-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.4.4 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.4/TigerestTheater-2.4.4-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 - 消息中心接入统一消息接口，合并收到的回复与报错修复通知；支持单条及快照全部已读，媒体失效时仍可查看修复说明。
 - 电影、剧集和单集详情新增「上报问题」，支持播放异常、字幕缺失、字幕错误和其他问题；消息中心新增「我的报错」及处理详情。发送失败保留草稿与提交标识，退出详情或切换账号清理草稿。
 - Android 窄屏顶栏换行后靠右对齐；整排按钮无法容纳时保留消息、更新、头像和「更多」，其余操作收入二级菜单。
@@ -394,6 +519,13 @@ PR #5 的提前路由性能改动未纳入本次发布。
 - 桌面弹幕自动匹配优先核对精确首播日期；日期相差不超过 7 天时核对集数和真实单集标题。只有「第 8 集」等占位标题时，改为核对作品与集数；只有候选唯一才自动加载。候选有歧义或接口未完整返回时保留手动匹配提示，修复首次自动匹配失败、直接再次搜索却能找到，以及缺少单集标题时重进仍无法加载的问题。
 
 ## v2.4.3 — 2026-10-08
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.4.3 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.3/TigerestTheater-2.4.3-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.4.3 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.3/TigerestTheater-2.4.3-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.4.3 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.3/TigerestTheater-2.4.3-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.4.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.3/TigerestTheater-2.4.3-arm64.dmg) | macOS 26+，M 系列芯片 |
 
 - Android 移除网页多层叠加的安全区留白，详情、首页和评论使用同一侧边距；窄屏顶栏按实际高度排列，避免按钮重叠。
 - Android 播放打开及缓冲时显示加载转圈；播放画面长按临时至少 2 倍速，松手、取消、退到后台或换片后恢复原倍速。
@@ -410,6 +542,13 @@ PR #5 的提前路由性能改动未纳入本次发布。
 
 ## v2.4.2 — 2026-10-07
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.4.2 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.2/TigerestTheater-2.4.2-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.4.2 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.2/TigerestTheater-2.4.2-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.4.2 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.2/TigerestTheater-2.4.2-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.4.2 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.2/TigerestTheater-2.4.2-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 - Windows、Apple Silicon Mac 和 Android 在每次启动时后台检查正式发布，只提示包含对应平台安装包的新版本；支持稍后、跳过版本、关闭自动检查及设置中手动检查。
 - 新增与现有深色金色界面一致的更新窗口、下载进度、取消和重试；首次服务器选择页面也可检查更新，导航和窗口变化保留下载状态。
 - 在应用内下载，校验长度和 SHA-256 后打开系统安装器或 ZIP／DMG；Android 额外验证包名、签名、版本和设备兼容性。安装确认由系统处理，取消后可再次尝试。
@@ -418,6 +557,10 @@ PR #5 的提前路由性能改动未纳入本次发布。
 
 ## v2.4.1 Android 正式版 — 2026-10-06
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Android | [2.4.1 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.1/TigerestTheater-2.4.1-android.apk) | Android 15+，arm64-v8a / x86_64 |
+
 - 新增 Android 15+ 客户端，内置 mpv，复用现有网页、深色金色样式、消息中心、评论和基础客户端设置，加入现有 v2.4.1 发布页。
 - 支持手机、折叠内外屏、平板、横竖屏和可变窗口；视频延伸至挖孔区域，交互控件避让系统区域，移除手机上不适用的桌面窗口按钮。
 - 修复弹幕虽高频重绘却随视频帧率移动的问题：用显示帧时钟插值媒体时间，暂停、缓冲、跳转和倍速同步；恢复播放等待媒体时间实际推进。
@@ -425,6 +568,11 @@ PR #5 的提前路由性能改动未纳入本次发布。
 - APK 使用原 Android 预览版签名，可覆盖升级；版本号统一为 2.4.1，versionCode 2040103。发布附件包含对应源码、来源清单和 SHA-256 校验。
 
 ## v2.4.1 — 2026-10-05
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.4.1 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.1/TigerestTheater-2.4.1-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.4.1 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.4.1/TigerestTheater-2.4.1-x64.zip) | 同上；完整解压后运行 |
 
 - 持续丢帧或音画偏差只显示 OSD 提示，不再自动移除 RIFE 滤镜、降帧率或修改解码链路；用户可自行调低目标、选择较轻模型或关闭补帧。引擎故障和格式限制仍单独处理。
 - 移除高刷自动切音频及 RIFE 强制音频时钟策略，保留用户选择的显示同步。音频模式开启弹幕时采用不重采样音频的 `display-vdrop` 呈现，关闭弹幕后恢复原模式，使弹幕可在视频帧之间按屏幕刷新绘制。
@@ -444,6 +592,12 @@ PR #5 的提前路由性能改动未纳入本次发布。
 
 ## v2.3.3 正式版 — 2026-10-03
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.3.3 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.3/TigerestTheater-2.3.3-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.3.3 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.3/TigerestTheater-2.3.3-x64.zip) | 同上；完整解压后运行 |
+| Apple Silicon Mac | [2.3.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.3/TigerestTheater-2.3.3-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 - 根据真实 Emby 网络视频、全屏和弹幕组合复现 Windows 补帧回退；补帧期间采用音频时钟同步，结束后恢复原同步设置，保留现有性能保护。
 - 首次引擎准备暂停当前视频并显示准备阶段、估算进度和耗时；完成后在当前播放中启用，无需重新打开，保留用户主动暂停与停止操作。
 - 重做启动核验窗口：深色主题、完整对齐的进度轨道、文件核验与运行库探测分阶段显示，快速完成时不闪窗。
@@ -451,6 +605,12 @@ PR #5 的提前路由性能改动未纳入本次发布。
 - README 补充适配包选择、离线导入、更换显卡、引擎缓存及 Mac／Windows 包体差异说明，并修正先前测试覆盖范围的表述。
 
 ## v2.3.2 正式版 — 2026-10-03
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.3.2 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.2/TigerestTheater-2.3.2-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.3.2 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.2/TigerestTheater-2.3.2-x64.zip) | 同上；完整解压后运行 |
+| Apple Silicon Mac | [2.3.2 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.2/TigerestTheater-2.3.2-arm64.dmg) | macOS 26+，M 系列芯片 |
 
 - 修复 Windows 下 23.976 fps 在「约 60 fps」预设中误选 3 倍补帧的问题；与 24 fps 采用相同的 2 倍档位，避免无意增加一倍插帧推理次数。
 - 性能回退排除输出帧率高于显示器刷新率时的正常帧率适配丢帧；持续异常音画偏差或额外丢帧仍会恢复原帧播放，并记录回退时的指标。
@@ -460,6 +620,12 @@ PR #5 的提前路由性能改动未纳入本次发布。
 
 ## v2.3.1 正式版 — 2026-10-01
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.3.1 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.1/TigerestTheater-2.3.1-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.3.1 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.1/TigerestTheater-2.3.1-x64.zip) | 同上；完整解压后运行 |
+| Apple Silicon Mac | [2.3.1 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.1/TigerestTheater-2.3.1-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 - MPV 设置合并到 Emby 客户端设置页，新增「MPV 播放设置」菜单与侧栏入口；顶栏 MPV 按钮和 Ctrl/Cmd+, 跳转到同一页面，保留分类、搜索、即时保存和恢复默认值。
 - 修复正式版被 RIFE 扩展兼容范围排除，导致「下载扩展」「导入离线包」不可用的问题；继续使用完整校验的 NVIDIA 1.0.0 扩展。
 - 补齐 Windows WebEngine 文件选择器运行库，修复头像「浏览」无法打开文件选择窗口。
@@ -468,6 +634,12 @@ PR #5 的提前路由性能改动未纳入本次发布。
 - README 补充在线安装、离线 ZIP 导入、哈希核验、完全重启、配置选择、缓存和卸载说明。
 
 ## v2.3.0 正式版 — 2026-10-01
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.3.0 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.0/TigerestTheater-2.3.0-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.3.0 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.0/TigerestTheater-2.3.0-x64.zip) | 同上；完整解压后运行 |
+| Apple Silicon Mac | [2.3.0 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.3.0/TigerestTheater-2.3.0-arm64.dmg) | macOS 26+，M 系列芯片 |
 
 - 新增大河专属 Emby 详情页评论区：作品评论、本集评论、回复、头像与名称、分页和纯文本发言，沿用现有登录身份。
 - 支持本人删除、管理员删除单条／整条讨论、禁言与解除禁言、管理记录；权限由服务端校验。
@@ -480,6 +652,12 @@ PR #5 的提前路由性能改动未纳入本次发布。
 
 ## v2.2.0 RIFE 预览版 — 2026-10-01
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.2.0 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.2.0/TigerestTheater-2.2.0-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.2.0 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.2.0/TigerestTheater-2.2.0-x64.zip) | 同上；完整解压后运行 |
+| Apple Silicon Mac | [2.2.0 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.2.0/TigerestTheater-2.2.0-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 - Windows NVIDIA 增加可选 RIFE TensorRT 扩展：4.25 lite、4.25、4.25 heavy 可选，提供均衡、画质优先、高帧率和 4K 流畅预设，无需配置 SVP、Python 或 CUDA Toolkit。
 - 支持整数倍补帧，接近 60／120／240 fps；首次准备引擎时先按原帧播放，准备完成后重新打开视频生效。扩展独立下载或离线导入，主安装包不包含大型 AI 运行库。
 - 性能不足、倍速或不支持的格式保持原帧播放。Windows 最高支持逐行 SDR 4K／60 fps 输入，不自动降低推理分辨率或转换 HDR。
@@ -491,15 +669,27 @@ RTX 4090 上三模型均通过合成运动素材的 1080p30→60、默认画质�
 
 ## v2.1.2 Mac 预览版 — 2026-09-29
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Apple Silicon Mac | [2.1.2 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.1.2/TigerestTheater-2.1.2-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 - 修复 Mac 原生播放窗口在补帧播放结束、停止或退出客户端时可能卡住的问题。
 - 停止后立即打开下一段视频时，等待旧播放窗口关闭后再加载；修正播放列表自动切集时补帧状态未恢复的问题。
 
 ## v2.1.1 Mac 预览版 — 2026-09-29
 
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Apple Silicon Mac | [2.1.1 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.1.1/TigerestTheater-2.1.1-arm64.dmg) | macOS 26+，M 系列芯片 |
+
 - 修复安装了外部 VapourSynth 时，开启内置 RIFE 仍提示“补帧组件不可用”的问题。启用 RIFE 后会优先使用应用包内匹配的运行时。
 - 视频设置页区分开关状态与当前视频状态，并在组件未加载时提示完全重启客户端。
 
 ## v2.1.0 Mac 预览版 — 2026-09-29
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Apple Silicon Mac | [2.1.0 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.1.0/TigerestTheater-2.1.0-arm64.dmg) | macOS 26+，M 系列芯片 |
 
 - M 系列 Mac 增加内置「AI 补帧（RIFE）」开关，默认关闭，无需另装 SVP、Python 或模型。
 - 支持最高 1080p、30 fps 的逐行 SDR 恒定帧率视频，以两倍帧率播放。HDR、4K、变帧率及色彩信息不完整的视频保持原帧播放。
@@ -509,6 +699,12 @@ RTX 4090 上三模型均通过合成运动素材的 1080p30→60、默认画质�
 此预览版仅提供 Apple Silicon Mac 安装包；Windows 用户继续使用 v2.0.18。实际补帧能力取决于芯片、输出分辨率和画质滤镜负载。
 
 ## v2.0.18 正式版 — 2026-09-29
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.0.18 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.0.18/TigerestTheater-2.0.18-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.0.18 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.0.18/TigerestTheater-2.0.18-x64.zip) | 同上；完整解压后运行 |
+| Apple Silicon Mac | [2.0.18 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.0.18/TigerestTheater-2.0.18-arm64.dmg) | macOS 26+，M 系列芯片 |
 
 本次以正式版发布，版本号移除 `-dev` 标记，沿用已有的 2.x 编号。
 

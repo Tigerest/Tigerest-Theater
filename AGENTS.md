@@ -13,3 +13,20 @@ plugin error dialogs, or suggest reinstalling their player to fix a test harness
 Use isolated test profiles for playback/UI checks; preserve the installed player
 and its settings. Report actual test results and distinguish fixture verification
 from production API and real playback validation.
+
+# Release notes and CHANGELOG
+
+Every version's `CHANGELOG.md` entry and its `docs/releases/<date>-v<version>.md`
+(the GitHub release body) open with a download table of the packages that version
+ships: platform, package link, system requirements. Put it right under the
+`## v<version>` heading in the CHANGELOG and right under the `#` title in the release
+notes. Generate it instead of typing it:
+
+    python tools/release_download_table.py 2.9.5.3 --platforms windows,mac
+    python tools/release_download_table.py 2.9.5.3 --platforms windows,mac --style ref
+
+The CHANGELOG uses the default inline links. The release notes use `--style ref`:
+the in-app update window shows the body as plain text, so the link definitions go at
+the end, before the `tigerest-mirrors` marker. List only the platforms published in
+that version; when another platform's package joins the same release page later, add
+its row to both tables.
