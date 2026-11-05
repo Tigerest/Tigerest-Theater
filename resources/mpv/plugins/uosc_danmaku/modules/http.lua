@@ -34,7 +34,7 @@ end
 
 function request_danmaku_http(args, policy, callback)
     local command = {}
-    for i, value in ipairs(args) do command[i] = value end
+    for i, value in ipairs(curl_command(args)) do command[i] = value end
     local function option(flag, value)
         for _, existing in ipairs(command) do if existing == flag then return end end
         table.insert(command, #command, flag)
@@ -74,7 +74,7 @@ function request_danmaku_http(args, policy, callback)
             if policy.current and not policy.current() then cancel(); return end
             local status, body, retry = response(result and result.stdout)
             local code = result and result.status
-            if status == 429 then mapping_record_rate_limit(server, retry) end
+            if status == 429 then mapping_record_rate_limit(server, retry, body) end
             local success = ok and code == 0 and status and status >= 200 and status < 300
             if success then finish({ok=true, status=status, body=body}); return end
             local terminal_http = status and status >= 400 and status < 500 and status ~= 408

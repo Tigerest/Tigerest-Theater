@@ -866,10 +866,45 @@ function should_initialize_enabled_stream(enabled, path, comments, async_running
         and is_protocol(path)
 end
 
+-- --compressed needs a decoder listed on the `curl -V` Features line. Returns
+-- nil when there is no such line.
+function curl_version_decodes(text)
+    local features = type(text) == 'string' and text:match('\nFeatures:([^\r\n]*)')
+    if not features then return nil end
+    for name in features:gmatch('%S+') do
+        name = name:lower()
+        if name == 'libz' or name == 'brotli' or name == 'zstd' then return true end
+    end
+    return false
+end
+
+local curl_decodes
+-- Some Windows inbox curl builds have no zlib and exit 2 on --compressed
+-- before sending anything (issue #32). Ask such a curl for plain responses.
+function curl_command(args)
+    if type(args) ~= 'table' or args[1] ~= 'curl' then return args end
+    if curl_decodes == nil then
+        local result = mp.command_native({name = 'subprocess', args = {'curl', '-V'}, playback_only = false,
+            capture_stdout = true, capture_stderr = true})
+        -- Keep the flag when the features are unreadable; drop it only for a curl that lists none.
+        curl_decodes = curl_version_decodes(result and result.stdout) ~= false
+        if not curl_decodes then
+            mp.msg.warn('curl cannot decode compressed responses; danmaku requests ask for plain ones')
+        end
+    end
+    if curl_decodes then return args end
+    local command = {}
+    for _, value in ipairs(args) do
+        if value ~= '--compressed' then command[#command + 1] = value end
+    end
+    return command
+end
+
 -- 异步执行命令
 -- 同时返回 abort 函数，用于取消异步命令
 function call_cmd_async(args, callback)
     local generation = async_generation
+    args = curl_command(args)
     -- 标记异步开始
     mark_async_start()
 
@@ -896,6 +931,8 @@ function call_cmd_async(args, callback)
         end
 
         local json = result and type(result.stdout) == 'string' and result.stdout or ''
+        -- Searches run without --include, so only the body shows an exhausted budget.
+        if mapping_observe_response then mapping_observe_response(args[#args], json) end
         return callback(nil, json)
     end)
     async_commands[abort_signal] = true

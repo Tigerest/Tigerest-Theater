@@ -49,9 +49,21 @@ function mapping_retry_after(server)
     return math.max(0, math.ceil((cooldown[resolve_api_server(server)] or 0) - mp.get_time()))
 end
 
+-- 429 covers both request throttling and the NAS's daily/monthly upstream
+-- budget; only the error body tells them apart.
+local budget_exhausted = false
+local function names_exhausted_budget(body)
+    if type(body) ~= 'string' or #body > 4096 then return false end
+    local data = utils.parse_json(body)
+    return type(data) == 'table' and data.success == false and type(data.errorMessage) == 'string'
+        and data.errorMessage:lower():find('budget exhausted', 1, true) ~= nil
+end
+
 function mapping_rate_limit_message(server)
     local wait = mapping_retry_after(server)
-    if wait > 0 then return string.format('弹幕接口请求过于频繁，请 %d 秒后重试', wait) end
+    if wait <= 0 then return nil end
+    if budget_exhausted then return '大河服务器API额度已耗尽，请明日重试' end
+    return string.format('弹幕接口请求过于频繁，请 %d 秒后重试', wait)
 end
 
 local function show_rate_limit(server)
@@ -87,13 +99,22 @@ local function retry_seconds(value)
     return date and math.max(0, date - utc_as_local) or 60
 end
 
-function mapping_record_rate_limit(server, retry)
+function mapping_record_rate_limit(server, retry, body)
     if not trusted(server) then return end
     server = resolve_api_server(server)
     local until_time = math.max(cooldown[server] or 0, mp.get_time() + retry_seconds(retry))
     -- Both addresses reach the same NAS and share its request budget.
     cooldown[TIGEREST_REMOTE_API] = until_time
     cooldown[TIGEREST_LOCAL_API] = until_time
+    budget_exhausted = names_exhausted_budget(body)
+end
+
+-- Bodies of requests made without --include (searches, catalog reads).
+function mapping_observe_response(url, body)
+    local server = type(url) == 'string' and url:match('^https?://[^/]+')
+    if server and trusted(server) and names_exhausted_budget(body) then
+        mapping_record_rate_limit(server, nil, body)
+    end
 end
 
 local function request(server, source, selection, token, callback)

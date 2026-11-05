@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 class SharedDanmakuMappingTest {
+    private val BUDGET_BODY = "{\"success\":false,\"errorMessage\":\"Local upstream budget exhausted\"}"
     @Test fun existingPrivateTokenIsReadOnlyForExplicitEligibleLegacySelections() {
         val trusted="62526c3bf747439c99327ddec5fed4a8"
         val session=JSONObject().put("serverId",trusted).put("userId","fixture-user").put("token","fixture-emby").put("mappingAuth","legacy")
@@ -126,6 +127,42 @@ class SharedDanmakuMappingTest {
         time += 120001
         mapping.lookup("https://nas.tigerest.top:18446",metadata(2,5),9) { true }
         assertEquals(2,requests)
+    }
+
+    @Test fun exhaustedUpstreamBudgetIsToldApartFromThrottling() {
+        var time = 1000L
+        var reply = MappingHttpResponse(429,BUDGET_BODY,"60")
+        val mapping = SharedDanmakuMapping({ _, _, _ -> reply }, { null }, { time })
+        assertEquals(MappingResult.Kind.RATE_LIMITED,mapping.lookup("https://nas.tigerest.top:18446",metadata(),1) { true }.kind)
+        // Both addresses reach the same NAS budget; other providers never cool down.
+        assertEquals(SharedDanmakuMapping.BUDGET_EXHAUSTED_MESSAGE,mapping.rateLimitMessage("http://192.168.5.150:18443"))
+        assertNull(mapping.rateLimitMessage("https://api.dandanplay.net"))
+        time += 60001
+        assertNull(mapping.rateLimitMessage("https://nas.tigerest.top:18446"))
+        reply = MappingHttpResponse(429,"{\"success\":false,\"errorMessage\":\"Too many requests\"}","30")
+        assertEquals(MappingResult.Kind.RATE_LIMITED,mapping.lookup("https://nas.tigerest.top:18446",metadata(),2) { true }.kind)
+        assertTrue(mapping.rateLimitMessage("https://nas.tigerest.top:18446")!!.matches(Regex("弹幕接口请求过于频繁，请 \\d+ 秒后重试")))
+    }
+
+    @Test fun catalogRequestsShareTheBudgetCooldown() {
+        var requests = 0
+        val mapping = SharedDanmakuMapping({ _, _, _ -> requests++; MappingHttpResponse(200,hit().toString()) }, { null }, { 1000L })
+        // Searches, catalogs and comments report their own 429 the same way.
+        mapping.recordRateLimit("https://api.dandanplay.net",null,BUDGET_BODY)
+        assertNull(mapping.rateLimitMessage("https://nas.tigerest.top:18446"))
+        mapping.recordRateLimit("https://nas.tigerest.top:18446",null,BUDGET_BODY)
+        assertEquals(SharedDanmakuMapping.BUDGET_EXHAUSTED_MESSAGE,mapping.rateLimitMessage("https://nas.tigerest.top:18446"))
+        assertEquals(MappingResult.Kind.RATE_LIMITED,mapping.lookup("https://nas.tigerest.top:18446",metadata(),1) { true }.kind)
+        assertEquals(0,requests)
+    }
+
+    @Test fun onlyABoundedFailureBodyNamesTheBudget() {
+        assertTrue(SharedDanmakuMapping.namesExhaustedBudget(BUDGET_BODY))
+        assertTrue(SharedDanmakuMapping.namesExhaustedBudget("{\"success\":false,\"errorMessage\":\"Monthly upstream BUDGET EXHAUSTED\"}"))
+        for (body in listOf("", "{}", "not json", "{\"success\":true,\"errorMessage\":\"Local upstream budget exhausted\"}",
+                "{\"success\":false,\"errorMessage\":\"Too many requests\"}",
+                "{\"success\":false,\"errorMessage\":\"Local upstream budget exhausted\",\"pad\":\"" + "x".repeat(4096) + "\"}"))
+            assertFalse(body.take(80),SharedDanmakuMapping.namesExhaustedBudget(body))
     }
 
     @Test fun malformedOversizedAndUnmatchedResponsesUseLegacyFallback() {

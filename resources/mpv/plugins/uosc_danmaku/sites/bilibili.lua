@@ -177,6 +177,17 @@ local function resolve_bilibili_cid(path, callback)
     callback(nil)
 end
 
+-- comment.bilibili.com always answers with raw deflate. curl inflates it only
+-- with --compressed, which a curl without zlib drops (see curl_command).
+function bilibili_comment_xml(body)
+    if type(body) ~= 'string' or body:find('^%s*<') or body:find('^\239\187\191') then return body end
+    local loaded, inflate = pcall(require, 'modules/inflate')
+    if not loaded then return body end
+    local decoded, xml = pcall(function() return inflate.new(body):inflate(1) end)
+    if decoded and type(xml) == 'string' and xml:find('^%s*<') then return xml end
+    return body
+end
+
 local function download_bilibili_danmaku(path, cid, from_menu, callback)
     local url = "https://comment.bilibili.com/" .. cid .. ".xml"
     local args = build_curl_args(url)
@@ -192,7 +203,7 @@ local function download_bilibili_danmaku(path, cid, from_menu, callback)
             callback(false)
             return
         end
-        save_danmaku_xml(path, out)
+        save_danmaku_xml(path, bilibili_comment_xml(out))
         load_danmaku(from_menu == nil and true or from_menu)
         callback(true)
     end)

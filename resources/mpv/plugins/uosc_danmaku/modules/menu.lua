@@ -99,7 +99,9 @@ local function make_handle_response(ctx)
         end
 
         if err then
+            -- A failed request is not an empty result: say so in the list.
             local notice = mapping_rate_limit_message(server)
+                or (err ~= 'no_args' and (err == 'timeout' and '搜索超时，请稍后重试' or '搜索失败，请检查网络后重试'))
             if notice then
                 ctx.server_items[server] = {{title = notice, selectable = false, value = ''}}
             end
@@ -110,6 +112,10 @@ local function make_handle_response(ctx)
         end
         local data = utils.parse_json(out)
         if not data or not data.animes then
+            local notice = mapping_rate_limit_message(server)
+            if notice then
+                ctx.server_items[server] = {{title = notice, selectable = false, value = ''}}
+            end
             ctx.remaining.n = math.max(0, ctx.remaining.n - 1)
             if ctx.remaining.n == 0 then pcall(do_final_update) end
             return
@@ -335,7 +341,7 @@ function get_episodes(animeTitle, bangumiId, api_server, playback_token)
 
         local response = utils.parse_json(stdout)
         if not response or not response.bangumi or not response.bangumi.episodes then
-            local message = "无结果"
+            local message = mapping_rate_limit_message(api_server) or "无结果"
             if uosc_available then
                 update_menu_uosc(menu_type, menu_title, message, footnote)
             else

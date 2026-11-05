@@ -20,10 +20,28 @@ class SharedDanmakuMapping(
     private val sessionHeaders: () -> Map<String,String>? = { null }
 ) {
     private val cooldown = ConcurrentHashMap<String, Long>()
+    @Volatile private var budgetExhausted = false
     fun retryAfter(origin:String):Long {
         if(trustedOrigin(origin)==null)return 0
         val until=cooldown["nas"]?:return 0
         return if(until<=elapsedMillis())0 else (until-elapsedMillis())/1000+1
+    }
+
+    /** What to tell the user while our service is cooling down, or null when it is not. */
+    fun rateLimitMessage(origin:String):String? {
+        val wait=retryAfter(origin)
+        if(wait<=0)return null
+        return if(budgetExhausted) BUDGET_EXHAUSTED_MESSAGE else "弹幕接口请求过于频繁，请 $wait 秒后重试"
+    }
+
+    /** A 429 from our service, whichever request got it. Both addresses reach the same NAS and share its budget. */
+    fun recordRateLimit(origin:String, retryHeader:String?, body:String) {
+        if(trustedOrigin(origin)==null)return
+        val delay = retryAfterMillis(retryHeader, wallMillis())
+        val now = elapsedMillis()
+        val until=if (now > Long.MAX_VALUE - delay) Long.MAX_VALUE else now + delay
+        cooldown["nas"]=maxOf(cooldown["nas"]?:Long.MIN_VALUE,until)
+        budgetExhausted=namesExhaustedBudget(body)
     }
 
     fun lookup(origin: String, metadata: JSONObject, generation: Long, isCurrent: (Long) -> Boolean): MappingResult =
@@ -57,12 +75,7 @@ class SharedDanmakuMapping(
         val response = try { transport(normalized + "/api/tigerest/v1/danmaku", body, auth) }
             catch (_: Exception) { return MappingResult(if (isCurrent(generation)) MappingResult.Kind.FAILED else MappingResult.Kind.STALE) }
         // Rate limiting is shared by all playback items; stale responses still set it.
-        if (response.code == 429) {
-            val delay = retryAfterMillis(response.retryAfter, wallMillis())
-            val now = elapsedMillis()
-            val until=if (now > Long.MAX_VALUE - delay) Long.MAX_VALUE else now + delay
-            cooldown["nas"]=maxOf(cooldown["nas"]?:Long.MIN_VALUE,until)
-        }
+        if (response.code == 429) recordRateLimit(normalized, response.retryAfter, response.body)
         if (!isCurrent(generation)) return MappingResult(MappingResult.Kind.STALE)
         if(response.code==429)return MappingResult(MappingResult.Kind.RATE_LIMITED)
         if (response.code != 200 || response.body.toByteArray(Charsets.UTF_8).size > MAX_RESPONSE_BYTES) return MappingResult(MappingResult.Kind.FAILED)
@@ -77,6 +90,16 @@ class SharedDanmakuMapping(
 
     companion object {
         const val MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+        const val MAX_ERROR_BYTES = 4096
+        const val BUDGET_EXHAUSTED_MESSAGE = "大河服务器API额度已耗尽，请明日重试"
+        // 429 covers both request throttling and the NAS's daily/monthly upstream
+        // budget; only the error body tells them apart.
+        fun namesExhaustedBudget(body: String): Boolean {
+            if (body.toByteArray(Charsets.UTF_8).size > MAX_ERROR_BYTES) return false
+            val data = runCatching { JSONObject(body) }.getOrNull() ?: return false
+            val message = data.opt("errorMessage") as? String ?: return false
+            return data.opt("success") == false && message.lowercase().contains("budget exhausted")
+        }
         fun validCredential(value: String): Boolean = value.length in 1..4000 && value.matches(Regex("[A-Za-z0-9._~+/=-]+"))
         // Our service: plain HTTP inside the NAS network, HTTPS from anywhere else.
         const val LAN_ORIGIN = "http://192.168.5.150:18443"

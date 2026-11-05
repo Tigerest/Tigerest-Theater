@@ -3,6 +3,7 @@ package top.tigerest.theater
 import android.content.Context
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
@@ -34,13 +35,21 @@ class DanmakuRepository(private val context: Context,private val settings: Setti
     private val cache = File(context.filesDir,"danmaku-history").apply { mkdirs() }
     private var item = JSONObject()
     private fun base(): String = settings.string("danmaku","apiServer").takeIf { it.isNotBlank() }?.let { ServerAddress.base(it).trimEnd('/') } ?: if(settings.string("main","userWebClient").contains("192.168.5.150")) SharedDanmakuMapping.LAN_ORIGIN else SharedDanmakuMapping.REMOTE_ORIGIN
+    // Error bodies are read only far enough to name an exhausted budget.
+    private fun errorBody(response: Response): String = runCatching {
+        response.body?.byteStream()?.use { it.readNBytes(SharedDanmakuMapping.MAX_ERROR_BYTES+1) }?.toString(Charsets.UTF_8)
+    }.getOrNull() ?: ""
     private fun fetch(path: String,origin: String = base()): JSONObject {
-        val wait=sharedMapping.retryAfter(origin);check(wait==0L){"弹幕接口请求过于频繁，请 $wait 秒后重试"}
+        sharedMapping.rateLimitMessage(origin)?.let { throw IllegalStateException(it) }
         val url = origin+path
         val request = Request.Builder().url(url).header("Accept","application/json").header("User-Agent","TigerestTheater Android")
         // Our own service records which client asked; other providers receive nothing.
         if(SharedDanmakuMapping.trustedOrigin(origin) != null) ClientIdentity.headers().forEach{(name,value)->request.header(name,value)}
         client.newCall(request.build()).execute().use { response ->
+            if(response.code == 429 && SharedDanmakuMapping.trustedOrigin(origin) != null) {
+                sharedMapping.recordRateLimit(origin,response.header("Retry-After"),errorBody(response))
+                throw IllegalStateException(sharedMapping.rateLimitMessage(origin) ?: "弹幕接口请求过于频繁，请稍后重试")
+            }
             require(response.isSuccessful) { "弹幕服务暂不可用（${response.code}）" }
             val body = response.body ?: throw IllegalStateException("弹幕响应为空")
             require(body.contentLength() < 32*1024*1024) { "弹幕文件过大" }
@@ -56,7 +65,7 @@ class DanmakuRepository(private val context: Context,private val settings: Setti
         ClientIdentity.headers().forEach{(name,value)->request.header(name,value)}
         credential?.forEach{(name,value)->request.header(name,value)}
         mappingClient.newCall(request.build()).execute().use { response ->
-            if(response.code != 200) return MappingHttpResponse(response.code,"",response.header("Retry-After"))
+            if(response.code != 200) return MappingHttpResponse(response.code,if(response.code == 429) errorBody(response) else "",response.header("Retry-After"))
             val data = response.body
             val bytes = if(data == null) ByteArray(0) else {
                 require(data.contentLength() <= SharedDanmakuMapping.MAX_RESPONSE_BYTES) { "弹幕文件过大" }
@@ -89,7 +98,7 @@ class DanmakuRepository(private val context: Context,private val settings: Setti
                     loadMapping(mapping,origin,token)
                     return@execute
                 }
-                if(mapping.kind==MappingResult.Kind.RATE_LIMITED){status("弹幕接口请求过于频繁，请 ${sharedMapping.retryAfter(origin)} 秒后重试");return@execute}
+                if(mapping.kind==MappingResult.Kind.RATE_LIMITED){status(sharedMapping.rateLimitMessage(origin) ?: "弹幕接口请求过于频繁，请稍后重试");return@execute}
                 DiagnosticsLog.app.record("info","Danmaku shared lookup used legacy fallback (${mapping.kind.name.lowercase()})")
                 val history = runCatching { JSONArray(prefs.getString("history:$historyKey","[]")) }.getOrDefault(JSONArray())
                 for(index in 0 until minOf(history.length(),12)) {
@@ -116,7 +125,7 @@ class DanmakuRepository(private val context: Context,private val settings: Setti
                     val label=selected.anime.optString("animeTitle",title)+" - "+selected.episode.optString("episodeTitle",title)
                     loadLegacy(selected.episode.get("episodeId").toString(),label,token,origin)
                 }
-            } catch(_: Exception) { if(token == generation) status("弹幕暂不可用，可以稍后手动搜索") }
+            } catch(_: Exception) { if(token == generation) status(sharedMapping.rateLimitMessage(base()) ?: "弹幕暂不可用，可以稍后手动搜索") }
         }
     }
     fun search(keyword: String): JSONArray { require(keyword.isNotBlank() && keyword.length <= 200); return fetch("/api/v2/search/anime?keyword="+URLEncoder.encode(keyword,"UTF-8")).optJSONArray("animes") ?: JSONArray() }
@@ -183,7 +192,7 @@ class DanmakuRepository(private val context: Context,private val settings: Setti
             rememberMatch(bangumiId,selectionToken)
             return loadMapping(result,origin,selectionToken)
         }
-        if(result.kind==MappingResult.Kind.RATE_LIMITED){status("弹幕接口请求过于频繁，请 ${sharedMapping.retryAfter(origin)} 秒后重试");return 0}
+        if(result.kind==MappingResult.Kind.RATE_LIMITED){status(sharedMapping.rateLimitMessage(origin) ?: "弹幕接口请求过于频繁，请稍后重试");return 0}
         val count = loadLegacy(episodeId,title,selectionToken,origin)
         if(selectionToken == generation) {
             rememberMatch(bangumiId,selectionToken)

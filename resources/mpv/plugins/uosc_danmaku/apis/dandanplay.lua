@@ -397,7 +397,9 @@ local function match_anime()
             set_episode_id(selected.episode.episodeId, nil, selected.server)
         else
             msg.info('没有找到唯一对应剧集的弹幕')
-            show_message('未找到唯一对应剧集的弹幕，可在弹幕菜单中手动匹配', 5)
+            local notice
+            for _, server in ipairs(servers) do notice = notice or mapping_rate_limit_message(server) end
+            show_message(notice or '未找到唯一对应剧集的弹幕，可在弹幕菜单中手动匹配', 5)
         end
     end
 
@@ -636,9 +638,9 @@ end
 -- 通过danmaku api（url）+id获取弹幕
 function fetch_danmaku(episodeId, from_menu, api_server, save_failed)
     api_server = resolve_api_server(api_server)
-    local wait = mapping_retry_after(api_server)
-    if wait > 0 then
-        show_message(string.format('弹幕接口请求过于频繁，请 %d 秒后重试', wait), 5)
+    local notice = mapping_rate_limit_message(api_server)
+    if notice then
+        show_message(notice, 5)
         return
     end
     local url = api_server .. "/api/v2/comment/" .. episodeId .. "?withRelated=true&chConvert=0"
