@@ -3592,7 +3592,7 @@ void PlayerComponent::logAudioVideoSync()
   m_mpv->commandAsync(QStringList{
       QStringLiteral("expand-properties"), QStringLiteral("print-text"),
       QStringLiteral("A/V sync: avsync=${avsync} total-change=${total-avsync-change} "
-                     "audio-pts=${audio-pts} time-pos=${time-pos} speed=${speed} "
+                     "audio-pts=${=audio-pts} time-pos=${=time-pos} speed=${speed} "
                      "display-fps=${display-fps} estimated-display-fps=${estimated-display-fps} "
                      "vsync-ratio=${vsync-ratio} vsync-jitter=${vsync-jitter} "
                      "video-correction=${video-speed-correction} audio-correction=${audio-speed-correction} "
