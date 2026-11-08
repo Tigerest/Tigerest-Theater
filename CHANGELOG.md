@@ -1,5 +1,50 @@
 # 更新记录
 
+## v2.9.5.4 — 2026-11-09
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.5.4 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.4/TigerestTheater-2.9.5.4-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5.4 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.4/TigerestTheater-2.9.5.4-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.5 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.9.5.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
+只发布 Windows（安装版和便携版）；Mac 仍是 2.9.5.3，Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，检查更新不会提示这一版。
+
+**播放启动**
+
+- 服务器第一次响应慢时，不再 30 秒就报「播放器启动超时（30 秒）」并停止播放，现在等到 75 秒。后台收到的 14 份启动超时报告都发生在 2.9.5.3 上，日志里播放内核还在等服务器返回数据（一次读取等了 15–29 秒）。这一版只是多等一会儿，服务器响应慢这件事本身没有变，开始播放仍可能要等较久；服务器完全不回应时，也要等到 75 秒才报超时。
+- 连续几次打不开视频时（例如服务器地址解析失败），每一次都会马上报错。以前后面的某一次可能收不到失败的消息，要干等到超时。
+- 播放出错后，在询问是否重试的对话框里选择不重试时，Emby 网页不再抛出内部错误、跳过停止播放的处理。
+
+**弹幕（#32）**
+
+- 部分 Windows 自带的 curl 不支持压缩，弹幕请求发出之前就失败，表现为搜索结果为空、哔哩哔哩来源加载失败。现在 curl 不支持时不再要求压缩，哔哩哔哩的弹幕内容由客户端解压。
+- 大河服务器的 API 额度用完时，提示「大河服务器API额度已耗尽，请明日重试」，不再显示重试倒计时。
+
+**截图（#36）**
+
+- 没有设置截图目录时，截图保存到系统「图片」文件夹里的 Tigerest Theater 文件夹。以前默认写到程序目录，安装版没有写入权限，截图不会保存。mpv.conf 里设置的 `screenshot-directory` 仍然优先。
+- 截图保存失败时，画面上会提示「截图保存失败，请检查截图目录是否可以写入」。以前失败只记在日志里。
+
+**mpv.conf 编辑器**
+
+- 「复制给 AI」改用系统剪贴板，不再受网页剪贴板权限影响。
+
+**服务器美化脚本（#33）**
+
+- 服务器用了 emby-crx 这类改写网页的美化脚本时，登录后不再一直转圈、无法点击。这类脚本的全屏加载遮罩要等 Emby 原版首页出现才会移除，本客户端的首页不满足条件；现在客户端直接隐藏这个遮罩。
+
+**色彩**
+
+- Windows 开着「自动颜色管理」（ACM）时，mpv 不再自动读取显示器的 ICC 配置文件，避免颜色被校正两次。打开「用下方高级参数覆盖当前档位」时仍以高级参数为准。
+
+**诊断报告**
+
+- mpv 提示音画不同步时，日志里多记一组数字（音画偏差、显示器帧率、丢帧数等），提示当时和 3 秒后各记一次。有用户反馈的音画不同步这一版没有修复，这组数字用来查原因。
+
 ## v2.9.5.3 — 2026-11-04
 
 | 平台 | 安装包 | 系统要求 |
