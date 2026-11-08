@@ -557,7 +557,7 @@ def test_native_player_composition() -> None:
 
     video_player = read("native/mpvVideoPlayer.js")
     for marker in (
-        "startStartupTimer()", "播放器启动超时（30 秒）", "requestNativeStop()",
+        "startStartupTimer()", "播放器启动超时（", "requestNativeStop()",
         "this.onCanceled", "player.canceled.disconnect(this.onCanceled)",
         "window.api.window.beginPlaybackSession()", "window.api.window.endPlaybackSession()",
     ):

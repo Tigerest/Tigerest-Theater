@@ -679,6 +679,11 @@ function createMpvConfEditor({element, player, settings, saveSetting, notify}) {
 
     // ---- toolbar actions ----
     const copyText = async text => {
+        // The page's own routes depend on the server's origin and on where
+        // focus is; the native clipboard depends on neither.
+        try {
+            if (await player.mpvConfCopyText?.(text)) return true;
+        } catch (e) {}
         try {
             if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; }
         } catch (e) {}

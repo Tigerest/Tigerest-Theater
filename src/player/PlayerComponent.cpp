@@ -56,8 +56,10 @@
 #include <QLocalSocket>
 #include <QFileInfo>
 #include <QThread>
+#include <QClipboard>
 #include <QDesktopServices>
 #include <QJsonDocument>
+#include <QStandardPaths>
 #include <QUrl>
 
 #if !defined(Q_OS_WIN)
@@ -554,6 +556,7 @@ void PlayerComponent::initializeMpv()
   setVideoConfiguration();
   setSubtitleConfiguration();
   setMpvPreset();
+  ensureScreenshotDirectory();
   publishProfileMenu();
   if (qEnvironmentVariableIsSet("TIGEREST_MPV_CONFIG_FALLBACK_USED"))
     MpvConfigManager::addNotice(QStringLiteral("fallback"), QStringLiteral("mpv 配置没能加载"),
@@ -1068,9 +1071,11 @@ bool PlayerComponent::switchDisplayDynamicRange()
   // In HDR mode Windows reports the HDR calibration (MHC2) profile, which the
   // compositor already applies. As mpv's ICC target it turned HDR into a
   // 416-nit SDR image on an SDR swapchain; without it mpv hints HDR10 and
-  // tone maps to the display's own peak. Explicit advanced overrides win.
+  // tone maps to the display's own peak. With Auto Color Management the
+  // compositor applies the display's profile to the SDR desktop as well, so an
+  // ICC transform in mpv would be a second one. Explicit advanced overrides win.
   if (!SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "advancedProfileOverrides").toBool())
-    m_mpv->setProperty("icc-profile-auto", !result.hdrActive);
+    m_mpv->setProperty("icc-profile-auto", !result.hdrActive && !result.autoColorManaged);
   // The D3D11 context reads the output's colour space once, when it opens. A
   // replacement keeps the previous item's video output, so reopen it.
   const QString vo = m_mpv->getProperty("current-vo").toString();
@@ -1176,7 +1181,13 @@ void PlayerComponent::updatePlaybackState()
       newState = State::finished;
   }
 
-  if (newState != m_state)
+  // A load that fails at once (no DNS answer, say) can put START_FILE and
+  // END_FILE in one event batch, so the state goes from error to error. The web
+  // player is still waiting for that load and has to hear that it ended.
+  const bool endedAgain = m_endFileUnreported && !m_inPlayback && newState == m_state;
+  m_endFileUnreported = false;
+
+  if (newState != m_state || endedAgain)
   {
     switch (newState) {
     case State::paused:
@@ -1378,6 +1389,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       }
 
       m_inPlayback = false;
+      m_endFileUnreported = true;
       m_audioOutputWarningTimer.stop();
       m_audioOutputWarningShown = false;
       m_windowVisible = false;
@@ -1615,6 +1627,25 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
         });
       }
 #endif
+      // mpv warns once per file or seek without saying which side drifted.
+      // Record the numbers then and a little later: a start-up jump settles,
+      // a real drift does not.
+      if (msg->log_level == MPV_LOG_LEVEL_WARN && strcmp(msg->prefix, "cplayer") == 0 &&
+          strncmp(msg->text, "Audio/Video desynchronisation", 29) == 0)
+      {
+        logAudioVideoSync();
+        QTimer::singleShot(3000, this, [this] {
+          if (m_mpv && m_inPlayback)
+            logAudioVideoSync();
+        });
+      }
+      // uosc takes screenshots without an OSD message, so a failed write would
+      // otherwise show up only in the log.
+      if (msg->log_level <= MPV_LOG_LEVEL_ERROR && strcmp(msg->prefix, "cplayer") == 0 &&
+          strncmp(msg->text, "Error writing screenshot", 24) == 0)
+        m_mpv->commandAsync(QStringList{QStringLiteral("show-text"),
+                                        QStringLiteral("截图保存失败，请检查截图目录是否可以写入"),
+                                        QStringLiteral("5000")});
       // Strip the trailing '\n'
       size_t len = strlen(msg->text);
       if (len > 0 && msg->text[len - 1] == '\n')
@@ -3550,7 +3581,36 @@ void PlayerComponent::applyUserConfLive(const QString& previous, const QString& 
       exists = exists || info.name == m_appliedProfile;
     applyQualityProfile(exists ? m_appliedProfile : QStringLiteral("tigerest-default"), false);
   }
+  ensureScreenshotDirectory();
   publishProfileMenu();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::logAudioVideoSync()
+{
+  // print-text runs inside mpv and writes to the log, so nothing waits on the core.
+  m_mpv->commandAsync(QStringList{
+      QStringLiteral("expand-properties"), QStringLiteral("print-text"),
+      QStringLiteral("A/V sync: avsync=${avsync} total-change=${total-avsync-change} "
+                     "audio-pts=${audio-pts} time-pos=${time-pos} speed=${speed} "
+                     "display-fps=${display-fps} estimated-display-fps=${estimated-display-fps} "
+                     "vsync-ratio=${vsync-ratio} vsync-jitter=${vsync-jitter} "
+                     "video-correction=${video-speed-correction} audio-correction=${audio-speed-correction} "
+                     "mistimed=${mistimed-frame-count} delayed=${vo-delayed-frame-count} "
+                     "dropped=${frame-drop-count} decoder-dropped=${decoder-frame-drop-count}")});
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::ensureScreenshotDirectory()
+{
+  // Without a directory mpv writes to the working directory. That is the
+  // program folder, which an installed client cannot write to. mpv creates
+  // the folder on the first screenshot; a path in mpv.conf takes precedence.
+  if (!m_mpv->getProperty("screenshot-dir").toString().isEmpty())
+    return;
+  const QString pictures = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+  if (!pictures.isEmpty())
+    m_mpv->setProperty("screenshot-dir", QDir(pictures).filePath(QStringLiteral("Tigerest Theater")));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3677,6 +3737,15 @@ bool PlayerComponent::mpvConfOpenShaderFolder()
 {
   QDir().mkpath(MpvConfigManager::userShaderDir());
   return QDesktopServices::openUrl(QUrl::fromLocalFile(MpvConfigManager::userShaderDir()));
+}
+
+bool PlayerComponent::mpvConfCopyText(const QString& text)
+{
+  QClipboard* clipboard = QGuiApplication::clipboard();
+  if (!clipboard)
+    return false;
+  clipboard->setText(text);
+  return clipboard->text() == text;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

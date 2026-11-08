@@ -68,7 +68,7 @@
     { "key": "cache-pause", "category": "playback", "scope": "global", "form": true, "type": "flag", "title": "缓存不足时自动暂停", "help": "网络缓存不足时等待缓冲，降低高码率串流反复卡顿的概率。" },
     { "key": "demuxer-max-back-bytes", "category": "playback", "scope": "global", "form": true, "type": "bytes", "title": "回退缓存", "help": "允许 mpv 保留用于向后跳转的缓存大小。数值越大占用内存越多。", "choices": [["10MiB", "10 MB"], ["50MiB", "50 MB（推荐）"], ["100MiB", "100 MB"], ["250MiB", "250 MB"]] },
     { "key": "screenshot-format", "category": "playback", "scope": "global", "form": true, "type": "choice", "title": "截图格式", "help": "供 mpv/uosc 的截图命令使用。PNG 无损，JPG 文件较小。", "choices": [["png", "PNG（无损）"], ["jpg", "JPG"], ["webp", "WebP"]] },
-    { "key": "screenshot-directory", "category": "playback", "scope": "global", "form": true, "type": "text", "title": "截图目录", "help": "留空或删除这一行使用 mpv 默认位置；可填写 Windows 或 macOS 绝对路径。" },
+    { "key": "screenshot-directory", "category": "playback", "scope": "global", "form": true, "type": "text", "title": "截图目录", "help": "留空或删除这一行时保存到系统「图片」文件夹里的 Tigerest Theater；可填写 Windows 或 macOS 绝对路径。" },
     { "key": "cursor-autohide", "category": "playback", "scope": "global", "type": "text", "title": "鼠标自动隐藏", "help": "鼠标停止移动多少毫秒后隐藏；写 no 表示不隐藏，always 表示始终隐藏。" },
     { "key": "osd-level", "category": "playback", "scope": "global", "type": "choice", "title": "OSD 信息级别", "help": "0 关闭，1 只显示音量等临时提示，2 额外显示播放时间。", "choices": [["0", "关闭"], ["1", "临时提示（默认）"], ["2", "临时提示 + 播放时间"], ["3", "临时提示 + 时间与总时长"]] },
     { "key": "hr-seek-framedrop", "category": "playback", "scope": "global", "type": "flag", "title": "精确定位时丢帧", "help": "关闭可保留送入补帧滤镜的帧，避免 SVP 音画不同步。" }

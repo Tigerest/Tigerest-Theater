@@ -192,6 +192,36 @@ private slots:
             QMetaType::fromType<ErrorReturn>());
   }
 
+  // A load that fails at once can put START_FILE and END_FILE in one event
+  // batch, so the state goes from error to error. Report: a cached DNS failure
+  // 1 ms after the start; the retry sat on the spinner until the startup
+  // watchdog gave up. Whether both events share a batch is a race between mpv
+  // and the GUI thread, so the batch is delivered directly.
+  void failureInOneEventBatchIsReported()
+  {
+    Mpv mpv;
+    QSignalSpy errors(&mpv.player, &PlayerComponent::error);
+    mpv_event_start_file started{};
+    mpv_event_end_file ended{};
+    ended.reason = MPV_END_FILE_REASON_ERROR;
+    ended.error = MPV_ERROR_LOADING_FAILED;
+    mpv_event start{}, end{};
+    start.event_id = MPV_EVENT_START_FILE;
+    start.data = &started;
+    end.event_id = MPV_EVENT_END_FILE;
+    end.data = &ended;
+    for (int failures = 1; failures <= 3; ++failures)
+    {
+      mpv.player.handleMpvEvent(&start);
+      mpv.player.handleMpvEvent(&end);
+      mpv.player.updatePlaybackState();
+      QCOMPARE(errors.count(), failures);
+    }
+    // A second state update for the same END_FILE stays quiet.
+    mpv.player.updatePlaybackState();
+    QCOMPARE(errors.count(), 3);
+  }
+
   // Each profile option can make a paused VO recompile its shaders; the
   // GUI thread queues them instead of waiting. Report: 5.6 s freeze.
   void qualityProfileIsQueued()

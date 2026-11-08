@@ -151,6 +151,16 @@ withBrowser({
  for(let i=0;i<80&&fs.readFileSync(conf,'utf8').includes(suspendedLine);i++)await delay(100);
  assert.ok(fs.readFileSync(conf,'utf8').includes('\nvf-append=@user-2:fps=60\n'),'disabling RIFE did not restore the line');
  assert.equal(await filters(),'@user-1:hflip,@user-2:fps');
+ // "复制给 AI" goes through the native clipboard: a server's page on plain http
+ // has no navigator.clipboard. Stubbed so a test run keeps the real clipboard.
+ assert.equal(await evaluate('typeof window.api.player.mpvConfCopyText'),'function','the native clipboard call is not exposed to the page');
+ await evaluate(`window.tigerestRealCopy=window.api.player.mpvConfCopyText;window.api.player.mpvConfCopyText=text=>{window.tigerestCopied=text;return Promise.resolve(true);};
+  [...document.querySelectorAll(".tgs-action")].find(b=>b.textContent==="复制给 AI").click();`);
+ await until(evaluate,'typeof window.tigerestCopied==="string"','"复制给 AI" did not reach the native clipboard');
+ const copied=await evaluate('window.tigerestCopied');
+ assert.match(copied,/## 当前完整的 mpv\.conf/);
+ assert.match(copied,/==== 大河影院管理区·头部（只读）====/);
+ await evaluate('window.api.player.mpvConfCopyText=window.tigerestRealCopy');
  // "Restore this page" resets the page's switches only: it asks in the page
  // (a native confirm() can freeze it), keeps mpv.conf and the migration marker.
  assert.match(await evaluate('document.querySelector(".tgs-conf-help").textContent'),/让 AI 帮你改/);

@@ -91,6 +91,21 @@ private Q_SLOTS:
     QVERIFY(fake.calls.isEmpty());
   }
 
+  void autoColorManagementIsReportedAndNotTreatedAsHdr()
+  {
+    Fake fake;
+    fake.display.supported = false;
+    fake.display.autoColorManaged = true;
+    WindowsHdrSwitch hdr(marker(), fake.backend());
+    const auto result = hdr.prepare(1, true, true);
+    QVERIFY(result.autoColorManaged);
+    QVERIFY(!result.hdrActive);
+    QVERIFY(!result.switched);
+    QVERIFY(fake.calls.isEmpty());
+    fake.display.autoColorManaged = false;
+    QVERIFY(!hdr.prepare(1, false, true).autoColorManaged);
+  }
+
   void disabledOrUnsupportedDisplayIsLeftAlone()
   {
     Fake fake;

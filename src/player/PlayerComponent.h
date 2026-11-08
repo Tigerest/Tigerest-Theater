@@ -182,6 +182,7 @@ public:
   Q_INVOKABLE QVariantMap mpvConfRestoreDefault();
   Q_INVOKABLE void mpvConfAcknowledgeDefault();
   Q_INVOKABLE bool mpvConfOpenShaderFolder();
+  Q_INVOKABLE bool mpvConfCopyText(const QString& text);
 
   // Applies a quality profile from the current mpv.conf (settings page,
   // uosc menu and Alt+1..3). The options are queued to mpv without waiting:
@@ -317,6 +318,8 @@ private:
   void applyUserConfLive(const QString& previous, const QString& current);
   // Re-renders the managed parts of mpv.conf after a deciding setting changed.
   void refreshMpvConf();
+  void ensureScreenshotDirectory();
+  void logAudioVideoSync();
   void publishProfileMenu();
   void storeMpvOptionTable();
 
@@ -450,6 +453,7 @@ private:
   bool m_voConfigured = false;
   bool m_videoPlaybackActive;
   bool m_inPlayback;
+  bool m_endFileUnreported = false;
   bool m_nativeVideoReady = false;
   QVariantMap m_decodedVideoParams;
   // Playback-start notice of HDR/SDR output; the same rules and wording as

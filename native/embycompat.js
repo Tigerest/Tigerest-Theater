@@ -1,6 +1,19 @@
 (function () {
     'use strict';
 
+    // Server-side skins such as emby-crx cover the page with .misty-loading and
+    // take it away only when Emby's stock home page markup appears. This
+    // client's home page never has that markup, so the cover stayed up and
+    // swallowed every click.
+    function hideServerSkinLoadingCover() {
+        const style = document.createElement('style');
+        style.id = 'tigerest-server-skin-compat';
+        style.textContent = '.misty-loading{display:none!important}';
+        document.head.appendChild(style);
+    }
+    if (globalThis.document?.head) hideServerSkinLoadingCover();
+    else globalThis.document?.addEventListener('DOMContentLoaded', hideServerSkinLoadingCover, {once: true});
+
     const existingStartInfo = globalThis.appStartInfo || {};
     const nativePluginIds = [
         'tigerest/mpv-video.js',

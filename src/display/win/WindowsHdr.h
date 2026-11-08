@@ -18,6 +18,8 @@ namespace WindowsHdr
     bool enabled = false;
     // Exact rational rate (e.g. 59.997 or 119.88); DEVMODE only has whole hertz.
     double refreshRate = 0;
+    // Windows' Auto Color Management is colour-managing this SDR display.
+    bool autoColorManaged = false;
   };
 
   // The display under the largest part of the window; empty path if unknown.
@@ -43,6 +45,7 @@ public:
   {
     bool switched = false;  // the display changed mode; wait before opening video
     bool hdrActive = false; // the window's display is in HDR mode for this item
+    bool autoColorManaged = false; // Windows manages colour on the window's display
   };
 
   explicit WindowsHdrSwitch(const QString& markerFile, Backend backend = Backend());

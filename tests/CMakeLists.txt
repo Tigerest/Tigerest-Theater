@@ -581,6 +581,10 @@ if(Node_EXECUTABLE)
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mpvconf_editor_ui.cjs
                    $<TARGET_FILE:${MAIN_TARGET}> --webengine)
   set_tests_properties(test_mpvconf_editor_webengine PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+  add_test(NAME test_server_skin_compat_webengine
+           COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_server_skin_compat_ui.cjs
+                   $<TARGET_FILE:${MAIN_TARGET}> --webengine)
+  set_tests_properties(test_server_skin_compat_webengine PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
   add_test(NAME test_library_incoming_settled_webengine
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_library_incoming_settled_ui.cjs
                    $<TARGET_FILE:${MAIN_TARGET}> --webengine)

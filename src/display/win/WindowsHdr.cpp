@@ -61,6 +61,7 @@ WindowsHdr::Display describe(const DISPLAYCONFIG_PATH_INFO& path)
     // with wide colour enforced; that is not HDR.
     display.supported = color.advancedColorSupported && !color.wideColorEnforced;
     display.enabled = display.supported && color.advancedColorEnabled;
+    display.autoColorManaged = color.advancedColorEnabled && color.wideColorEnforced;
   }
   return display;
 }
@@ -145,6 +146,7 @@ WindowsHdrSwitch::Result WindowsHdrSwitch::prepare(quintptr hwnd, bool hdrSource
       qWarning() << "Not turning on Windows HDR: cannot write" << m_markerFile;
   }
   result.hdrActive = display.enabled;
+  result.autoColorManaged = display.autoColorManaged;
   return result;
 }
 

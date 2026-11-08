@@ -318,8 +318,8 @@ async function main() {
         callback();
         await flush();
     }
-    // A real native preparation hold may exceed the ordinary 30-second startup
-    // window. It must not be stopped or replaced with a transcode retry.
+    // A real native preparation hold may exceed the ordinary startup window.
+    // It must not be stopped or replaced with a transcode retry.
     const preparationInstance = nonFullscreenInstance;
     player.rifeExtensionStatus = async () => ({runtime: {
         startupWaiting: true, enginePreparing: true, preparingForItem: true,
@@ -400,6 +400,7 @@ async function main() {
     assert.strictEqual(nativeStops, stopsBeforeFrozen + 1, 'the grace period never ends');
     assert.strictEqual(faults.length, 1, 'a startup timeout was not reported');
     assert.strictEqual(faults[0].kind, 'startup-timeout');
+    assert.strictEqual(faults[0].message, '播放器启动超时（114 秒）', 'the timeout message must state the real wait');
     assert.ok(faults[0].nativeDelayMs >= 29000, 'the report omits how long the native side was silent');
     player.rifeExtensionStatus = () => new Promise(resolve => { finishStatus = resolve; });
     await preparationInstance.play(options);
@@ -426,8 +427,11 @@ async function main() {
     assert.deepStrictEqual([...timers.keys()], [currentTimer], 'stale status changed the new startup watchdog');
     await preparationInstance.stop(false);
 
-    // A cold server: the moov-at-end MP4 opens in 11 s, the resume seek shows
-    // the first frame at 28.5 s and mpv refills its cache past the deadline.
+    // Single reads from a slow server took 15-29 s in reports; the watchdog
+    // has to leave room for several of them.
+    const STARTUP_DEADLINE = 75000;
+    // A cold server: the moov-at-end MP4 opens slowly, the resume seek shows
+    // the first frame just before the deadline and mpv refills its cache past it.
     async function fireTimerAt(time) {
         const [id, callback] = timers.entries().next().value;
         now = time;
@@ -440,34 +444,35 @@ async function main() {
     await preparationInstance.play(options);
     const slowStart = now;
     const stopsBeforeSlowStart = nativeStops;
-    now = slowStart + 28500;
+    assert.deepStrictEqual([...timerDelays.values()], [STARTUP_DEADLINE], 'the watchdog must leave room for several slow reads');
+    now = slowStart + STARTUP_DEADLINE - 1500;
     player.buffering.emit(0);
     player.buffering.emit(3);
     player.buffering.emit(48);
-    await fireTimerAt(slowStart + 30000);
+    await fireTimerAt(slowStart + STARTUP_DEADLINE);
     assert.strictEqual(nativeStops, stopsBeforeSlowStart, 'the startup watchdog stopped a filling cache');
     assert.deepStrictEqual([...timerDelays.values()], [10000], 'a filling cache was not rechecked');
-    now = slowStart + 35000;
+    now = slowStart + STARTUP_DEADLINE + 5000;
     player.buffering.emit(60);
-    await fireTimerAt(slowStart + 40000);
+    await fireTimerAt(slowStart + STARTUP_DEADLINE + 10000);
     assert.strictEqual(nativeStops, stopsBeforeSlowStart, 'continued cache progress was stopped');
-    await fireTimerAt(slowStart + 50000);
+    await fireTimerAt(slowStart + STARTUP_DEADLINE + 20000);
     assert.strictEqual(nativeStops, stopsBeforeSlowStart + 1, 'a cache that stopped filling never timed out');
     assert.strictEqual(timers.size, 0);
 
     // Progress belongs to one session: the next load starts from 0 %.
     await preparationInstance.play(options);
     const nextStart = now;
-    now = nextStart + 29000;
+    now = nextStart + STARTUP_DEADLINE - 1000;
     player.buffering.emit(5);
-    await fireTimerAt(nextStart + 30000);
+    await fireTimerAt(nextStart + STARTUP_DEADLINE);
     assert.strictEqual(nativeStops, stopsBeforeSlowStart + 1, 'cache progress of the new load was ignored');
     preparationInstance.onPlaying();
     assert.strictEqual(timers.size, 0, 'playing after a slow start left a watchdog armed');
     await preparationInstance.stop(false);
     await preparationInstance.play(options);
     const repeatStart = now;
-    await fireTimerAt(repeatStart + 30000);
+    await fireTimerAt(repeatStart + STARTUP_DEADLINE);
     assert.strictEqual(nativeStops, stopsBeforeSlowStart + 3,
         'old cache progress kept a new load without progress alive');
 
@@ -509,6 +514,12 @@ async function main() {
     player.error.emit('unplayable URL');
     await flush();
     assert.strictEqual(preparationInstance._nativeStopPromise, null);
+    // Declining the retry: Emby reads streamInfo.url before it checks
+    // SupportsTranscoding, and returnPromise keeps its second error dialog away.
+    const declinedError = triggered.filter(event => event.name === 'error').at(-1).args[0];
+    assert.strictEqual(declinedError.streamInfo.url, '', 'Emby throws on a missing url and skips its stop handling');
+    assert.strictEqual(declinedError.streamInfo.mediaSource.SupportsTranscoding, false);
+    assert.strictEqual(declinedError.returnPromise, true, 'a declined retry must not open a second error dialog');
     await preparationInstance.play(options);
     assert.strictEqual(preparationInstance._sessionActive,true,'a native error permanently blocked playback recovery');
     player.finished.emit();

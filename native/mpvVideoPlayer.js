@@ -8,6 +8,13 @@
 
     const CREDENTIAL_KEY = /^(api_key|apikey|x-emby-token|x-mediabrowser-token)$/i;
 
+    // A server can take a long time over the first reads (a sleeping disk, a
+    // seek for the index at the end of an MKV or MP4). Reports show single reads
+    // of 15-29 s, which added up past the old 30 s limit. mpv keeps waiting on a
+    // server that never answers, so this is also how long such a server takes
+    // to be reported.
+    const STARTUP_TIMEOUT_MS = 75000;
+
     // Emby returns same-server stream URLs without credentials when
     // AddApiKeyToDirectStreamUrl is off. Add the session token for the item's
     // own server only; the native player moves it from the URL into a header.
@@ -336,12 +343,18 @@
                 } catch (ex) {
                     // User declined retry
                     errorData.streamInfo = {
+                        // Emby reads url before it looks at SupportsTranscoding;
+                        // without one it throws and skips its stop handling.
+                        url: '',
                         // Prevent jellyfin-web retrying with transcode
                         // which crashes the player
                         mediaSource: {
                             SupportsTranscoding: false
                         }
                     };
+                    // The user has already answered: Emby must not open a
+                    // second error dialog and then move on to the next item.
+                    errorData.returnPromise = true;
                 }
 
                 this.events.trigger(this, 'error', [errorData]);
@@ -421,7 +434,8 @@
                 this._startupCheckId === startupCheckId && this._sessionActive && !this._started;
             const fail = () => {
                 if (!isCurrent()) return;
-                const message = preparing ? 'RIFE 准备超时，请重试播放' : '播放器启动超时（30 秒）';
+                const message = preparing ? 'RIFE 准备超时，请重试播放'
+                    : `播放器启动超时（${Math.round((Date.now() - startedAt) / 1000)} 秒）`;
                 window.TigerestFaultReports?.record({kind: 'startup-timeout', message, nativeDelayMs,
                     elapsedMs: Date.now() - startedAt});
                 this.onError(message);
@@ -481,7 +495,7 @@
                     fail();
                 }
             };
-            this._startupTimer = setTimeout(check, 30000);
+            this._startupTimer = setTimeout(check, STARTUP_TIMEOUT_MS);
         }
 
         requestNativeStop() {
