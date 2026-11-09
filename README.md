@@ -16,6 +16,17 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
 
 ## 项目特色
 
+<table>
+  <tr>
+    <td>
+      <b>mpv.conf 开放给你，AI 也能帮你改</b><br>
+      Windows 与 Mac 可以直接编辑播放器使用的 mpv.conf：自建画质档位，自由组合 87 个内置着色器和自己的 .glsl，再加 FFmpeg 滤镜。编辑器按当前 mpv 的选项表逐行校验，写错的行当场标红，没有错误时自动保存并立即生效；点「复制给 AI」可以把软件生成的修改规则和完整配置一起交给 ChatGPT、Claude，写坏了也能一键恢复。<a href="#自定义-mpv-配置">完整说明</a><br><br>
+      <img src="screenshots/mpvconf-shaders.webp" width="49%" alt="宣传动画画面：87 个内置着色器，Anime4K 52、ArtCNN 17、CfL 6、FSRCNNX 8、RAISR 2、SSim 2，并可添加自定义着色器">
+      <img src="screenshots/mpvconf-ai.webp" width="49%" alt="宣传动画画面：在 mpv.conf 编辑器里点「复制给 AI」，复制的内容是软件生成的提示词加完整 mpv.conf">
+    </td>
+  </tr>
+</table>
+
 <p align="center"><img src="screenshots/home.webp" alt="桌面沉浸式首页：左侧媒体库入口，右侧作品大图与继续观看轮播"></p>
 
 **沉浸式首页：** 大海报、作品轮播和海报飞入详情的转场，红点与「观看进度：8/12」标出还没看完的作品；Windows 与 Mac 界面动画跟随显示器刷新率运行。
@@ -27,6 +38,13 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
       Windows、Apple Silicon Mac、iPad／iPhone、Android 与 Apple TV 都能连接自己的 Emby 或 Jellyfin，各端内置 MPV 播放核心，无需另装播放器。桌面内置 shader 滤镜和画质调整，一键切换画质预设：默认档用 SSimDownscaler 改善缩小、KrigBilateral 重建色度、RAVU Zoom 放大并抗锯齿，再配合去色带与 EWA Lanczos 缩放；iPad 与 Apple TV 也能选用这套桌面预设。
     </td>
     <td width="50%"><img src="screenshots/quality-settings.webp" alt="MPV 画质与插件设置：GPU-Next 渲染后端、uosc 与弹幕插件开关、mpv.conf 说明与画质预设"></td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>三档画质预设与网页播放的对比</b><br>
+      动画里睫毛和上眼线的特写，同一帧局部放大 3 倍：最左是网页播放器常见的双线性放大，右边三张由 mpv 按客户端默认配置的三个档位渲染。播放时用 <code>Alt+1</code>～<code>Alt+3</code> 切换，点开图片可以看原始大小。<br><br>
+      <img src="screenshots/quality-compare.webp" alt="同一帧睫毛特写的四种渲染：网页播放（双线性放大）边缘发虚，默认档与真人影视档边缘更干净，激进测试档线条最细最锐">
+    </td>
   </tr>
   <tr>
     <td width="50%"><img src="screenshots/watch-together.webp" alt="一起看房间：房间码、当前影片、开始放映与成员列表"></td>
@@ -75,12 +93,6 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
     <td width="50%">
       <b>可选 RIFE AI 补帧</b><br>
       Windows NVIDIA 最高支持 4K / 60 fps 输入，可选模型并自定目标帧率；Apple Silicon Mac 与 iPad 使用 Core ML / Metal，为 1080p / 30 fps 级别的 SDR 片源输出两倍帧率。默认关闭。
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>mpv.conf 开放给你，AI 也能帮你改</b><br>
-      Windows 与 Mac 可以直接编辑播放器使用的 mpv.conf：自建画质档位，自由组合 80 多个内置着色器和自己的 .glsl，再加 FFmpeg 滤镜。编辑器按当前 mpv 的选项表逐行校验，没有错误时自动保存并立即生效；点「复制给 AI」可以把修改规则和完整配置一起交给 ChatGPT、Claude，写坏了也能一键恢复。<a href="#自定义-mpv-配置">完整说明</a>
     </td>
   </tr>
 </table>
@@ -206,6 +218,8 @@ Windows 与 Mac 版（2.9.4 起）把播放器的配置开放给你：缩放算�
 
 mpv 按顺序解析，后写的同名项生效。尾部写在用户区之后，所以软件管理的配置总是以尾部为准。
 
+<p align="center"><img src="screenshots/mpvconf-editor.webp" width="640" alt="mpv.conf 编辑器：上方是「复制给 AI」「打开我的着色器目录」「恢复默认配置」，中间是带行号和「+」的用户区，头部和尾部管理区已折叠，下方显示已保存"></p>
+
 ### 编辑器帮你做的事
 
 - **表单和文本实时同步：** 上方表单改的是「画质预设」选中的那一档，下方可以直接写文本，改一边另一边马上跟着变。
@@ -213,16 +227,18 @@ mpv 按顺序解析，后写的同名项生效。尾部写在用户区之后，�
 - **逐行校验：** 配置项名称和取值按当前 mpv 自己的选项表检查，着色器文件和 `profile=` 引用的档位也会核对。写错的行标红并列出原因，点击可以跳到那一行；有错误时不保存。
 - **随手查着色器：** 「内置滤镜库清单」列出每个内置着色器的作用、触发条件、开销和强度。
 
+<p align="center"><img src="screenshots/mpvconf-errors.webp" width="640" alt="写错的三行被标红，下方逐条列出原因：script 由软件管理、deband 只能写 yes 或 no、找不到着色器文件；有错误时尚未保存"></p>
+
 ### 新建自己的画质档位
 
-档位是最实用的自定义方式：一组参数加一条着色器链，播放时随时切换。点「+」选「自定义档位」，或者直接写在用户区末尾：
+档位是最实用的自定义方式：一组参数加一条着色器链，播放时随时切换。点「+」选「自定义档位」，填上名称、选好基础档位，软件会生成开头几行，再把要改的项接在后面；也可以整段直接写在用户区末尾：
 
 ```ini
 # 自定义档位：老动画修复
 [tigerest-user-old-anime]
-# 显示在「画质预设」和 uosc「滤镜」菜单里的名称。
+# UOSC 和设置页显示的档位名称。
 profile-desc=老动画修复
-# 以默认档为基础，下面只写要改的项。
+# 以「tigerest-default」为基础，下面写的项会覆盖它。
 profile=tigerest-default
 # 老片色带更明显，提高去色带阈值。
 deband-threshold=40
@@ -240,9 +256,13 @@ glsl-shader=~~/shaders/Anime4K/Anime4K_Upscale_CNN_x2_M.glsl
 - `profile=` 表示继承，只需要写要改的项。
 - 切档时客户端先清空着色器，再按顺序执行这一档（含继承）的内容。着色器要写在档位里，写在全局部分的会在切档时被清空。
 
+<p align="center"><img src="screenshots/mpvconf-profile.webp" width="640" alt="新建的「老动画修复」出现在画质预设里，表单标出每个参数继承自哪个档位的第几行"></p>
+
 ### 着色器和 vf 滤镜
 
-**内置着色器（80 多个）：** Anime4K、ArtCNN、FSRCNNX、RAVU、SSimDownscaler／SSimSuperRes、KrigBilateral 等，写成 `glsl-shader=~~/shaders/<组>/<文件>.glsl`，按书写顺序执行。作用于同一阶段的着色器不要叠加，例如两个亮度放大。
+**内置着色器（87 个）：** Anime4K、ArtCNN、FSRCNNX、RAVU、SSimDownscaler／SSimSuperRes、KrigBilateral 等，写成 `glsl-shader=~~/shaders/<组>/<文件>.glsl`，按书写顺序执行。作用于同一阶段的着色器不要叠加，例如两个亮度放大。
+
+<p align="center"><img src="screenshots/mpvconf-picker.webp" width="640" alt="「+」面板的着色器页：按来源分组，每个着色器写明文件、作用、触发条件、开销和强度，点「添加」写进当前档位"></p>
 
 **自己的着色器：** 把 `.glsl` 放进「打开我的着色器目录」打开的文件夹，写成 `glsl-shader=~~/shaders/user/文件名.glsl`，升级不会改动这个目录。想改内置着色器，先复制到这里再改，直接改内置文件会在升级时被覆盖。
 
@@ -263,6 +283,8 @@ vf-append=@user-1:cas=strength=0.4
 2. 粘贴给 AI，写下需求，例如「帮我新建一个适合老动画的档位，降噪强一点、线条细一点」，并要求它只返回修改后的完整 mpv.conf 文本。
 3. 把返回的全文粘贴到编辑区。编辑器先显示用户区的逐行变化，确认后才替换；AI 对灰色管理区的改动会被忽略。
 4. 有标红的行时，把报错原文发给 AI，让它修改后再给一份完整文本。
+
+<p align="center"><img src="screenshots/mpvconf-paste.webp" width="640" alt="粘贴整份配置后的确认窗口：逐行显示用户区的变化，包括改动的一行和新增的「夜间观影」档位，并提示对只读管理区的改动会被忽略"></p>
 
 不要让 AI 或其他程序直接改磁盘上的 mpv.conf：客户端每次启动都会重写两块管理区，并把用户区里不允许的行注释掉。
 
