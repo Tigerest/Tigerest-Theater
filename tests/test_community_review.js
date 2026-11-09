@@ -58,6 +58,29 @@ test('old author send completion cannot clear or unlock a new author composer',a
  const send=p.submit(state);state.version++;state.input.value='new author draft';state.busy=true;done({});await send;
  assert.equal(state.input.value,'new author draft');assert.equal(state.busy,true);
 });
+// Report: the first send after an episode sometimes posted nothing; the button
+// locked for a while and unlocked without a word, and a second click worked.
+test('a send the service never answered is retried once with the same request ID',async()=>{
+ const c=context(),{p,state}=pluginState(c);state.send={disabled:false};p.load=async()=>{};p.resumeFocus=async()=>false;const warnings=[];c.console={warn:line=>warnings.push(line)};
+ const ids=[];p.client.request=async(_,o)=>{ids.push(o.body.clientRequestId);if(ids.length===1)throw Object.assign(Error('公共评论网络暂不可用，请稍后重试。'),{code:'NETWORK_UNAVAILABLE',status:0});return {comment:{id:'posted'},replayed:false};};
+ await p.submit(state);
+ assert.equal(ids.length,2);assert.equal(ids[1],ids[0],'the retry must not create a second comment');
+ assert.equal(state.input.value,'','the accepted comment leaves the composer');assert.equal(state.busy,false);
+ assert.equal(warnings.length,1);assert.match(warnings[0],/^\[Community\] comment send failed: attempt 1, NETWORK_UNAVAILABLE, status 0, \d+ ms$/);
+});
+test('a send that fails twice, is refused or is cancelled keeps the draft and says so',async()=>{
+ const c=context(),{p,state}=pluginState(c);state.send={disabled:false};p.load=async()=>{};p.resumeFocus=async()=>false;c.console={warn(){}};
+ let calls=0;p.client.request=async()=>{calls++;throw Object.assign(Error('公共评论网络暂不可用，请稍后重试。'),{code:'NETWORK_UNAVAILABLE',status:0});};
+ await p.submit(state);
+ assert.equal(calls,2,'one retry only');assert.equal(state.input.value,'draft');assert.equal(state.busy,false);assert.equal(state.status.textContent,'公共评论网络暂不可用，请稍后重试。');
+ calls=0;p.client.cooldownUntil=0;p.client.request=async()=>{calls++;throw Object.assign(Error('内容不符合社区规则，请修改后再试。'),{code:'CONTENT_REJECTED',status:422});};
+ await p.submit(state);
+ assert.equal(calls,1,'an answer from the service is final');assert.equal(state.status.textContent,'内容不符合社区规则，请修改后再试。');
+ calls=0;p.client.request=async()=>{calls++;throw Object.assign(Error('请求已取消'),{name:'AbortError'});};
+ await p.submit(state);
+ assert.equal(calls,1,'a cancelled send may have reached the service under a request ID that is gone');
+ assert.equal(state.input.value,'draft');assert.equal(state.busy,false);assert.equal(state.status.textContent,'评论没有发出去，请再点一次「发表评论」。');
+});
 
 function externalMessages(){
  const c=context();c.document={hidden:true,querySelector:()=>null};

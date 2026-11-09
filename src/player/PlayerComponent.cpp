@@ -1946,6 +1946,32 @@ void PlayerComponent::onInterpolationPauseChanged()
   mpv.setAsync("pause",true);
   mpv.commandAsync({"no-osd","seek","0","relative+exact"});
 }
+void PlayerComponent::watchDisplaySync()
+{
+  if(m_shuttingDown||m_displaySyncUnreliable||!m_mpv||!m_rife||!m_rifeAccess)return;
+  // Interpolation watches its own display sync (FrameInterpolationController).
+  const auto state=m_rife->state();
+  const QString mode=m_rifeAccess->value("video-sync").toString();
+  const QVariant avsync=m_rifeAccess->value("avsync");
+  const bool watching=m_inPlayback&&m_nativeVideoReady&&!m_paused&&mode.startsWith(QLatin1String("display-"))&&
+      state!=rife::State::Preparing&&state!=rife::State::Active&&avsync.isValid()&&
+      !m_rifeAccess->value("seeking").toBool()&&!m_rifeAccess->value("paused-for-cache").toBool();
+  if(!watching){m_displaySyncDrift.reset();return;}
+  if(!m_displaySyncDrift.update(m_rifeClock.elapsed(),avsync.toDouble(),
+                                m_rifeAccess->value("mistimed-frame-count").toULongLong()))return;
+  m_displaySyncDrift.reset();
+  m_displaySyncUnreliable=true;
+  m_displaySyncFallbackSetting=SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO,"sync_mode").toString();
+  qWarning()<<"Display sync cannot keep audio and video together: avsync"<<avsync.toDouble()<<"s with video-sync"<<mode
+            <<"; pacing by the audio clock until the sync mode setting changes";
+  logAudioVideoSync();
+  // The danmaku script would turn audio into display-vdrop, which counts the
+  // same refreshes. The marker is queued first, so the script sees it.
+  m_mpv->setPropertyAsync("user-data/tigerest/display-sync-fallback",true);
+  {auto polling=m_rifeAccess->enterPolling();m_rife->configureVideoSync(QStringLiteral("audio"));}
+  m_mpv->commandAsync(QStringList{QStringLiteral("show-text"),
+      QStringLiteral("画面刷新与垂直同步对不上，音画出现偏差，已改为跟随音频时钟"),QStringLiteral("6000")});
+}
 void PlayerComponent::updateInterpolationPresentation()
 {
   if(m_shuttingDown||!m_rife||!m_rifeAccess)return;
@@ -2021,6 +2047,7 @@ void PlayerComponent::pollInterpolation()
   }
   m_rifeStartup.setEnginePreparing(m_windowsRifePlayback&&m_windowsRifePlayback->preparingEngine(),m_rifeClock.elapsed());
   updateInterpolationPreparationOverlay();
+  watchDisplaySync();
 #endif
   // This path must stay asynchronous even while Cocoa creates the VO. An
   // audio-only/failed load must never be left paused waiting for video metrics.
@@ -2226,6 +2253,10 @@ void PlayerComponent::stop()
     qWarning() << "PlayerComponent::stop: mpv not initialized yet";
     return;
   }
+  // mpv answers an add it aborts before END_FILE arrives. The item ends by
+  // request: that answer is not a failed subtitle and selects nothing.
+  for (auto& add : m_pendingStreamAdds)
+    add.stale = true;
   QStringList args("stop");
 #if defined(Q_OS_MAC)
   if (m_nativeVideoOutput)
@@ -2696,9 +2727,38 @@ void PlayerComponent::holdPreloadedHook(std::function<void()> resume)
   // on_preloaded sets the item's initial tracks. External adds keep the hook
   // (mpv waits for it) until they answer; the GUI thread keeps running.
   m_preloadedResume = std::move(resume);
+  const quint64 hold = ++m_preloadedHold;
   reselectStream(m_currentSubtitleStream, MediaType::Subtitle);
   reselectStream(m_currentAudioStream, MediaType::Audio);
   finishPreloadedStreams();
+  if (m_preloadedResume)
+    QTimer::singleShot(m_preloadedStreamWaitMs, this, [this, hold] { startWithoutPendingStreams(hold); });
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::startWithoutPendingStreams(quint64 hold)
+{
+  // Report: Emby had not answered a subtitle of a 24 GB file after 73 s, the
+  // item never left the hook and the startup watchdog stopped it. The add
+  // keeps running in mpv; its reply selects the track during playback.
+  if (hold != m_preloadedHold || !m_preloadedResume || !m_mpv)
+    return;
+  QStringList waiting;
+  for (auto& add : m_pendingStreamAdds)
+  {
+    if (add.stale)
+      continue;
+    add.late = true;
+    const QString name = add.target == MediaType::Subtitle ? QStringLiteral("字幕") : QStringLiteral("音轨");
+    if (!waiting.contains(name))
+      waiting << name;
+  }
+  qInfo() << "External streams still loading after" << m_preloadedStreamWaitMs << "ms; starting playback without them";
+  if (!waiting.isEmpty())
+    m_mpv->commandAsync(QStringList{QStringLiteral("show-text"),
+        QStringLiteral("服务器还在准备%1，先开始播放，准备好后自动加载").arg(waiting.join(QStringLiteral("和"))),
+        QStringLiteral("6000")});
+  resumePreloadedHook();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2717,7 +2777,19 @@ void PlayerComponent::completeStreamAdd(uint64_t reply, int error)
   // for the server.
   const QVariant& current = add.target == MediaType::Subtitle ? m_currentSubtitleStream : m_currentAudioStream;
   if (!add.stale && current == add.selection)
+  {
     selectStream(add.target, add.streamID, add.streamName);
+    // The viewer was told this track would follow; say how that ended.
+    if (add.late)
+    {
+      const QString name = add.target == MediaType::Subtitle ? QStringLiteral("字幕") : QStringLiteral("音轨");
+      qInfo() << "Late external" << (add.target == MediaType::Subtitle ? "subtitle" : "audio")
+              << "stream" << (error < 0 ? "failed" : "loaded");
+      m_mpv->commandAsync(QStringList{QStringLiteral("show-text"),
+          error < 0 ? QStringLiteral("%1加载失败，可以在菜单里重新选择").arg(name) : QStringLiteral("%1已加载").arg(name),
+          QStringLiteral("4000")});
+    }
+  }
   finishPreloadedStreams();
 }
 
@@ -2729,6 +2801,14 @@ void PlayerComponent::finishPreloadedStreams()
   for (const auto& add : std::as_const(m_pendingStreamAdds))
     if (!add.stale)
       return;
+  resumePreloadedHook();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::resumePreloadedHook()
+{
+  if (!m_preloadedResume)
+    return;
   auto resume = std::move(m_preloadedResume);
   m_preloadedResume = nullptr;
 #ifdef Q_OS_WIN
@@ -3293,8 +3373,22 @@ void PlayerComponent::setVideoConfiguration()
 
   // The video page decides these options; the managed tail of mpv.conf
   // shows the same values. RIFE owns video-sync and hwdec while active.
-  for (const auto& option : MpvConfigManager::videoOptions())
+  for (auto option : MpvConfigManager::videoOptions())
   {
+#ifdef Q_OS_WIN
+    if (m_displaySyncUnreliable && option.key == QStringLiteral("video-sync"))
+    {
+      // Choosing another mode is the user's call to try display sync again.
+      if (option.value.toString() != m_displaySyncFallbackSetting)
+      {
+        m_displaySyncUnreliable = false;
+        m_displaySyncDrift.reset();
+        m_mpv->setPropertyAsync("user-data/tigerest/display-sync-fallback", false);
+      }
+      else
+        option.value = QStringLiteral("audio");
+    }
+#endif
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
     if (m_rife && option.key == QStringLiteral("video-sync"))
     {

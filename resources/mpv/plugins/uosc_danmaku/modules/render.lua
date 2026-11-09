@@ -20,10 +20,17 @@ local overlay_high = mp.create_osd_overlay('ass-events')
 -- on the same clock as the frames mpv queues, so pacing can be checked.
 local trace_pacing = (mp.get_property('options/dump-stats') or '') ~= ''
 
+-- The player chose audio pacing itself: for RIFE, or because this display's
+-- refreshes cannot be counted (display-vdrop counts the same refreshes).
+local function native_audio_clock()
+    return mp.get_property_bool('user-data/tigerest/rife-clock-owned', false)
+        or mp.get_property_bool('user-data/tigerest/display-sync-fallback', false)
+end
+
 local function update_presentation()
-    if mp.get_property_bool('user-data/tigerest/rife-clock-owned', false) then
-        -- The native RIFE controller selects stable audio pacing and restores
-        -- the user's preference. Never compete with that owner.
+    if native_audio_clock() then
+        -- The native side selects stable audio pacing and restores the
+        -- user's preference. Never compete with that owner.
         owned_sync = nil
         return
     end
@@ -263,8 +270,7 @@ local function update_display_fps()
     -- Estimated refresh may be stale in audio mode; use the physical display
     -- report, falling back to 120 only when the display reports no usable rate.
     if not fps or fps <= 0 or fps ~= fps or fps == math.huge then fps = 120 end
-    if mp.get_property_bool('user-data/tigerest/rife-clock-owned', false)
-        and mp.get_property('video-sync') == 'audio' then
+    if native_audio_clock() and mp.get_property('video-sync') == 'audio' then
         -- Audio-clock presentation consumes OSD with video frames. Avoid
         -- building 240 overlays per second for a 60 fps RIFE video.
         local video_fps = mp.get_property_number('estimated-vf-fps', 60)
@@ -394,6 +400,7 @@ local function update_presentation_clock()
 end
 mp.observe_property('video-sync', 'string', update_presentation_clock)
 mp.observe_property('user-data/tigerest/rife-clock-owned', 'bool', update_presentation_clock)
+mp.observe_property('user-data/tigerest/display-sync-fallback', 'bool', update_presentation_clock)
 mp.observe_property('estimated-vf-fps', 'number', update_display_fps)
 mp.observe_property('speed', 'number', function(_, value)
     speed = value or 1

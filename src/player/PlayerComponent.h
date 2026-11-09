@@ -376,6 +376,12 @@ private:
 #endif
 #ifdef Q_OS_WIN
   rife::ResumePrime m_rifeResumePrime;
+  // Plain playback whose display sync cannot keep audio and video together
+  // is paced by the audio clock until the sync mode setting changes.
+  rife::DisplaySyncDrift m_displaySyncDrift;
+  bool m_displaySyncUnreliable=false;
+  QString m_displaySyncFallbackSetting;
+  void watchDisplaySync();
   void onInterpolationPauseChanged();
   void releaseInterpolationResumePrime();
   void updateInterpolationPresentation();
@@ -415,6 +421,8 @@ private:
   void holdPreloadedHook(std::function<void()> resume);
   void completeStreamAdd(uint64_t reply, int error);
   void finishPreloadedStreams();
+  void startWithoutPendingStreams(quint64 hold);
+  void resumePreloadedHook();
   QString sanitizeMediaUrl(const QString& url, bool retainExistingCredential = false);
   void applyMediaAccessToken(const QString& token);
 
@@ -493,11 +501,18 @@ private:
     QString streamID;
     QString streamName;
     bool stale = false;
+    // Playback started without waiting for this add any longer.
+    bool late = false;
   };
   QHash<uint64_t, PendingStreamAdd> m_pendingStreamAdds;
   uint32_t m_streamAddSerial = 0;
   // Continues the on_preloaded hook once the item's stream adds have answered.
   std::function<void()> m_preloadedResume;
+  // How long on_preloaded waits for those answers. Emby extracts an embedded
+  // subtitle of a large file for minutes; the item starts without the track
+  // after this and takes it when it arrives.
+  int m_preloadedStreamWaitMs = 10000;
+  quint64 m_preloadedHold = 0;
   // Quality profiles queued to mpv. Requests run in order, so the shader
   // count read last in a batch answers after all of its options.
   struct ProfileApplication {

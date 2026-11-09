@@ -673,6 +673,10 @@ if(Node_EXECUTABLE)
              COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_playback_exit.cjs
                      $<TARGET_FILE:${MAIN_TARGET}> --webengine)
     set_tests_properties(test_playback_exit_webengine PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+    add_test(NAME test_slow_subtitle_start_webengine
+             COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_slow_subtitle_start.cjs
+                     $<TARGET_FILE:${MAIN_TARGET}> --webengine)
+    set_tests_properties(test_slow_subtitle_start_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
   endif()
   add_test(NAME test_community_client
            COMMAND ${Node_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test_community_client.js

@@ -582,6 +582,27 @@ function cases.rife_clock_owner_survives_comment_and_window_transitions()
     s.set('video-sync', 'audio')
     assert(s.props['video-sync'] == 'display-vdrop', 'Ordinary audio playback still gets independent comment cadence')
 end
+-- The player falls back to the audio clock on a display whose refreshes mpv
+-- cannot count; display-vdrop counts the same refreshes.
+function cases.display_sync_fallback_keeps_the_audio_clock()
+    local s = sandbox()
+    s.props['video-sync'] = 'display-resample'
+    s.props['display-fps'] = 144
+    s.props['estimated-vf-fps'] = 24
+    s.start_render()
+    assert(s.props['video-sync'] == 'display-resample', 'Display resampling stays the user choice')
+    s.set('user-data/tigerest/display-sync-fallback', true)
+    s.set('video-sync', 'audio')
+    assert(s.props['video-sync'] == 'audio', 'The fallback audio clock must not become display-vdrop')
+    s.env.hide_danmaku_func(); s.env.show_danmaku_func()
+    assert(s.props['video-sync'] == 'audio', 'Comment toggles cannot take over the fallback clock')
+    s.advance(0.05)
+    local before = s.overlays[1].updates
+    s.advance(1)
+    assert(s.overlays[1].updates == before, 'Audio presentation draws comments only with new video frames')
+    s.set('user-data/tigerest/display-sync-fallback', false)
+    assert(s.props['video-sync'] == 'display-vdrop', 'Without the fallback, audio playback gets display cadence again')
+end
 
 function cases.fresh_profile_autoloads_through_comment_rendering()
     local s = sandbox(true)

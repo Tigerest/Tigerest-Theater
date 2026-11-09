@@ -88,6 +88,35 @@ private:
     unsigned streak=0;
     bool warming=true;
 };
+// The display modes of video-sync show each frame for a whole number of
+// refreshes and rely on every buffer swap waiting for one. Where swaps return
+// early (a driver that forces vertical sync off, some hybrid-graphics
+// laptops), mpv counts refreshes that never happened: the video runs ahead of
+// the audio and repeating frames does not hold it back. Report: 144 Hz panel,
+// video 0.5 s ahead a second after the start and 1.6 s ahead ten seconds in,
+// frames mistimed all the way. A start or a seek settles within the warm-up.
+class DisplaySyncDrift {
+public:
+    static constexpr int64_t warmupMs=2000,windowMs=1000;
+    static constexpr unsigned windows=3;
+    static constexpr double maxAvSyncSeconds=.2;
+    void reset(){start=-1;streak=0;warming=true;}
+    // True once audio and video were apart at the end of each of the last
+    // three windows and frames were mistimed in every one of them.
+    bool update(int64_t now,double avsync,uint64_t mistimed){
+        if(start<0||now<start||mistimed<first){reset();start=now;first=mistimed;return false;}
+        if(now-start<(warming?warmupMs:windowMs))return false;
+        if(warming)warming=false;
+        else streak=mistimed>first&&std::isfinite(avsync)&&std::abs(avsync)>maxAvSyncSeconds?streak+1:0;
+        start=now;first=mistimed;
+        return streak>=windows;
+    }
+private:
+    int64_t start=-1;
+    uint64_t first=0;
+    unsigned streak=0;
+    bool warming=true;
+};
 struct GuardParameters {
     bool windowsBackend=false;
     int64_t warmupMs=5000,windowMs=10000;

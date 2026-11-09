@@ -192,6 +192,82 @@ private slots:
             QMetaType::fromType<ErrorReturn>());
   }
 
+  // The hook is not held for ever. Report: Emby had not answered the subtitle
+  // of a 24 GB film after 73 s, so the item never started and the startup
+  // watchdog stopped it at 75 s, twice. The item starts without the track and
+  // takes it when the server answers.
+  void slowExternalSubtitleDoesNotHoldTheStart()
+  {
+    QThread serverThread;
+    auto* server = new SlowSubtitleServer;
+    server->moveToThread(&serverThread);
+    connect(&serverThread, &QThread::finished, server, &QObject::deleteLater);
+    serverThread.start();
+    const auto stopServer = qScopeGuard([&] { serverThread.quit(); serverThread.wait(); });
+    quint16 port = 0;
+    QMetaObject::invokeMethod(server, [&] { port = server->listen(3000); }, Qt::BlockingQueuedConnection);
+    QVERIFY(port);
+    const QString subtitle = QStringLiteral("http://127.0.0.1:%1/Subtitles/7/0/Stream.srt").arg(port);
+
+    Mpv mpv;
+    mpv.player.m_preloadedStreamWaitMs = 500;
+    QStringList messages;
+    g_messages = &messages;
+    g_previousHandler = qInstallMessageHandler(captureMessage);
+    const auto restore = qScopeGuard([] { qInstallMessageHandler(g_previousHandler); g_messages = nullptr; });
+    QVERIFY(mpv.player.load(QUrl::fromLocalFile(media).toString(), {{"autoplay", true}}, {}, QVariant(),
+                            QStringLiteral("#,") + subtitle));
+    // Playing while the server is still working on the subtitle.
+    QTRY_VERIFY_WITH_TIMEOUT(mpv.controller->getProperty("time-pos").metaType() == QMetaType::fromType<double>(),
+                             2500);
+    QCOMPARE(server->answered.loadRelaxed(), 0);
+    QCOMPARE(server->requests.loadRelaxed(), 1);
+    QVERIFY(mpv.controller->getProperty("current-tracks/sub/id").metaType() ==
+            QMetaType::fromType<ErrorReturn>());
+    QCOMPARE(int(mpv.player.m_pendingStreamAdds.size()), 1);
+    QVERIFY(std::any_of(messages.cbegin(), messages.cend(), [](const QString& message) {
+      return message.contains("starting playback without them");
+    }));
+
+    // The same request is answered later and its track is selected.
+    QTRY_COMPARE_WITH_TIMEOUT(mpv.controller->getProperty("current-tracks/sub/external-filename").toString(),
+                              subtitle, 15000);
+    QCOMPARE(server->requests.loadRelaxed(), 1);
+    QVERIFY(mpv.player.m_pendingStreamAdds.isEmpty());
+    QVERIFY(std::any_of(messages.cbegin(), messages.cend(), [](const QString& message) {
+      return message.contains("Late external subtitle stream loaded");
+    }));
+    QVERIFY(mpv.controller->getProperty("time-pos").toDouble() > 0.0);
+
+    // A late answer for an item that has ended selects nothing in the next one.
+    const QString stale = QStringLiteral("http://127.0.0.1:%1/Subtitles/8/0/Stream.srt").arg(port);
+    QVERIFY(mpv.player.load(QUrl::fromLocalFile(media).toString(), {{"autoplay", true}}, {}, QVariant(),
+                            QStringLiteral("#,") + stale));
+    QTRY_COMPARE_WITH_TIMEOUT(int(mpv.player.m_pendingStreamAdds.size()), 1, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(std::any_of(mpv.player.m_pendingStreamAdds.cbegin(), mpv.player.m_pendingStreamAdds.cend(),
+                                         [](const auto& add) { return add.late; }), 2500);
+    QVERIFY(mpv.player.load(QUrl::fromLocalFile(media).toString(), {{"autoplay", true}}, {}, QVariant(), -1));
+    QTRY_VERIFY_WITH_TIMEOUT(mpv.player.m_pendingStreamAdds.isEmpty(), 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(mpv.controller->getProperty("time-pos").metaType() == QMetaType::fromType<double>(),
+                             5000);
+    QTest::qWait(200);
+    QVERIFY(mpv.controller->getProperty("current-tracks/sub/id").metaType() ==
+            QMetaType::fromType<ErrorReturn>());
+
+    // Stopping aborts the fetch; that is not reported as a subtitle that failed.
+    const QString stopped = QStringLiteral("http://127.0.0.1:%1/Subtitles/9/0/Stream.srt").arg(port);
+    QVERIFY(mpv.player.load(QUrl::fromLocalFile(media).toString(), {{"autoplay", true}}, {}, QVariant(),
+                            QStringLiteral("#,") + stopped));
+    QTRY_VERIFY_WITH_TIMEOUT(std::any_of(mpv.player.m_pendingStreamAdds.cbegin(), mpv.player.m_pendingStreamAdds.cend(),
+                                         [](const auto& add) { return add.late; }), 5000);
+    mpv.player.stop();
+    QTRY_VERIFY_WITH_TIMEOUT(mpv.player.m_pendingStreamAdds.isEmpty(), 15000);
+    QTest::qWait(200);
+    QVERIFY(std::none_of(messages.cbegin(), messages.cend(), [](const QString& message) {
+      return message.contains("Late external subtitle stream failed");
+    }));
+  }
+
   // A load that fails at once can put START_FILE and END_FILE in one event
   // batch, so the state goes from error to error. Report: a cached DNS failure
   // 1 ms after the start; the retry sat on the spinner until the startup

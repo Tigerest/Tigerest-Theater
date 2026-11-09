@@ -459,15 +459,30 @@
         }
         async submit(state) {
             if(!this.valid(state)||state.send.disabled||state.busy)return;
-            const version=state.version;
+            const version=state.version,started=Date.now();
             state.busy=true;this.updateComposer(state);
             let sent=false, deletedError=null;
-            try {await this.client.send(state.topic.id,state.input.value,state.reply);
+            try {
+                for(let attempt=1;;attempt++){
+                    try{await this.client.send(state.topic.id,state.input.value,state.reply);break;}
+                    catch(error){
+                        if(!this.valid(state)||version!==state.version)return;
+                        // Fixed wording and numbers only, so a fault report's log keeps the line.
+                        window.console?.warn('[Community] comment send failed: attempt '+attempt+', '+(error.name==='AbortError'?'cancelled':error.code||'unknown')+
+                            ', status '+(error.status||0)+', '+(Date.now()-started)+' ms');
+                        // The service did not answer at all. The retry carries the same request ID,
+                        // so a comment it did store comes back instead of being posted twice.
+                        if(attempt>1||error.code!=='NETWORK_UNAVAILABLE'||error.status)throw error;
+                        state.status.textContent='评论没有发出去，正在重试…';
+                    }
+                }
                 if(!this.valid(state)||version!==state.version)return;
                 state.input.value='';state.reply=null;sent=true;
             } catch(error) {
                 if(!this.valid(state)||version!==state.version)return;
                 this.showError(state,error);
+                // Report: the button locked and unlocked again with nothing posted and nothing said.
+                if(error.name==='AbortError')state.status.textContent='评论没有发出去，请再点一次「'+(state.reply?'发送回复':'发表评论')+'」。';
                 if(error.code==='TARGET_DELETED'){state.reply=null;deletedError=error;}
                 if(error.code==='TERMS_NOT_ACCEPTED'){state.termsRequired=true;state.retryAfterTerms=true;}
                 if(error.code==='USER_MUTED'){

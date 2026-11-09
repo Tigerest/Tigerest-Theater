@@ -100,4 +100,19 @@ int main() {
     assert(!watch.update(16000,0)&&!watch.update(17000,1)); // mpv restarted its count: warm up again
     assert(!watch.update(19000,2)&&!watch.update(21000,3)&&!watch.update(23000,4)&&!watch.update(25000,5));
     assert(watch.update(27000,6));
+
+    // Report: avsync -0.50, -0.83, -1.58 with mistimed 48, 128, 295 on a
+    // display whose buffer swaps did not wait for the refresh.
+    rife::DisplaySyncDrift drift;
+    assert(!drift.update(0,0,0)&&!drift.update(1200,-.5,48)&&!drift.update(2000,-.6,70)); // warmup
+    assert(!drift.update(3000,-.7,100)&&!drift.update(4000,-.83,128));
+    assert(drift.update(5000,-.9,160)); // apart and mistimed in three windows in a row
+    drift.reset();drift.update(0,0,0);drift.update(2000,.01,3);
+    assert(!drift.update(3000,.6,9)&&!drift.update(4000,.4,15)); // a stall the player recovers from
+    assert(!drift.update(5000,.02,16)&&!drift.update(6000,.01,16)&&!drift.update(7000,.01,16));
+    assert(!drift.update(8000,-.5,16)&&!drift.update(9000,-.5,16)&&!drift.update(10000,-.5,16)); // a file's own offset: frames on time
+    assert(!drift.update(11000,.05,30)&&!drift.update(12000,.05,60)&&!drift.update(13000,.05,90)); // mistimed but in sync
+    assert(!drift.update(13500,-.9,0)); // mpv restarted its count: warm up again
+    assert(!drift.update(15500,-.9,20)&&!drift.update(16500,-.9,40)&&!drift.update(17500,-.9,60));
+    assert(drift.update(18500,-.9,80));
 }
