@@ -77,6 +77,12 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
       Windows NVIDIA 最高支持 4K / 60 fps 输入，可选模型并自定目标帧率；Apple Silicon Mac 与 iPad 使用 Core ML / Metal，为 1080p / 30 fps 级别的 SDR 片源输出两倍帧率。默认关闭。
     </td>
   </tr>
+  <tr>
+    <td colspan="2">
+      <b>mpv.conf 开放给你，AI 也能帮你改</b><br>
+      Windows 与 Mac 可以直接编辑播放器使用的 mpv.conf：自建画质档位，自由组合 80 多个内置着色器和自己的 .glsl，再加 FFmpeg 滤镜。编辑器按当前 mpv 的选项表逐行校验，没有错误时自动保存并立即生效；点「复制给 AI」可以把修改规则和完整配置一起交给 ChatGPT、Claude，写坏了也能一键恢复。<a href="#自定义-mpv-配置">完整说明</a>
+    </td>
+  </tr>
 </table>
 
 ## 下载与安装
@@ -128,7 +134,7 @@ iPad／iPhone 应用内仅检查和提示更新，不自动替换安装；Apple 
 
 首页海报用红点标记尚有未观看内容的作品；剧集显示「观看进度：8/12」，表示已看 8 集、当前服务器共有 12 集。观看进度在首页显示后加载，播放返回时刷新。
 
-桌面默认使用 GPU-Next，并提供 Render API 兼容模式。Windows 播放画面嵌入主窗口，Mac 使用独立播放窗口。设置分「播放器设置」（客户端、视频、音频、字幕、MPV 画质与插件、弹幕样式）和「媒体库设置」两组，支持搜索、即时保存与分类恢复默认值；高级用户可以在 MPV 画质与插件页直接编辑 mpv.conf。
+桌面默认使用 GPU-Next，并提供 Render API 兼容模式。Windows 播放画面嵌入主窗口，Mac 使用独立播放窗口。设置分「播放器设置」（客户端、视频、音频、字幕、MPV 画质与插件、弹幕样式）和「媒体库设置」两组，支持搜索、即时保存与分类恢复默认值；高级用户可以在 MPV 画质与插件页直接编辑 mpv.conf，见[自定义 MPV 配置](#自定义-mpv-配置)。
 
 Android 提供双击暂停、横滑跳转、左右侧亮度／音量调节、长按临时倍速、防误触锁及选集。系统关闭自动旋转时保留当前方向。详见 [播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback)。
 
@@ -182,6 +188,121 @@ Apple TV 的轻量增强会在高帧率视频或持续渲染掉帧时暂时降�
 
 服务器允许下载时，可创建下载任务，暂停、恢复或删除，并从下载与离线媒体管理中播放已完成文件。Android 当前不提供离线下载、后台持续播放或画中画。参见 [下载与离线播放](https://github.com/Tigerest/Tigerest-Theater/wiki/Downloads)。
 
+## 自定义 MPV 配置
+
+Windows 与 Mac 版（2.9.4 起）把播放器的配置开放给你：缩放算法、去色带、HDR 色调映射、着色器链、FFmpeg 滤镜和整套画质档位，都用标准的 mpv.conf 语法来写，没有错误时自动保存并立即生效，不用重启。入口在「设置 → 播放器设置 → MPV 画质与插件」页面下方的编辑器。
+
+目前开放的是配置、GLSL 着色器、vf 滤镜和画质档位，**不能加载自己的 Lua／JavaScript 脚本，也不能改快捷键**：uosc、弹幕和中文统计这些内置脚本由客户端按设置页的开关加载，相关配置项不开放。
+
+### 一份文件，看得到完整链路
+
+客户端只读取自己目录里的这一份 mpv.conf，不读系统里的 mpv 配置。软件注入的配置也写在这份文件里并附中文说明，你和 AI 都能看到完整内容。
+
+| 区域 | 内容 | 能否修改 |
+| --- | --- | --- |
+| 头部管理区（灰色） | 配置版本和默认配置校验值 | 只读 |
+| 用户区 | 全局选项；公共基础 `[tigerest-quality-base]`；内置档位 `[tigerest-default]`、`[tigerest-liveaction]`、`[tigerest-aggressive-test]`；你自建的 `[tigerest-user-*]` | 可以自由修改 |
+| 尾部管理区（灰色） | 由软件和「视频」「字幕」「音频」设置页决定的配置，以及播放时软件会执行的动作 | 只读，要改值请到对应设置页 |
+
+mpv 按顺序解析，后写的同名项生效。尾部写在用户区之后，所以软件管理的配置总是以尾部为准。
+
+### 编辑器帮你做的事
+
+- **表单和文本实时同步：** 上方表单改的是「画质预设」选中的那一档，下方可以直接写文本，改一边另一边马上跟着变。
+- **不用背配置名：** 左侧每两行之间的「+」可以插入画质参数、着色器、vf 滤镜或新建档位，面板会写明插入到哪一段。
+- **逐行校验：** 配置项名称和取值按当前 mpv 自己的选项表检查，着色器文件和 `profile=` 引用的档位也会核对。写错的行标红并列出原因，点击可以跳到那一行；有错误时不保存。
+- **随手查着色器：** 「内置滤镜库清单」列出每个内置着色器的作用、触发条件、开销和强度。
+
+### 新建自己的画质档位
+
+档位是最实用的自定义方式：一组参数加一条着色器链，播放时随时切换。点「+」选「自定义档位」，或者直接写在用户区末尾：
+
+```ini
+# 自定义档位：老动画修复
+[tigerest-user-old-anime]
+# 显示在「画质预设」和 uosc「滤镜」菜单里的名称。
+profile-desc=老动画修复
+# 以默认档为基础，下面只写要改的项。
+profile=tigerest-default
+# 老片色带更明显，提高去色带阈值。
+deband-threshold=40
+# 先清空继承来的着色器，再按顺序逐个追加。
+glsl-shaders=
+# 用亮度信息重建色度。
+glsl-shader=~~/shaders/CfL/KrigBilateral.glsl
+# 修复压缩痕迹和模糊。
+glsl-shader=~~/shaders/Anime4K/Anime4K_Restore_CNN_M.glsl
+# 放大两倍，只在输出比片源大时运行。
+glsl-shader=~~/shaders/Anime4K/Anime4K_Upscale_CNN_x2_M.glsl
+```
+
+- 档位名必须以 `tigerest-user-` 开头，并写 `profile-desc`。建好后出现在「画质预设」和播放时 uosc 的「滤镜」菜单里；`Alt+1`～`Alt+3` 固定对应内置三档。
+- `profile=` 表示继承，只需要写要改的项。
+- 切档时客户端先清空着色器，再按顺序执行这一档（含继承）的内容。着色器要写在档位里，写在全局部分的会在切档时被清空。
+
+### 着色器和 vf 滤镜
+
+**内置着色器（80 多个）：** Anime4K、ArtCNN、FSRCNNX、RAVU、SSimDownscaler／SSimSuperRes、KrigBilateral 等，写成 `glsl-shader=~~/shaders/<组>/<文件>.glsl`，按书写顺序执行。作用于同一阶段的着色器不要叠加，例如两个亮度放大。
+
+**自己的着色器：** 把 `.glsl` 放进「打开我的着色器目录」打开的文件夹，写成 `glsl-shader=~~/shaders/user/文件名.glsl`，升级不会改动这个目录。想改内置着色器，先复制到这里再改，直接改内置文件会在升级时被覆盖。
+
+**vf 视频滤镜：** 只能写在全局部分（第一个档位之前），每个滤镜带唯一的 `@user-` 标签，用「+」添加时软件会自动加上：
+
+```ini
+# 轻度锐化。
+vf-append=@user-1:cas=strength=0.4
+```
+
+大多数 FFmpeg 滤镜在 CPU 上运行，需要把「视频 → 硬件解码」改成回读（copy）模式。执行顺序是你的滤镜在前，RIFE 或 SVP 在后。
+
+### 让 AI 帮你改
+
+不熟悉 mpv 参数也没关系，可以把需求交给 ChatGPT、Claude 这类 AI：
+
+1. 点「复制给 AI」。复制的内容包括按当前版本和设置生成的修改规则（哪些能改、哪些不能改、可用的着色器和写法）和你完整的 mpv.conf。
+2. 粘贴给 AI，写下需求，例如「帮我新建一个适合老动画的档位，降噪强一点、线条细一点」，并要求它只返回修改后的完整 mpv.conf 文本。
+3. 把返回的全文粘贴到编辑区。编辑器先显示用户区的逐行变化，确认后才替换；AI 对灰色管理区的改动会被忽略。
+4. 有标红的行时，把报错原文发给 AI，让它修改后再给一份完整文本。
+
+不要让 AI 或其他程序直接改磁盘上的 mpv.conf：客户端每次启动都会重写两块管理区，并把用户区里不允许的行注释掉。
+
+### 哪些配置由软件管理
+
+下面这些配置项决定播放器能否正常工作，不能写在用户区。编辑器里会标红；如果仍然出现在文件里，客户端会把这一行改成 `#[已忽略:原因] 原内容`，不会执行。
+
+| 配置项 | 由谁决定 |
+| --- | --- |
+| `script`、`scripts`、`load-scripts`、`script-opts`、`script-opt` | 客户端按 uosc、弹幕设置加载脚本和脚本参数 |
+| `input-conf`、`input-default-bindings` | 客户端内置的 input.conf |
+| `vo`、`wid`、`gpu-context`、`gpu-api` | 客户端窗口和「视频渲染后端」设置 |
+| `config`、`config-dir`、`include` | 只读取这一份 mpv.conf，不能再引入其他配置文件 |
+| `input-ipc-server` | SVP 连接接口，由客户端按 RIFE 设置开关 |
+| `osc`、`load-stats-overlay`、`load-console`、`load-commands`、`load-osd-console` | 播放界面、统计页和控制台由客户端管理 |
+| `idle`、`keep-open`、`force-window`、`save-position-on-quit`、`reset-on-next-file`、`log-file` | 播放器生命周期跟随 Emby 播放会话 |
+| `volume`、`mute`、`audio-delay`、`sub-delay` | 由播放界面实时调整并保存 |
+
+「视频」「字幕」「音频」设置页决定的配置项（例如 `hwdec`、`video-sync`、`sub-font`、`audio-device`）要到对应设置页修改。全局的 `profile=` 由「画质预设」决定；档位段里的 `profile=` 用于继承，可以写。
+
+开启 RIFE 时，改变帧率或插帧的行（`fps`、`framerate`、`minterpolate`、`vapoursynth` 滤镜，名称或参数含 `svp`、`rife` 的滤镜，以及 `interpolation=yes`）会标黄并变成 `#[暂停执行:RIFE] 原内容`，关闭 RIFE 后自动恢复，不要删除这种标记行。
+
+### 写坏了怎么办
+
+- 点「恢复默认配置」把用户区换回默认内容，原来的内容备份为 `mpv.conf.before-restore`。
+- 离开设置页时还有错误，可以选「返回修改」，或者「强行使用」让 mpv 跳过它不认识的行。
+- mpv 无法用你的配置启动时，客户端自动改用默认配置，并提示你回来检查。
+- 新版默认配置有变化时，编辑器会出现「查看新版默认配置的变化」，对比后选择保留自己的配置或换成新版默认。
+
+### 各平台支持情况
+
+| 平台 | 自定义能力 |
+| --- | --- |
+| Windows、Mac | 上面介绍的完整编辑器 |
+| iPad／iPhone | 「画质设置」里可以导入 `.glsl`／`.hook` 着色器或 mpv.conf，只接受缩放、去色带、色调映射、插帧和部分字幕选项 |
+| Apple TV | 只能选择内置画质预设 |
+| Android | 暂不支持 |
+
+更多操作细节见 Wiki 的[播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback)。
+
 ## 中文 Wiki
 
 | 我想要…… | 教程 |
@@ -194,6 +315,7 @@ Apple TV 的轻量增强会在高帧率视频或持续渲染掉帧时暂时降�
 | 找回复、查看修复通知、上报问题 | [消息与私人报错](https://github.com/Tigerest/Tigerest-Theater/wiki/Messages-and-Reports) |
 | 弹幕匹配错集、调时间或来源 | [弹幕教程](https://github.com/Tigerest/Tigerest-Theater/wiki/Danmaku) |
 | 调播放、声音、画质或 Android 手势 | [播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback) |
+| 自己写 mpv.conf、着色器和画质档位 | [自定义 mpv.conf](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#自定义-mpvconfwindows-与-mac) |
 | 选择字幕、修正延迟、保留 ASS 特效 | [字幕教程](https://github.com/Tigerest/Tigerest-Theater/wiki/Subtitles) |
 | 安装与调试 AI 补帧 | [RIFE 教程](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE) |
 | 下载作品并离线播放 | [下载管理](https://github.com/Tigerest/Tigerest-Theater/wiki/Downloads) |
