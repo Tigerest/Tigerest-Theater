@@ -1,5 +1,33 @@
 # 更新记录
 
+## v2.9.5.6 — 2026-11-10
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.5.6 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.6/TigerestTheater-2.9.5.6-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5.6 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.6/TigerestTheater-2.9.5.6-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.5 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.9.5.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
+只发布 Windows（安装版和便携版）；Mac 仍是 2.9.5.3，Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，检查更新不会提示这一版。这一版修的是后台 11 月 9 日收到的三类故障报告。
+
+**播放启动**
+
+- 选中的外挂字幕还在由服务器准备时，不再一直等到报「播放器启动超时（75 秒）」。两份报告里，服务器 73 秒都没有把一部 24 GB 电影的字幕交出来，播放一直没有开始。现在最多等 10 秒，之后先开始播放并提示「服务器还在准备字幕」，字幕准备好后自动显示；最后没有拿到时提示加载失败，可以在字幕菜单里重新选择。
+- 服务器准备字幕慢这件事本身没有变，这种情况下开头一段没有字幕。
+
+**音画同步**
+
+- 垂直同步没有生效的电脑上（例如显卡驱动里关了垂直同步，或部分双显卡笔记本），默认的「显示重采样」会让画面越来越领先声音；一份报告的日志里画面比声音快 0.5–1.6 秒。现在播放中发现声音和画面持续相差 0.2 秒以上、同时不断有帧没有对上屏幕刷新时，自动改为跟随音频时钟并在画面上提示。这次运行里之后的视频也跟随音频时钟，直到修改「音画同步模式」。显示同步正常的电脑不受影响。
+- 这一版是发现之后再改用音频时钟：每次打开客户端后的第一个视频仍可能先偏差 5 秒左右，画面再停顿一两秒对齐；改用音频时钟期间弹幕按视频帧率移动。报告里的那台电脑没有实测，修复是在本机模拟同样的情况验证的。经常遇到时可以直接把「音画同步模式」改成「跟随音频时钟」。
+
+**评论**
+
+- 发表评论时评论服务没有回应的，自动再发一次，不会重复发表；仍然失败才提示。发送被取消时提示「评论没有发出去，请再点一次」，以前按钮解锁后没有任何提示。
+- 有用户反馈看完一集后第一次发表有时发不出去。这份报告的日志里没有录到失败的过程，原因没有确认；这一版起，发送失败的原因会记在日志里，随下一份故障报告一起上传。
+
 ## v2.9.5.5 — 2026-11-09
 
 | 平台 | 安装包 | 系统要求 |

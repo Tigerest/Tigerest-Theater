@@ -20,9 +20,9 @@ async function until(fn,label,limit=300){
     for(let i=0;i<limit;i++){const value=await fn();if(value)return value;await wait(100);}
     throw Error('Timed out: '+label);
 }
-async function run(name){
+async function run(name,report){
     const pipe='\\\\.\\pipe\\TigerestDisplaySync-'+randomUUID(),unthrottled=name==='unthrottled';
-    const report={case:name,samples:[]};
+    Object.assign(report,{case:name,samples:[]});
     let clip;
     await withBrowser(routes,async({evaluate,profile})=>{
         await until(()=>evaluate('!!window.api?.player'),'native bridge');
@@ -62,11 +62,11 @@ async function run(name){
                 assert.ok(fallbackAt&&fallbackAt<9000,'the fallback must follow within a few seconds, at '+fallbackAt);
                 assert.equal(last['video-sync'],'audio','playback is paced by the audio clock, danmaku shown');
                 // Wait for the audio to reach the frame the video stopped on.
-                const settled=await until(async()=>{const s=await snapshot(Date.now()-started);report.samples.push(s);return Math.abs(s.avsync)<0.08?s:null;},'audio and video back together',400);
+                const settled=await until(async()=>{const s=await snapshot(Date.now()-started);report.samples.push(s);return typeof s.avsync==='number'&&Math.abs(s.avsync)<0.08?s:null;},'audio and video back together',400);
                 report.inSyncAfterMs=settled.at;
                 const position=settled['time-pos'];await wait(2000);
                 const later=await snapshot(Date.now()-started);report.samples.push(later);
-                assert.ok(Math.abs(later.avsync)<0.08,'playback stays in sync, avsync '+later.avsync);
+                assert.ok(typeof later.avsync==='number'&&Math.abs(later.avsync)<0.08,'playback stays in sync, avsync '+later.avsync);
                 assert.ok(later['time-pos']-position>1.5&&later['time-pos']-position<2.6,'playback runs at normal speed again: '+(later['time-pos']-position));
                 const log=fs.readdirSync(profile,{recursive:true}).filter(f=>path.basename(f)==='Tigerest Theater.log').map(f=>fs.readFileSync(path.join(profile,f),'utf8')).join('\n');
                 assert.ok(log.includes('Display sync cannot keep audio and video together'),'the fallback is logged with its numbers');
@@ -76,7 +76,7 @@ async function run(name){
                 await wait(3000);
                 const second=await snapshot(Date.now()-started);report.second=second;
                 assert.equal(second['video-sync'],'audio','the next item keeps the audio clock');
-                assert.ok(Math.abs(second.avsync)<0.08,'the next item is in sync from the start, avsync '+second.avsync);
+                assert.ok(typeof second.avsync==='number'&&Math.abs(second.avsync)<0.08,'the next item is in sync from the start, avsync '+second.avsync);
             }else{
                 assert.equal(fallbackAt,0,'healthy display sync must be left alone');
                 assert.equal(last['video-sync'],'display-resample');
@@ -93,14 +93,13 @@ async function run(name){
             clip=path.join(root,'display-sync-acceptance.mp4');fs.copyFileSync(source,clip);
             fs.writeFileSync(clip.replace(/\.mp4$/,'.xml'),'<i>'+Array.from({length:160},(_,i)=>`<d p="${i*.5},1,25,16777215,0,0,0,${i}">显示同步验证 ${i}</d>`).join('')+'</i>');
         }});
-    return report;
 }
 (async()=>{
     const cases=process.env.TIGEREST_SYNC_CASE?[process.env.TIGEREST_SYNC_CASE]:['healthy','unthrottled'];
     const output=path.resolve(process.env.TIGEREST_TEST_REPORT||'build/display-sync-fallback.json'),reports=[];
     for(const name of cases){
-        let report;
-        try{report=await run(name);}finally{if(report)reports.push(report);fs.writeFileSync(output,JSON.stringify(reports,null,2));}
+        const report={};reports.push(report);
+        try{await run(name,report);}finally{fs.writeFileSync(output,JSON.stringify(reports,null,2));}
         console.log(JSON.stringify({case:name,vo:report.vo,context:report.context,worstBeforeFallback:report.worstBeforeFallback,
             fallbackAfterMs:report.fallbackAfterMs,inSyncAfterMs:report.inSyncAfterMs??null,secondItem:report.second?{sync:report.second['video-sync'],avsync:report.second.avsync}:null}));
     }
