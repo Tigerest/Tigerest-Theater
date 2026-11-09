@@ -1,5 +1,23 @@
 # 更新记录
 
+## v2.9.5.5 — 2026-11-09
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.5.5 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.5/TigerestTheater-2.9.5.5-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5.5 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.5/TigerestTheater-2.9.5.5-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.5 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.9.5.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
+只发布 Windows（安装版和便携版）；Mac 仍是 2.9.5.3，Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，检查更新不会提示这一版。
+
+**服务器写进网页的美化和扩展（#33）**
+
+- 连接 Emby 4.8–4.10 时，客户端不再运行服务器写进网页的脚本和样式表，例如 emby-crx 这类美化、网页版弹幕和外部播放器按钮。这些内容是给 Emby 自带网页写的，本客户端有自己的首页、弹幕和播放器；2.9.5.4 只隐藏了美化脚本的加载遮罩，脚本本身还在运行。服务器不用改，用浏览器打开的 Emby 网页端不受影响。
+- Emby 4.11 及以后、4.8 以前和 Jellyfin 的网页不做改动，仍只隐藏加载遮罩。
+
 ## v2.9.5.4 — 2026-11-09
 
 | 平台 | 安装包 | 系统要求 |

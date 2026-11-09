@@ -51,6 +51,8 @@ flowchart TB
 
 Windows、Mac、Android 和 iPad／iPhone 的媒体库界面就是服务器自带的网页端：连接 Emby 时是 Emby 网页，连接 Jellyfin 时是 Jellyfin 网页。客户端打开服务器的 `web/index.html`，在页面自己的脚本运行之前注入本项目的扩展脚本。所以浏览、搜索、详情这些页面跟随服务器版本（Emby 兼容 4.8–4.10，Jellyfin 兼容 10.9–12.2，包括 12.2 的 Modern 与 Legacy 两种布局），而沉浸式首页、评论区、一起看、「播放器设置」分组和更新提示是扩展脚本加上去的。
 
+Windows 2.9.5.5 起，连接 Emby 4.8–4.10 时，客户端在解析网页的过程中去掉服务器额外写进 `index.html` 的脚本和样式表（例如 emby-crx）。这些版本的原版网页只有内联 importmap 和 `apploader.js` 两个脚本，其余模块由 `apploader.js` 在解析完成后加载，所以不受影响。其他版本和 Jellyfin 的网页不做改动。
+
 两种网页加载扩展的方式不同：Emby 把功能注册成 AMD 模块（`embycompat.js`），Jellyfin 通过自己的 NativeShell 插件接口创建插件（`jellyfinPlugin.js`），并按地址里的 hash 而不是 Emby 的页面管理器切换视图。扩展脚本据此分别接入首页、转场和播放器；同一份播放器插件在两边都注册为 MPV 播放器。
 
 ```mermaid
