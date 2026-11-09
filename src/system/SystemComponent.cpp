@@ -1194,7 +1194,9 @@ QString SystemComponent::getNativeShellScript()
     ":/web-client/extension/homeBackdrop.js",
     ":/web-client/extension/homeTransitions.js",
     ":/web-client/extension/homeMotion.js",
-    ":/web-client/extension/embycompat.js"
+    ":/web-client/extension/embycompat.js",
+    // After embycompat.js: its first-run request tells this the server version.
+    ":/web-client/extension/serverSkinFilter.js"
   };
 #ifdef Q_OS_MAC
   scriptPaths.append(":/web-client/extension/ambientBackdrop.js");

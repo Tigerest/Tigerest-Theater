@@ -4,7 +4,8 @@
     // Server-side skins such as emby-crx cover the page with .misty-loading and
     // take it away only when Emby's stock home page markup appears. This
     // client's home page never has that markup, so the cover stayed up and
-    // swallowed every click.
+    // swallowed every click. serverSkinFilter.js keeps these skins off the Emby
+    // versions it knows; this is for the page loads it does not cover.
     function hideServerSkinLoadingCover() {
         const style = document.createElement('style');
         style.id = 'tigerest-server-skin-compat';
