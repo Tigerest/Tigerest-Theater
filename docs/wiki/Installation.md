@@ -2,12 +2,12 @@
 
 ## 选择正确的包
 
-从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以当前正式包的文件名示例说明（Windows 为 2.9.5.6，Mac 为 2.9.5.3，其他平台为 2.9.5）；安装步骤也适用于后续同类正式包。只给部分平台发的修复版（如 2.9.5.6、2.9.5.5 和 2.9.5.4 只有 Windows，2.9.5.3 和 2.9.5.2 只有 Windows 与 Mac）发行页里只有这些平台的包，其他平台的包在它们各自最新版本的发行页（Mac 是 2.9.5.3，其他平台是 2.9.5）。
+从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以当前正式包的文件名示例说明（Windows 为 2.9.5.7，Mac 为 2.9.5.3，其他平台为 2.9.5）；安装步骤也适用于后续同类正式包。只给部分平台发的修复版（如 2.9.5.7、2.9.5.6、2.9.5.5 和 2.9.5.4 只有 Windows，2.9.5.3 和 2.9.5.2 只有 Windows 与 Mac）发行页里只有这些平台的包，其他平台的包在它们各自最新版本的发行页（Mac 是 2.9.5.3，其他平台是 2.9.5）。
 
 | 设备 | 包名 | 最低要求 |
 | --- | --- | --- |
-| Windows 安装版 | TigerestTheater-2.9.5.6-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
-| Windows 便携版 | TigerestTheater-2.9.5.6-x64.zip | 同上 |
+| Windows 安装版 | TigerestTheater-2.9.5.7-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
+| Windows 便携版 | TigerestTheater-2.9.5.7-x64.zip | 同上 |
 | Android | TigerestTheater-2.9.5-android.apk | Android 15+，arm64-v8a / x86_64 |
 | Apple Silicon Mac | TigerestTheater-2.9.5.3-arm64.dmg | macOS 26+，M 系列 |
 | iPad / iPhone | TigerestTheater-2.9.5-universal.ipa（2.9.3 及以前为 ipad.ipa） | iPadOS / iOS 26+，需要自行签名 |
@@ -15,7 +15,7 @@
 
 Windows 安装版适合日常使用，由安装器管理程序目录；便携版适合把程序与配置放在同一个文件夹。Mac 正式附件目前仅提供 Apple Silicon 版本。Android 的系统版本和处理器架构必须同时满足要求。iPad / iPhone 通用包和 Apple TV 的 IPA 是两个不同的设备包，不能互换。
 
-无法访问 GitHub 时，可从固定的[夸克网盘](https://pan.quark.cn/s/88e6f7a795b4)或[百度网盘](https://pan.baidu.com/s/58azzOU4piiB3miyZqA1dig)分享文件夹下载 Windows／Android 安装包（Mac、iPad 与 Apple TV 的安装包目前只在 GitHub 发行页提供）。每个版本一个子文件夹，附件与发行页相同，请用其中的 `SHA256SUMS.txt` 校验；网盘只保留各平台最新版本的安装包，旧版本在 GitHub 发行页。
+无法访问 GitHub 时，可从固定的[夸克网盘](https://pan.quark.cn/s/88e6f7a795b4)或[百度网盘](https://pan.baidu.com/s/58azzOU4piiB3miyZqA1dig)分享文件夹下载 Windows／Android 安装包（Mac、iPad 与 Apple TV 的安装包目前只在 GitHub 发行页提供）。按版本号分子文件夹，文件与发行页的附件相同，请用其中对应版本的 `SHA256SUMS.txt` 校验。小版本（如 2.9.5.7）放在前三位版本号的文件夹（`2.9.5`）里，并替换上一个小版本；被替换的版本在 GitHub 发行页。
 
 ## Windows 安装版
 
@@ -81,7 +81,7 @@ Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新
 更新窗口里可以选择：
 
 - 「直接下载」：下载、校验后安装（见下文）。先经 GitHub 下载加速镜像 gh-proxy.com 下载，连不上或出错时依次换用 ghproxy.net 和 GitHub 原址；进度里显示当前来源。
-- 「备用下载」：展开「夸克网盘」「百度网盘」两个按钮（直接下载失败后自动展开），在浏览器中打开网盘分享里这个版本的文件夹，登录网盘后下载，适合直接下载不成功时手动下载安装包（网盘里目前只有 Windows／Android 安装包，Mac 请从 GitHub 获取）。Android 上夸克的手机网页不能直接打开子文件夹，会停在分享首页，再依次点开 `Tigerest-Theater` 和版本号文件夹；装有百度网盘应用时，百度网盘链接可能由应用接管。找不到版本文件夹时打开整个分享。
+- 「备用下载」：展开「夸克网盘」「百度网盘」两个按钮（直接下载失败后自动展开），在浏览器中打开网盘分享里这个版本的文件夹，登录网盘后下载，适合直接下载不成功时手动下载安装包（网盘里目前只有 Windows／Android 安装包，Mac 请从 GitHub 获取）。Android 上夸克的手机网页不能直接打开子文件夹，会停在分享首页，再依次点开 `Tigerest-Theater` 和版本号文件夹；装有百度网盘应用时，百度网盘链接可能由应用接管。找不到版本文件夹时打开整个分享：小版本（如 2.9.5.7）没有单独的文件夹，请依次点开 `Tigerest-Theater` 和前三位版本号的文件夹（`2.9.5`）。
 - 「忽略本次更新」：直到下一个新版本发布前不再弹窗。
 - 「稍后」：本次运行不再弹出，下次打开软件再提示。
 
@@ -97,12 +97,12 @@ Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新
 
 ## 核对 SHA-256
 
-2.9.5 起每个发行页只有一份校验清单，覆盖这一页的全部文件：`TigerestTheater-2.9.5-SHA256SUMS.txt` 覆盖 Windows、Android、Mac、iPhone／iPad 与 Apple TV；修复版的清单只含它那一页上的文件，例如 `TigerestTheater-2.9.5.6-SHA256SUMS.txt` 只含 2.9.5.6 的 Windows 文件（2.9.4 及以前，Mac、iPad 和 Apple TV 的文件另列在 `APPLE-SHA256SUMS.txt`）。先找到文件名对应的摘要，再与本机结果对照。
+2.9.5 起每个发行页只有一份校验清单，覆盖这一页的全部文件：`TigerestTheater-2.9.5-SHA256SUMS.txt` 覆盖 Windows、Android、Mac、iPhone／iPad 与 Apple TV；修复版的清单只含它那一页上的文件，例如 `TigerestTheater-2.9.5.7-SHA256SUMS.txt` 只含 2.9.5.7 的 Windows 文件（2.9.4 及以前，Mac、iPad 和 Apple TV 的文件另列在 `APPLE-SHA256SUMS.txt`）。先找到文件名对应的摘要，再与本机结果对照。
 
 Windows PowerShell 示例：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.5.6-x64.exe'
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.5.7-x64.exe'
 ```
 
 macOS 终端示例：

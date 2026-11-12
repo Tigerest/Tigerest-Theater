@@ -1,5 +1,33 @@
 # 更新记录
 
+## v2.9.5.7 — 2026-11-12
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.5.7 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.7/TigerestTheater-2.9.5.7-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5.7 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.7/TigerestTheater-2.9.5.7-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.5 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.9.5.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
+只发布 Windows（安装版和便携版）；Mac 仍是 2.9.5.3，Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，检查更新不会提示这一版。这一版修的是后台 11 月 11 日收到的故障报告和 GitHub 上的 #38、#34。
+
+**评论和连接服务器（IPv6 连不通时）**
+
+- 服务器域名同时有 IPv4 和 IPv6 地址、而 IPv6 那个地址连不通时，客户端自己发出的请求不再卡住。有用户反馈看完一集后第一次发表评论仍然发不出去；2.9.5.6 的日志和服务端记录显示，第一次发送等满 15 秒，服务端没有收到任何请求。原因是这类请求走 HTTP/2 时只用一条连接、先连 IPv6，要等 30 秒才换 IPv4。现在改走 HTTP/1.1，先连 IPv6、0.3 秒后同时尝试 IPv4，哪个先连上用哪个。
+- 评论、头像、连接服务器时的检测（以前这种情况下报「连接超时（5 秒）」）、专辑封面和下载都一样处理。电脑没有 IPv6 的不受影响；网页界面和播放本来就会同时尝试两种地址。
+- 评论请求没有得到回应时，日志里多记一行它停在哪一步（未连接、连接中、已连接、请求已发出、开始收到回应），随故障报告上传。
+- 这一版没有在 IPv6 连不通的网络上实测：开发机的网络不返回这个域名的 IPv6 地址，依据是服务端记录和 Qt 的连接逻辑。
+
+**首页（#38）**
+
+- 鼠标快速划过首页底部的海报、或按住方向键连续切换时，主视觉不再出现重影、水平断层和背景透出。以前每经过一张海报就加载并叠上一层大图和一层背景，旧图层要等新图显示 0.9 秒后才清除，连续划动时图层只增不减。现在文字和计数马上跟着变，大图等停留 0.12 秒才加载；大图一次只淡入一张，淡入完成就移除下面的旧图，任何时刻最多两层可见。
+
+**Mac 图标（#34，随下一个 Mac 安装包生效）**
+
+- 图标主体从 1016 px 缩到 824 px（1024 px 画布），和系统自带应用一样大；以前在程序坞、启动台和访达里比别的应用大一圈。这一版没有发布 Mac 安装包。#34 里的 macOS 15 支持没有变化，最低仍是 macOS 26。
+
 ## v2.9.5.6 — 2026-11-10
 
 | 平台 | 安装包 | 系统要求 |
