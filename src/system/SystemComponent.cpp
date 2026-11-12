@@ -51,6 +51,7 @@
 #include "core/Globals.h"
 #include "Names.h"
 #include "utils/Utils.h"
+#include "utils/AddressFamilyRace.h"
 #include "utils/Log.h"
 
 #ifdef Q_OS_WIN
@@ -320,6 +321,7 @@ void SystemComponent::startDownloadRequest(const QString& id, const QUrl& url, b
   qint64 existingSize = resume ? QFileInfo(partPath).size() : 0;
 
   QNetworkRequest request(url);
+  raceAddressFamilies(request);
   request.setHeader(QNetworkRequest::UserAgentHeader, getUserAgent());
   request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
   if (existingSize > 0)
@@ -746,6 +748,7 @@ void SystemComponent::resolveUrl(const QString& url, std::function<void(const QS
   }
 
   QNetworkRequest request(url);
+  raceAddressFamilies(request);
   request.setHeader(QNetworkRequest::UserAgentHeader, getUserAgent());
   request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
   request.setSslConfiguration(getSSLConfiguration());
@@ -800,6 +803,7 @@ void SystemComponent::checkServerBase(const QString& url, const QString& base,
                                       bool discoverPath, quint64 generation)
 {
   QNetworkRequest request(base + "/System/Info/Public");
+  raceAddressFamilies(request);
   request.setHeader(QNetworkRequest::UserAgentHeader, getUserAgent());
   request.setRawHeader("Cache-Control", "no-cache");
   request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -1225,6 +1229,7 @@ void SystemComponent::fetchPageForCSPWorkaround(QString url)
   qDebug() << "fetchPageForCSPWorkaround:" << url;
 
   QNetworkRequest request(url);
+  raceAddressFamilies(request);
   request.setHeader(QNetworkRequest::UserAgentHeader, getUserAgent());
   request.setRawHeader("Cache-Control", "no-cache");
 

@@ -1,4 +1,5 @@
 #include "AlbumArtProvider.h"
+#include "utils/AddressFamilyRace.h"
 #include "system/SystemComponent.h"
 #include "settings/SettingsComponent.h"
 #include "core/ProfileManager.h"
@@ -53,6 +54,7 @@ void AlbumArtProvider::requestArtwork(const QVariantMap& metadata, const QUrl& b
 
   QNetworkRequest request;
   request.setUrl(QUrl(artUrl));
+  raceAddressFamilies(request);
   request.setRawHeader("User-Agent", SystemComponent::Get().getUserAgent().toUtf8());
   request.setSslConfiguration(SystemComponent::Get().getSSLConfiguration());
 

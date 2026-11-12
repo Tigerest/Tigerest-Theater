@@ -11,6 +11,10 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 MASTER = ROOT / "resources" / "images" / "tigerest-icon-master.png"
+# macOS draws app icons on a 1024 px canvas whose body is 824 px (Human
+# Interface Guidelines); a tile that fills the canvas looks a size larger
+# than every other app in the Dock, Launchpad and Finder.
+MAC_ICON_BODY = 824
 GOLD = (255, 183, 20, 255)
 DARK = (17, 17, 18, 255)
 
@@ -115,14 +119,18 @@ def main() -> None:
         sizes=[(16, 16), (20, 20), (24, 24), (32, 32), (40, 40), (48, 48), (64, 64), (128, 128), (256, 256)],
     )
 
-    icns = contained(icon, (1024, 1024), padding=4)
+    # The tile at full size is the source of the Android, iPhone / iPad and
+    # Apple TV icons, which add their own margins and masks.
+    contained(icon, (1024, 1024), padding=4).save(ROOT / "bundle" / "tigerest-icon-1024.png", optimize=True)
+
+    icns = contained(icon, (1024, 1024), padding=(1024 - MAC_ICON_BODY) // 2)
     icns.save(
         osx_dir / "tigerest.icns",
         format="ICNS",
         sizes=[(16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)],
     )
 
-    print("Generated Tigerest icon.png, wordmark, ICO, ICNS, and Inno Setup wizard artwork.")
+    print("Generated Tigerest icon.png, wordmark, ICO, ICNS, the 1024 px tile and Inno Setup wizard artwork.")
 
 
 if __name__ == "__main__":

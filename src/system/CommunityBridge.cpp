@@ -1,6 +1,7 @@
 #include "CommunityBridge.h"
 #include "core/ProfileManager.h"
 #include "core/Version.h"
+#include "utils/AddressFamilyRace.h"
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -8,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QBuffer>
+#include <QElapsedTimer>
 #include <QImageReader>
 #include <QPainter>
 #include <QNetworkReply>
@@ -115,6 +117,7 @@ void CommunityBridge::request(const QString& id,const QVariantMap& data) {
     if(m_mappingCapabilitiesStatus!=0){m_mappingCapabilitiesStatus=0;refreshMappingAuth();}
   }
   QNetworkRequest req(QUrl(m_origin+(path=="/mapping-capabilities"?QStringLiteral("/api/tigerest/v1/danmaku/capabilities"):"/community/v2"+path)));
+  raceAddressFamilies(req);
   req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::ManualRedirectPolicy);
   req.setAttribute(QNetworkRequest::CookieLoadControlAttribute,QNetworkRequest::Manual);
   req.setAttribute(QNetworkRequest::CookieSaveControlAttribute,QNetworkRequest::Manual);
@@ -122,13 +125,23 @@ void CommunityBridge::request(const QString& id,const QVariantMap& data) {
   const auto client=clientHeaders();for(auto it=client.begin();it!=client.end();++it)req.setRawHeader(it.key().toLatin1(),it.value().toString().toLatin1());
   const auto headers=data.value("headers").toMap();for(auto it=headers.begin();it!=headers.end();++it)req.setRawHeader(it.key().toLatin1(),it.value().toString().toUtf8());
   const auto body=data.value("body").toString().toUtf8();if(!body.isEmpty())req.setHeader(QNetworkRequest::ContentTypeHeader,"application/json");
-  auto* reply=m_network.sendCustomRequest(req,data.value("method").toByteArray(),body);m_pending.insert(id,reply);
+  const auto method=data.value("method").toByteArray();
+  auto* reply=m_network.sendCustomRequest(req,method,body);m_pending.insert(id,reply);
   auto content=std::make_shared<QByteArray>();
   connect(reply,&QNetworkReply::readyRead,this,[reply,content,limit]{content->append(reply->readAll());if(content->size()>limit)reply->abort();});
   QTimer::singleShot(15000,reply,[reply]{if(!reply->isFinished())reply->abort();});
-  connect(reply,&QNetworkReply::finished,this,[this,id,path,headers,reply,content,image,limit]{
+  // How far the request got, so a fault report shows where an unanswered one stopped.
+  auto stage=std::make_shared<const char*>("not connected");
+  connect(reply,&QNetworkReply::socketStartedConnecting,reply,[stage]{*stage="connecting";});
+  connect(reply,&QNetworkReply::encrypted,reply,[stage]{*stage="connected";});
+  connect(reply,&QNetworkReply::requestSent,reply,[stage]{*stage="request sent";});
+  connect(reply,&QNetworkReply::metaDataChanged,reply,[stage]{*stage="answer started";});
+  QElapsedTimer elapsed;elapsed.start();
+  connect(reply,&QNetworkReply::finished,this,[this,id,path,headers,reply,content,image,limit,method,stage,elapsed]{
     const bool active=m_pending.value(id)==reply;if(active)m_pending.remove(id);if(reply->isOpen())content->append(reply->readAll());
     const int status=reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    // Fixed wording without the address or path, so a fault report's log keeps the line.
+    if(!status)qWarning("Community request got no answer: %s, %lld ms, stage: %s, %s",method.constData(),static_cast<long long>(elapsed.elapsed()),*stage,active?"failed":"cancelled");
     if(active){
       if(path=="/capabilities"){
         const auto cap=status==200?QJsonDocument::fromJson(*content).object().value("data").toObject():QJsonObject();
@@ -159,6 +172,7 @@ void CommunityBridge::fetchSourceAvatar(const QString& id,const QVariantMap& ses
   const auto remaining=deadline-QDateTime::currentMSecsSinceEpoch();
   if(remaining<=0){m_sourceIds.remove(id);emit response(id,{{"status",0},{"error","SOURCE_UNAVAILABLE"}});return;}
   QNetworkRequest req(sourceUrl(session,image));
+  raceAddressFamilies(req);
   req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::ManualRedirectPolicy);
   req.setAttribute(QNetworkRequest::CookieLoadControlAttribute,QNetworkRequest::Manual);
   req.setAttribute(QNetworkRequest::CookieSaveControlAttribute,QNetworkRequest::Manual);

@@ -1,5 +1,6 @@
 #include <QtTest/QtTest>
 #include "system/CommunityBridge.h"
+#include "utils/AddressFamilyRace.h"
 #include "core/ProfileManager.h"
 #include "core/Version.h"
 #include "shared/Paths.h"
@@ -20,6 +21,7 @@ public:
   QByteArray body=R"({"data":{"enabled":true,"embyExchangeServerId":"62526c3bf747439c99327ddec5fed4a8"}})";
   QByteArray contentType="application/json";
   QList<QByteArray> requests;
+  bool silent=false; // Accept the request and never answer it.
   std::function<void(const QByteArray&)> configure;
   CapabilityFixture(){
     server.listen(QHostAddress::LocalHost);
@@ -31,6 +33,7 @@ public:
           if(!input.contains("\r\n\r\n")||socket->property("answered").toBool())return;
           socket->setProperty("answered",true);
           requests.append(input);if(configure)configure(input);
+          if(silent)return;
           socket->write("HTTP/1.1 "+QByteArray::number(status)+" Fixture\r\nConnection: close\r\nContent-Type: "+contentType+"\r\nContent-Length: "+QByteArray::number(body.size())+"\r\n\r\n"+body);
           socket->disconnectFromHost();
         });
@@ -114,6 +117,22 @@ private slots:
     QVERIFY(fixture.requests.last().toLower().contains("\r\nx-emby-token: fixture-emby-token\r\n"));
     const auto headers=CommunityBridge::clientHeaders();QCOMPARE(headers.size(),3);
     for(const auto& value:headers)QVERIFY(QRegularExpression("^[\\x20-\\x7e]{1,40}$").match(value.toString()).hasMatch());
+  }
+  void unansweredRequestRecordsWhereItStopped(){
+    CapabilityFixture fixture;QVERIFY(fixture.server.isListening());fixture.silent=true;
+    CommunityBridge bridge(nullptr,FixtureOrigin);QSignalSpy responses(&bridge,&CommunityBridge::response);
+    bridge.request("silent",{{"path","/capabilities"},{"method","GET"},{"headers",QVariantMap{}}});
+    QTRY_COMPARE_WITH_TIMEOUT(fixture.requests.size(),1,3000);QTest::qWait(50);
+    // No address or path: the report redactor would drop the line otherwise.
+    QTest::ignoreMessage(QtWarningMsg,QRegularExpression("^Community request got no answer: GET, \\d+ ms, stage: request sent, cancelled$"));
+    bridge.cancel("silent");QTest::qWait(50);QCOMPARE(responses.size(),0);
+  }
+  void requestsRaceAddressFamilies(){
+    // Qt gives an HTTP/2 request one socket, where an unreachable IPv6 address delays IPv4 by 30 seconds.
+    QNetworkRequest request(QUrl("https://dual-stack.invalid/"));
+    QVERIFY(request.attribute(QNetworkRequest::Http2AllowedAttribute,true).toBool());
+    raceAddressFamilies(request);
+    QVERIFY(!request.attribute(QNetworkRequest::Http2AllowedAttribute,true).toBool());
   }
   void productionUsesTheHttpsService(){
     // Through the proxy fixture an HTTPS request is only a CONNECT to the service's host and port.

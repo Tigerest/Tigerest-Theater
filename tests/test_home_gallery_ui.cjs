@@ -172,6 +172,39 @@ withBrowser(routes,async({evaluate,call})=>{
   return {partial:'8/12',complete:'12/12',playbackReturnRefreshed:true};
  })()`);
  console.log('home gallery watch-state checks:',watch);
+ // A pointer swept along the rail selects every cover it crosses (issue #38).
+ const sweep=await evaluate(`(async()=>{
+  const check=(value,message)=>{if(!value)throw Error(message);};
+  const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const covers=Array.from(gallery.coverList.children);
+  const hover=index=>covers[index].dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse'}));
+  const layers=()=>({visible:gallery.heroImages.querySelectorAll('.is-visible').length,posters:gallery.heroImages.children.length,
+   shown:gallery.root.querySelectorAll('.tg-home-scenery:not(.tg-pending)').length,sceneries:gallery.root.querySelectorAll('.tg-home-scenery').length});
+  const settled=async()=>{for(let i=0;i<300;i++){const now=layers();if(now.visible===1&&now.posters===1&&now.shown===1&&now.sceneries===1)return;await sleep(10);}throw Error('artwork never settled on one layer: '+JSON.stringify(layers()));};
+  gallery.hero.focus({preventScroll:true});gallery.select(0,false);await settled();
+  let peak=layers(),added=0,sampling=true;
+  const observer=new MutationObserver(records=>records.forEach(record=>added+=record.addedNodes.length));
+  observer.observe(gallery.heroImages,{childList:true});
+  (function sample(){const now=layers();for(const key in now)peak[key]=Math.max(peak[key],now[key]);if(sampling)requestAnimationFrame(sample);})();
+  // Faster than the artwork settles: only the cover the pointer rests on loads.
+  const path=[1,2,3,4,3,2,1,0,1,2,3,4,3,2,1,0,1,2,3,4,3,2,1,0,1,2,3];
+  for(const index of path){hover(index);check(gallery.index===index&&gallery.ordinal.textContent.startsWith('0'+(index+1)),'text follows the pointer at once');await sleep(25);}
+  for(let i=0;i<100&&!added;i++)await sleep(10);
+  await settled();
+  // One load is expected; a stalled timer on a busy runner may let another through.
+  const fastLoads=added,fastPeak={...peak};
+  check(fastLoads>=1&&fastLoads<=3,'a fast sweep loads artwork for the cover it stops on, not for each of '+path.length+' covers: loaded '+fastLoads);
+  check(peak.visible<=2&&peak.shown<=2,'a fast sweep never stacks artwork: '+JSON.stringify(peak));
+  // Slow enough for every cover to load: fades run one at a time.
+  added=0;peak=layers();
+  for(const index of [2,1,0,1,2,3,4,3,2,1]){hover(index);await sleep(190);}
+  await settled();observer.disconnect();sampling=false;
+  check(added>=5,'a slower sweep loads the covers it rests on, loaded '+added);
+  check(peak.visible<=2&&peak.posters<=3&&peak.shown<=2&&peak.sceneries<=3,'changing covers mid-fade never stacks more than two visible layers: '+JSON.stringify(peak));
+  check(gallery.index===1&&gallery.title.textContent===gallery.cards[1].item.Name,'the sweep ends on its last cover');
+  return {fastLoads,fastPeak,slowLoads:added,slowPeak:peak};
+ })()`);
+ console.log('home gallery sweep checks:',sweep);
  await evaluate('new Promise(r=>setTimeout(r,1600))');
  await evaluate('gallery.hero.focus({preventScroll:true});gallery.cards[0].item.Name="这是一个用于验证窄屏排版的较长作品标题，标题和简介应始终留在海报内";gallery.cards[0].item.Overview="主角们在各自的故事中相遇，面对新的选择，逐渐发现彼此的秘密与梦想。".repeat(8);gallery.select(0,false);new Promise(r=>setTimeout(r,1500))');
  const directory=process.env.TIGEREST_HOME_SCREENSHOTS||path.join(root,'build/home-exploration-2026-10-09');fs.mkdirSync(directory,{recursive:true});

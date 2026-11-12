@@ -636,6 +636,7 @@ def test_brand_assets() -> None:
         "bundle/win/wizard-image.png",
         "bundle/win/wizard-small-image.png",
         "bundle/osx/tigerest.icns",
+        "bundle/tigerest-icon-1024.png",
         "native/logo.png",
     ]
     for relative in required:
@@ -656,6 +657,9 @@ def test_brand_assets() -> None:
     require('wordmark(icon).save(native_dir / "logo.png"' in generator and
             '((width - badge.width) // 2, 245)' in generator,
             "connection wordmark or centered installer artwork generation is missing")
+    require("MAC_ICON_BODY = 824" in generator and
+            "padding=(1024 - MAC_ICON_BODY) // 2" in generator,
+            "the macOS icon no longer keeps the 824 px body of the macOS icon grid")
 
 
 def test_settings_ui() -> None:

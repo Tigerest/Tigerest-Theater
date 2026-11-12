@@ -1,5 +1,5 @@
 #!/usr/bin/env swift
-// Repackage the existing macOS brand artwork for Apple's other launchers.
+// Repackage the brand artwork for the iPhone / iPad and Apple TV launchers.
 // Run with: swift apple/tools/generate_icons.swift
 import Foundation
 import CoreGraphics
@@ -7,20 +7,12 @@ import ImageIO
 import UniformTypeIdentifiers
 
 let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
-defer { try? FileManager.default.removeItem(at: temporary) }
-let iconset = temporary.appendingPathComponent("Tigerest.iconset")
-let extraction = Process()
-extraction.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
-extraction.arguments = ["--convert", "iconset", "--output", iconset.path,
-                        root.deletingLastPathComponent().appendingPathComponent("bundle/osx/tigerest.icns").path]
-try extraction.run()
-extraction.waitUntilExit()
-guard extraction.terminationStatus == 0,
-      let source = CGImageSourceCreateWithURL(iconset.appendingPathComponent("icon_512x512@2x.png") as CFURL, nil),
+// The tile at full size. The macOS icon (bundle/osx/tigerest.icns) keeps the
+// 100 px margin of the macOS icon grid around it, so it is not the source.
+let tile = root.deletingLastPathComponent().appendingPathComponent("bundle/tigerest-icon-1024.png")
+guard let source = CGImageSourceCreateWithURL(tile as CFURL, nil),
       let artwork = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
-    fatalError("Cannot read the existing 1024px macOS icon")
+    fatalError("Cannot read bundle/tigerest-icon-1024.png")
 }
 let info: [String: Any] = ["author": "xcode", "version": 1]
 func json(_ value: [String: Any], at directory: URL) throws {

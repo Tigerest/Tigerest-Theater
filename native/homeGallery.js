@@ -223,8 +223,43 @@
         const episode = card.latestEpisode;
         return [watchProgress(card), card.item.ProductionYear, episode ? (card.newEpisode === episode ? '新一集未看' : '最新入库') + ' · S' + (episode.ParentIndexNumber || 1) + ':E' + (episode.IndexNumber || '?') + ' ' + (episode.Name || '') : '', card.addedAt ? '入库 ' + card.addedAt.slice(0, 10) : ''].filter(Boolean).join('  ·  ');
     }
+    // Fades one layer in at a time above the layers already shown and removes
+    // those once it covers them. A layer that loads during a fade waits for it
+    // to end, and a newer layer replaces one that has not begun to show, so
+    // however fast the selection changes at most two layers are ever visible.
+    function Crossfade(show) { this.show = show; this.reset(); }
+    Crossfade.prototype.reset = function () { this.next = this.fading = null; this.ready = false; };
+    Crossfade.prototype.queue = function (node) { this.next?.remove(); this.next = node; this.ready = false; };
+    Crossfade.prototype.loading = function (node) { return node === this.next && !this.ready; };
+    Crossfade.prototype.loaded = function (node) {
+        if (node !== this.next) return;
+        this.ready = true;
+        if (!this.fading) this.advance();
+        // The layer fading in is no longer the one wanted: finish it quickly.
+        else this.fading.getAnimations?.().forEach(animation => { if (animation.transitionProperty === 'opacity') animation.playbackRate = 3; });
+    };
+    Crossfade.prototype.advance = function () {
+        const node = this.fading = this.next; this.next = null; this.ready = false;
+        requestAnimationFrame(() => {
+            if (this.fading !== node) return;
+            // A layer styled for the first time in this frame would appear without fading.
+            void getComputedStyle(node).opacity; this.show(node);
+            const fades = node.getAnimations ? node.getAnimations().filter(animation => animation.transitionProperty === 'opacity').map(animation => animation.finished)
+                : [new Promise(resolve => setTimeout(resolve, 900))];
+            Promise.allSettled(fades).then(() => {
+                if (this.fading !== node) return;
+                for (let prior = node.previousElementSibling; prior?.classList.contains(node.classList[0]); prior = node.previousElementSibling) prior.remove();
+                this.fading = null; if (this.ready) this.advance();
+            });
+        });
+    };
+    // A pointer or held arrow key crossing the rail selects every cover on its
+    // way; artwork loads only for the cover it rests on for this long.
+    const settleMs = 120;
     function Gallery(host, options) {
         this.host = host; this.options = options; this.generation = 0; this.selection = 0;
+        this.posters = new Crossfade(node => node.classList.add('is-visible'));
+        this.sceneries = new Crossfade(node => node.classList.remove('tg-pending'));
         this.cache = new Map(); this.animations = []; this.textAnimations = []; this.listeners = []; this.timer = null;
         if (!document.getElementById(styleId)) { const style = element('style', ''); style.id = styleId; style.textContent = css; document.head.append(style); }
         host.classList.add('tg-home-host');
@@ -291,9 +326,9 @@
         });
         listen(this.coverList, 'pointerover', event => {
             if (event.pointerType === 'touch') return;
-            const button = event.target.closest('.tg-cover'); if (button && !button.contains(event.relatedTarget) && Number(button.dataset.index) !== this.index) this.select(Number(button.dataset.index), false);
+            const button = event.target.closest('.tg-cover'); if (button && !button.contains(event.relatedTarget) && Number(button.dataset.index) !== this.index) this.select(Number(button.dataset.index), false, settleMs);
         });
-        listen(this.coverList, 'focusin', event => { const button = event.target.closest('.tg-cover'); if (button) { this.finishEntrance(); reveal(this.coverList, button); if (Number(button.dataset.index) !== this.index) this.select(Number(button.dataset.index), false); } });
+        listen(this.coverList, 'focusin', event => { const button = event.target.closest('.tg-cover'); if (button) { this.finishEntrance(); reveal(this.coverList, button); if (Number(button.dataset.index) !== this.index) this.select(Number(button.dataset.index), false, settleMs); } });
         listen(this.retry, 'click', () => this.selectedLibrary ? this.preview(this.selectedLibrary.Id, true) : this.start({}));
         // A finished or cancelled animation changes no size, so neither observer reports it.
         const settling = new WeakSet(), settle = animation => {
@@ -408,9 +443,9 @@
         // Preserve the pointerdown selection snapshot through that preview.
         this.cancelText();
         ++this.selection; this.root.classList.remove('tg-ready'); this.hero.disabled = true;
-        this.cards = []; this.index = 0; this.heroImages.replaceChildren(); this.title.textContent = ''; this.subtitle.textContent = '';
+        this.cards = []; this.index = 0; this.title.textContent = ''; this.subtitle.textContent = '';
         this.overview.textContent = ''; this.overview.hidden = true; this.heroCopy.classList.add('tg-no-overview');
-        clearTimeout(this.artworkStall); this.dropScenery(); this.scenery.removeAttribute('src'); this.ordinal.textContent = '';
+        this.clearArtwork(); this.ordinal.textContent = '';
         this.coverList.replaceChildren(); this.counter.textContent = '';
     };
     Gallery.prototype.showStatus = function (message, retry = false) { this.message.textContent = message; this.retry.hidden = !retry; this.status.hidden = false; };
@@ -463,7 +498,9 @@
         button.setAttribute('aria-label', accessible);
         if (this.cards[this.index] === card) { this.subtitle.textContent = subtitle(card); this.hero.setAttribute('aria-label', accessible); }
     };
-    Gallery.prototype.select = function (index, scroll) {
+    // settle delays the artwork (never the text) until the selection has
+    // rested that long; a later selection within it takes over.
+    Gallery.prototype.select = function (index, scroll, settle = 0) {
         const card = this.cards?.[index]; if (!card || !this.valid()) return;
         this.cancelText();
         this.index = index; const selection = ++this.selection;
@@ -484,33 +521,39 @@
         if (scroll && covers[index]) this.coverList.scrollTo({ left: covers[index].offsetLeft - this.coverList.offsetLeft - 3, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
         this.animateText(selection);
         const url = this.data.artwork(card.item, 'hero');
-        clearTimeout(this.artworkStall);
-        if (!url) { this.dropScenery(); this.scenery.removeAttribute('src'); this.heroImages.replaceChildren(); return; }
+        clearTimeout(this.artworkStall); clearTimeout(this.artworkSettle);
+        if (!url) { this.clearArtwork(); return; }
+        const current = () => this.valid() && selection === this.selection;
         // Crossfade: the previous work's artwork stays under the new layers
         // until they have loaded and faded in, so a change never shows a dark
         // gap. Artwork that stalls lets the previous work fade out shortly.
-        const scenery = element('img', 'tg-home-scenery tg-pending'); scenery.alt = '';
-        this.scenery.after(scenery); this.scenery = scenery;
-        const image = element('img', 'tg-poster-image'); image.alt = ''; image.draggable = false;
-        const current = () => this.valid() && selection === this.selection;
-        const dropPosters = () => this.heroImages.querySelectorAll('img').forEach(prior => { if (prior !== image) prior.remove(); });
-        const reveal = (show, drop) => requestAnimationFrame(() => { if (current()) { show(); setTimeout(() => { if (current()) drop(); }, 900); } });
-        scenery.onload = () => reveal(() => scenery.classList.remove('tg-pending'), () => this.dropScenery());
-        image.onload = () => {
-            if (!current()) { image.remove(); return; }
-            reveal(() => image.classList.add('is-visible'), dropPosters);
+        const load = () => {
+            const scenery = element('img', 'tg-home-scenery tg-pending'); scenery.alt = '';
+            this.scenery.after(scenery); this.scenery = scenery; this.sceneries.queue(scenery);
+            const image = element('img', 'tg-poster-image'); image.alt = ''; image.draggable = false;
+            this.heroImages.append(image); this.posters.queue(image);
+            // Artwork that arrives after the selection moved on is never shown;
+            // the next load replaces it.
+            scenery.onload = () => { if (current()) this.sceneries.loaded(scenery); };
+            image.onload = () => { if (current()) this.posters.loaded(image); };
+            image.onerror = () => { image.remove(); if (current()) { this.heroImages.replaceChildren(); this.posters.reset(); } };
+            this.artworkStall = setTimeout(() => {
+                if (!current()) return;
+                if (this.posters.loading(image)) this.heroImages.querySelectorAll('.is-visible').forEach(prior => prior.classList.remove('is-visible'));
+                if (this.sceneries.loading(scenery)) this.dropScenery();
+            }, 450);
+            scenery.src = url; image.src = url;
         };
-        image.onerror = () => { image.remove(); if (current()) this.heroImages.replaceChildren(); };
-        this.artworkStall = setTimeout(() => {
-            if (!current()) return;
-            if (!image.classList.contains('is-visible')) this.heroImages.querySelectorAll('img').forEach(prior => { if (prior !== image) prior.classList.remove('is-visible'); });
-            if (scenery.classList.contains('tg-pending')) this.dropScenery();
-        }, 450);
-        scenery.src = url; image.src = url; this.heroImages.append(image);
+        if (settle) this.artworkSettle = setTimeout(() => { if (current()) load(); }, settle); else load();
     };
     // Removes backdrop layers left from earlier selections.
     Gallery.prototype.dropScenery = function () {
         this.root.querySelectorAll('.tg-home-scenery').forEach(node => { if (node !== this.scenery) node.remove(); });
+    };
+    Gallery.prototype.clearArtwork = function () {
+        clearTimeout(this.artworkStall); clearTimeout(this.artworkSettle);
+        this.posters.reset(); this.sceneries.reset();
+        this.heroImages.replaceChildren(); this.dropScenery(); this.scenery.removeAttribute('src');
     };
     Gallery.prototype.open = function (card, source) {
         if (!card || !this.valid() || window.TigerestHomeMotion?.busy) return;

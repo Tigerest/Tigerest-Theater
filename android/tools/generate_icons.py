@@ -1,7 +1,7 @@
 """Generate the Android launcher icon from the black/gold Tigerest artwork.
 
-The source is the 1024 px image in bundle/osx/tigerest.icns, as for the Apple
-clients. The gold mark is lifted off its dark tile into the adaptive icon's
+The source is the 1024 px tile in bundle/tigerest-icon-1024.png, as for the
+iPhone / iPad and Apple TV icons. The gold mark is lifted off its dark tile into the adaptive icon's
 foreground and monochrome layers; the background is the tile's own colour.
 Requires Pillow. Run from the repository root:
     python android/tools/generate_icons.py
@@ -10,7 +10,7 @@ import pathlib
 from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-SOURCE = ROOT / 'bundle/osx/tigerest.icns'
+SOURCE = ROOT / 'bundle/tigerest-icon-1024.png'
 RES = ROOT / 'android/app/src/main/res'
 TILE = (23, 23, 23)
 # The mark is 48 dp wide on the 108 dp layer, so its corners stay inside the
@@ -32,7 +32,6 @@ def lifted(tile):
 
 def main():
     tile = Image.open(SOURCE)
-    tile.size = (1024, 1024)  # the 512 pt @2x image
     # Outside its rounded corners the artwork is transparent white, and the
     # tile's rim is lighter than its face: lift only around the gold and white mark.
     tile = Image.alpha_composite(Image.new('RGBA', tile.size, (*TILE, 255)), tile.convert('RGBA')).convert('RGB')
