@@ -684,6 +684,9 @@ bool PlayerComponent::load(const QString& url, const QVariantMap& options, const
                                         : QStringLiteral("append-play");
   qInfo() << "Primary media load mode:" << loadMode
           << "active playback:" << m_inPlayback;
+  // The previous item's intro. The page publishes this item's after the
+  // load, which can be before a deferred load reaches mpv.
+  m_introSkip.clear();
   return loadMedia(url, options, metadata, audioStream, subtitleStream,
                    loadMode);
 }
@@ -903,6 +906,7 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
   setIdentityProperty(identityRoot + QStringLiteral("valid"), false);
   // Local playback uses no online service; the danmaku script stays idle.
   setIdentityProperty(QStringLiteral("user-data/tigerest/local-playback"), localPlayback);
+  setIdentityProperty(QStringLiteral("user-data/tigerest/intro-skip"), m_introSkip);
   bool identityReady = true;
   identityReady = setIdentityProperty(identityRoot + QStringLiteral("item-id"),
                                       playbackIdentity.itemId) && identityReady;
@@ -4031,6 +4035,25 @@ void PlayerComponent::setWebPlaylist(const QVariantList& playlist, const QString
                             QString::fromUtf8(QJsonDocument(data).toJson(QJsonDocument::Compact)));
   }
   emit webPlaylistChanged(playlist, currentItemId);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::setIntroSkip(const QVariantMap& intro)
+{
+  if (!m_mpv)
+    return;
+  bool hasStart = false, hasEnd = false;
+  const double start = intro.value(QStringLiteral("start")).toDouble(&hasStart);
+  const double end = intro.value(QStringLiteral("end")).toDouble(&hasEnd);
+  m_introSkip.clear();
+  if (hasStart && hasEnd && std::isfinite(start) && std::isfinite(end) && start >= 0 && end > start)
+  {
+    const QJsonObject data{{QStringLiteral("start"), start}, {QStringLiteral("end"), end},
+                           {QStringLiteral("auto"), intro.value(QStringLiteral("auto")).toBool()}};
+    m_introSkip = QString::fromUtf8(QJsonDocument(data).toJson(QJsonDocument::Compact));
+  }
+  // As for the queue: never wait for a native VO that is tearing down.
+  m_mpv->setPropertyAsync("user-data/tigerest/intro-skip", m_introSkip);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

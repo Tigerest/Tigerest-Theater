@@ -59,6 +59,11 @@ async function main() {
     let lastSeekMilliseconds = null;
     let nativeVolume = 100;
     const volumesAtLoad = [];
+    const introSkips = [];
+    const premiereChecks = [];
+    let premiere = true;
+    let premiereGate = null;
+    let introSkipMode = 'ShowButton';
     const loadUrls = [];
     Object.assign(player, {
         load(...args) { loads += 1; loadUrls.push(args[0]); volumesAtLoad.push(nativeVolume); args.at(-1)(nextLoadResult); },
@@ -72,6 +77,7 @@ async function main() {
         setSubtitleStream() {},
         setAudioStream() {},
         setSubtitleDelay() {},
+        setIntroSkip(intro) { introSkips.push(intro); },
     });
 
     let windowBegins = 0;
@@ -111,6 +117,15 @@ async function main() {
         window: {
             api: {player, window: windowApi},
             jmpInfo: null,
+            // Emby's own registration module, as its video OSD imports it.
+            Emby: {importModule: async name => {
+                assert.strictEqual(name, './modules/registrationservices/registrationservices.js');
+                return {default: {validateFeature: async (feature, checkOptions) => {
+                    premiereChecks.push({feature, options: checkOptions});
+                    if (premiereGate) await premiereGate;
+                    if (!premiere) throw undefined;
+                }}};
+            }},
         },
         jmpInfo: {
             userAgent: 'Tigerest lifecycle test',
@@ -146,7 +161,8 @@ async function main() {
         connectionManager: {
             getApiClient(id) {
                 return id === 'lifecycle-server'
-                    ? {serverAddress: () => 'http://127.0.0.1', accessToken: () => 'lifecycle-token'} : null;
+                    ? {serverAddress: () => 'http://127.0.0.1', accessToken: () => 'lifecycle-token',
+                        getCurrentUser: async () => ({Configuration: {IntroSkipMode: introSkipMode}})} : null;
             },
         },
     });
@@ -625,6 +641,81 @@ async function main() {
     assert.strictEqual(range({VideoRangeType: 'SDR', ColorTransfer: 'bt709'}), 'sdr');
     assert.strictEqual(range({VideoRange: 'HDR'}, {TranscodingUrl: '/videos/1/master.m3u8'}), '');
     assert.strictEqual(instance.tryGetDynamicRange({mediaSource: {MediaStreams: [{Type: 'Audio'}]}}), '');
+
+    // Issue 39: Emby's intro markers reach uosc under the conditions of Emby's own button.
+    const ticks = seconds => seconds * 1e7;
+    const marked = [{StartPositionTicks: 0}, {StartPositionTicks: ticks(12), MarkerType: 'IntroStart'},
+        {StartPositionTicks: ticks(101.5), MarkerType: 'IntroEnd'}, {StartPositionTicks: ticks(1300), MarkerType: 'CreditsStart'}];
+    const withChapters = (chapters, extra = {}) =>
+        ({...options, mediaSource: {...options.mediaSource, Chapters: chapters}, ...extra});
+    const published = async playOptions => {
+        introSkips.length = 0;
+        instance._currentPlayOptions = playOptions;
+        instance._sessionActive = true;
+        await instance.publishIntroSkip(playOptions);
+        return JSON.parse(JSON.stringify(introSkips));
+    };
+    assert.deepStrictEqual(await published(withChapters(marked)), [{start: 12, end: 101.5, auto: false}],
+        'the intro markers were not published in seconds for the button mode');
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(premiereChecks.at(-1))),
+        {feature: 'dvr', options: {viewOnly: true, showDialog: false, serverId: 'lifecycle-server'}},
+        "the check must be Emby's own, without a dialog");
+    introSkipMode = 'AutoSkip';
+    assert.deepStrictEqual(await published(withChapters(marked)), [{start: 12, end: 101.5, auto: true}]);
+    // In a 一起看 room a jump is a seek for everyone: the button stays, nothing skips by itself.
+    context.window.TigerestWatch = {inRoom: () => true};
+    assert.deepStrictEqual(await published(withChapters(marked)), [{start: 12, end: 101.5, auto: false}]);
+    delete context.window.TigerestWatch;
+    introSkipMode = undefined; // a user configuration saved before the setting existed
+    assert.deepStrictEqual(await published(withChapters(marked)), [{start: 12, end: 101.5, auto: false}]);
+    introSkipMode = 'None';
+    assert.deepStrictEqual(await published(withChapters(marked)), [], 'the user turned intro skipping off');
+    introSkipMode = 'ShowButton';
+    // Emby's reading of a start marker without an end marker: the next chapter ends the intro.
+    assert.deepStrictEqual(await published(withChapters([{StartPositionTicks: ticks(3), MarkerType: 'IntroStart'},
+        {StartPositionTicks: ticks(93)}])), [{start: 3, end: 93, auto: false}]);
+    assert.deepStrictEqual(await published({...options, item: {...options.item, Chapters: marked}}),
+        [{start: 12, end: 101.5, auto: false}], "the item's chapters stand in for a media source without any");
+    const checksBefore = premiereChecks.length;
+    assert.deepStrictEqual(await published(withChapters([{StartPositionTicks: 0}, {StartPositionTicks: ticks(90)}])), [],
+        'chapters without markers are no intro');
+    assert.deepStrictEqual(await published(withChapters([{StartPositionTicks: ticks(12), MarkerType: 'IntroStart'}])), [],
+        'an intro needs an end');
+    assert.deepStrictEqual(await published(withChapters(marked, {transcodingOffsetTicks: ticks(600)})), [],
+        'a transcode that starts at an offset has another clock than the markers');
+    assert.strictEqual(premiereChecks.length, checksBefore, 'an item without an intro must not ask about Emby Premiere');
+    const warn = console.warn;
+    const warnings = [];
+    console.warn = message => warnings.push(message);
+    try {
+        premiere = false;
+        assert.deepStrictEqual(await published(withChapters(marked)), [], 'a server without Emby Premiere gets no intro skip');
+        assert.deepStrictEqual(warnings, ['[MPV] Intro skip is unavailable: Emby Premiere was not confirmed']);
+    } finally {
+        console.warn = warn;
+        premiere = true;
+    }
+    // The answer for an item that is no longer the playing one is dropped.
+    let openGate;
+    premiereGate = new Promise(resolve => { openGate = resolve; });
+    const first = withChapters(marked);
+    introSkips.length = 0;
+    instance._currentPlayOptions = first;
+    const pending = instance.publishIntroSkip(first);
+    instance._currentPlayOptions = withChapters(marked);
+    openGate();
+    await pending;
+    premiereGate = null;
+    assert.deepStrictEqual(introSkips, [], "the previous item's intro reached the next item");
+    // Playing an item publishes its marker after the load.
+    introSkips.length = 0;
+    player.stop = () => { nativeStops += 1; player.stopped.emit(); };
+    await instance.play(withChapters(marked));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(introSkips)), [{start: 12, end: 101.5, auto: false}]);
+    // Android and iPad hosts have no such call.
+    delete player.setIntroSkip;
+    await instance.publishIntroSkip(withChapters(marked));
 
     console.log('player lifecycle: all checks passed');
 }

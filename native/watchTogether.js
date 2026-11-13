@@ -204,7 +204,9 @@
                 this.readPosition();
                 this.sync.control();
             }, 500);
-            window.TigerestWatch = {open: () => this.open(), debug: () => this.debug(), loadPaused: itemId => this.loadPaused(itemId)};
+            window.TigerestWatch = {open: () => this.open(), debug: () => this.debug(), loadPaused: itemId => this.loadPaused(itemId),
+                // A jump the room did not order is a seek for everyone in it.
+                inRoom: () => Boolean(this.connection?.room)};
             this.checkSession();
         }
         apiClient() { return this.connectionManager.currentApiClient?.(); }

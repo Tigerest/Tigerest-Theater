@@ -47,6 +47,25 @@
     }
     window._tigerestAuthorizedStreamUrl = authorizedStreamUrl;
 
+    // Emby marks a detected intro with IntroStart / IntroEnd chapter markers.
+    // Returns it in seconds on the item's timeline, or null.
+    function introMarker(options) {
+        // A transcode that starts at an offset runs on its own clock.
+        if (options?.transcodingOffsetTicks) return null;
+        const chapters = options?.mediaSource?.Chapters || options?.item?.Chapters || [];
+        let start, end;
+        chapters.forEach((chapter, index) => {
+            if (chapter.MarkerType === 'IntroStart') {
+                start = chapter.StartPositionTicks;
+                // Emby's own reading: the next chapter ends an intro that has no end marker.
+                if (index < chapters.length - 1) end = chapters[index + 1].StartPositionTicks;
+            } else if (chapter.MarkerType === 'IntroEnd') {
+                end = chapter.StartPositionTicks;
+            }
+        });
+        return start >= 0 && end > start ? {start: start / 1e7, end: end / 1e7} : null;
+    }
+
     class mpvVideoPlayer {
         constructor({ events, loading, appRouter, globalize, appHost, appSettings, confirm, dashboard, connectionManager, ServerConnections, playbackManager }) {
             this.events = events;
@@ -727,7 +746,38 @@
                         if (loaded) resolve();
                         else reject(new Error('mpv 拒绝了媒体加载命令'));
                     });
+                // The load has cleared the previous item's marker.
+                this.publishIntroSkip(options);
             });
+        }
+
+        /**
+         * Emby's "skip intro" button belongs to its HTML OSD, which stays
+         * hidden while uosc owns the playback surface, so uosc gets the item's
+         * intro marker instead. The conditions are those of Emby's button:
+         * the user's IntroSkipMode and the server's Emby Premiere.
+         * @private
+         */
+        async publishIntroSkip(options) {
+            const player = window.api.player;
+            const intro = introMarker(options);
+            if (!intro || typeof player.setIntroSkip !== 'function') return;
+            try {
+                const serverId = options.item?.ServerId;
+                const apiClient = (serverId && this.connectionManager?.getApiClient?.(serverId)) || window.ApiClient;
+                const mode = (await apiClient.getCurrentUser())?.Configuration?.IntroSkipMode;
+                if (mode === 'None') return;
+                const services = await window.Emby.importModule('./modules/registrationservices/registrationservices.js');
+                await (services.default || services).validateFeature('dvr', {viewOnly: true, showDialog: false, serverId});
+                // 一起看 turns a jump into a seek for the whole room: there the
+                // button stays, and skipping is left to whoever presses it.
+                if (this._currentPlayOptions === options && this._sessionActive)
+                    player.setIntroSkip({start: intro.start, end: intro.end,
+                        auto: mode === 'AutoSkip' && !window.TigerestWatch?.inRoom?.()});
+            } catch (error) {
+                // Emby rejects without a reason when the server has no Premiere.
+                console.warn('[MPV] Intro skip is unavailable: ' + (error?.message || 'Emby Premiere was not confirmed'));
+            }
         }
 
         setSubtitleStreamIndex(index) {

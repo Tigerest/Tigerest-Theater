@@ -194,6 +194,10 @@ public:
   Q_INVOKABLE QVariantList getWebPlaylist() const;
   Q_INVOKABLE QString getCurrentWebPlaylistItemId() const;
   Q_INVOKABLE void setWebPlaylist(const QVariantList& playlist, const QString& currentItemId);
+  // The playing item's intro for UOSC's skip button: {start, end} in seconds
+  // and auto for skipping without the button. Anything else clears it, as
+  // does loading an item.
+  Q_INVOKABLE void setIntroSkip(const QVariantMap& intro);
 
   QRect videoRectangle() { return m_videoRectangle; }
 
@@ -535,6 +539,9 @@ private:
 
   QVariantList m_webPlaylist;
   QString m_currentWebPlaylistItemId;
+  // JSON for user-data/tigerest/intro-skip; empty until the page has
+  // published the marker of the item it loaded last.
+  QString m_introSkip;
   QTimer* m_playlistTimer;
   QVariantList m_queuedItems;
 

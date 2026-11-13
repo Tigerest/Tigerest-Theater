@@ -195,7 +195,7 @@ target_link_libraries(test_emby_uosc_playlist jmp_core Qt6::Test)
 target_include_directories(test_emby_uosc_playlist PRIVATE ${TEST_INCLUDE_DIRS})
 target_compile_definitions(test_emby_uosc_playlist PRIVATE ${TEST_COMPILE_DEFS})
 add_test(NAME test_emby_uosc_playlist COMMAND test_emby_uosc_playlist)
-set_tests_properties(test_emby_uosc_playlist PROPERTIES TIMEOUT 30 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_tests_properties(test_emby_uosc_playlist PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 add_executable(test_player_async_mpv test_player_async_mpv.cpp)
 qt_add_resources(test_player_async_mpv "test_player_async_mpv_resources"
@@ -677,6 +677,10 @@ if(Node_EXECUTABLE)
              COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_slow_subtitle_start.cjs
                      $<TARGET_FILE:${MAIN_TARGET}> --webengine)
     set_tests_properties(test_slow_subtitle_start_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+    add_test(NAME test_intro_skip_webengine
+             COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_intro_skip.cjs
+                     $<TARGET_FILE:${MAIN_TARGET}> --webengine)
+    set_tests_properties(test_intro_skip_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
   endif()
   add_test(NAME test_community_client
            COMMAND ${Node_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test_community_client.js

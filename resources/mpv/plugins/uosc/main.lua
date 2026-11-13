@@ -827,6 +827,7 @@ bind_command('flash-progress', function() Elements:flash({'progress'}) end)
 bind_command('toggle-progress', function() Elements:maybe('timeline', 'toggle_progress') end)
 bind_command('toggle-title', function() Elements:maybe('top_bar', 'toggle_title') end)
 bind_command('decide-pause-indicator', function() Elements:maybe('pause_indicator', 'decide') end)
+bind_command('skip-intro', function() Elements:maybe('tigerest_skip_intro', 'skip') end)
 bind_command('menu', function() toggle_menu_with_items() end)
 bind_command('menu-blurred', function() toggle_menu_with_items({mouse_nav = true}) end)
 bind_command('keybinds', function()
@@ -1171,6 +1172,7 @@ local constructors = {
 	buffering_indicator = require('elements/BufferingIndicator'),
 	pause_indicator = require('elements/PauseIndicator'),
 	tigerest_exit = require('elements/TigerestExit'),
+	tigerest_skip_intro = require('elements/TigerestSkipIntro'),
 	top_bar = require('elements/TopBar'),
 	timeline = require('elements/Timeline'),
 	controls = options.controls and options.controls ~= 'never' and require('elements/Controls'),
