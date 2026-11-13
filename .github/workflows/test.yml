@@ -5,14 +5,15 @@ env:
   # (:has(), dynamic viewport units) that Ubuntu's Qt 6.4 WebEngine lacks.
   QT_VERSION: "6.9.3"
 
+# Pushes to main and pull requests run the tests; a fork that sets the Actions
+# variable BUILD_EVERY_PUSH to true also tests every pushed branch.
 on:
   pull_request:
   push:
-    branches:
-      - main
 
 jobs:
   test:
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main' || vars.BUILD_EVERY_PUSH == 'true'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7

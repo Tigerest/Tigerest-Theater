@@ -30,9 +30,11 @@ class WorkerJobTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
             pid_file, worker_script, wrapper_script = base / 'pids.json', base / 'native.py', base / 'public.py'
+            # Publish the PIDs atomically: the test reads the file once it exists.
             worker_script.write_text('import sys, subprocess, time, os, json\n'
                 'child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])\n'
-                f'open({str(pid_file)!r}, "w").write(json.dumps([os.getpid(), child.pid]))\n'
+                f'with open({str(pid_file)!r} + ".tmp", "w") as f: f.write(json.dumps([os.getpid(), child.pid]))\n'
+                f'os.replace({str(pid_file)!r} + ".tmp", {str(pid_file)!r})\n'
                 'time.sleep(60)\n', encoding='utf-8')
             request = base / 'request.json'
             request.write_text(json.dumps({'runtime': str(base), 'cache': str(base / 'cache'),
@@ -93,12 +95,13 @@ class WorkerJobTests(unittest.TestCase):
             base = Path(temp)
             pid_file = base / 'child.pid'
             script = base / 'worker.py'
-            script.write_text('import sys, subprocess, time\n'
+            script.write_text('import os, sys, subprocess, time\n'
                 f'sys.path.insert(0, {str(ROOT / "dev/windows/rife")!r})\n'
                 'from windows_job import attach_cleanup_job\n'
                 'job = attach_cleanup_job()\n'
                 'child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])\n'
-                f'open({str(pid_file)!r}, "w").write(str(child.pid))\n'
+                f'with open({str(pid_file)!r} + ".tmp", "w") as f: f.write(str(child.pid))\n'
+                f'os.replace({str(pid_file)!r} + ".tmp", {str(pid_file)!r})\n'
                 'time.sleep(60)\n', encoding='utf-8')
             worker = subprocess.Popen([sys.executable, '-B', '-X', 'utf8', str(script)],
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)

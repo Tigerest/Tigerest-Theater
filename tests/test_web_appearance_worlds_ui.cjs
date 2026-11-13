@@ -15,6 +15,7 @@ const routes = {
     '/transitions.js': {path: path.join(root, 'native/homeTransitions.js')},
 };
 withBrowser(routes, async ({evaluate, call}) => {
+    await call('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'no-preference'}]});
     const {frameTree} = await call('Page.getFrameTree');
     const {executionContextId} = await call('Page.createIsolatedWorld', {
         frameId: frameTree.frame.id, worldName: 'appearance-regression',

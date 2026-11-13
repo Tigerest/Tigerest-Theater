@@ -24,3 +24,5 @@ CMakeLists.txt text eol=lf
 *.plist text eol=lf
 # Bundled shaders are hashed in resources/mpv/shaders/manifest.json.
 *.glsl text eol=lf
+# Hashed in dev/windows/tls/runtime-lock.json.
+dev/windows/tls/LICENSE.OpenSSL.txt text eol=lf
