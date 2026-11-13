@@ -1,5 +1,26 @@
 # 更新记录
 
+## v2.9.5.8 — 2026-11-14
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.5.8 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.8/TigerestTheater-2.9.5.8-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5.8 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.8/TigerestTheater-2.9.5.8-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.5 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.9.5.3 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.3/TigerestTheater-2.9.5.3-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
+只发布 Windows（安装版和便携版）；Mac 仍是 2.9.5.3，Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，检查更新不会提示这一版。这一版修的是 GitHub 上的 #39。
+
+**跳过片头（#39）**
+
+- 内置播放器现在按 Emby 的「片头跳过模式」处理服务器检测到的片头。以前这个设置在内置播放器里不起作用：Emby 的跳过按钮和自动跳过都写在它的网页播放界面里，内置播放器的画面由 uosc 接管，那个界面不显示。
+- 选「显示跳过片头按钮」时，进入片头后画面右下角、控制栏上方出现「跳过片头」按钮，点击跳到片头结束；选「自动跳过片头」时直接跳过，并提示「已跳过片头」。
+- 条件和 Emby 自带的网页播放器相同：服务器启用了片头检测，并且 Emby Premiere 有效。在一起看房间里不会自动跳过，只显示按钮。
+- 片尾不会自动跳过；Jellyfin 服务器的片头跳过还没有做；Mac 版要等下一个 Mac 安装包。
+- 这一版没有连着真实的 Emby 服务器播放验证过：按钮和自动跳过在真实客户端里用本地片段测过，读取片头标记和 Emby Premiere 校验只有单元测试。
+
 ## v2.9.5.7 — 2026-11-12
 
 | 平台 | 安装包 | 系统要求 |
