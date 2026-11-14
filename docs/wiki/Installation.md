@@ -2,14 +2,14 @@
 
 ## 选择正确的包
 
-从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以当前正式包的文件名示例说明（Windows 为 2.9.5.8，Mac 为 2.9.5.3，其他平台为 2.9.5）；安装步骤也适用于后续同类正式包。只给部分平台发的修复版（如 2.9.5.8、2.9.5.7、2.9.5.6、2.9.5.5 和 2.9.5.4 只有 Windows，2.9.5.3 和 2.9.5.2 只有 Windows 与 Mac）发行页里只有这些平台的包，其他平台的包在它们各自最新版本的发行页（Mac 是 2.9.5.3，其他平台是 2.9.5）。
+从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以当前正式包的文件名示例说明（Windows 为 2.9.5.8，Mac 为 2.9.5.9，其他平台为 2.9.5）；安装步骤也适用于后续同类正式包。只给部分平台发的修复版（如 2.9.5.9 只有 Mac，2.9.5.8、2.9.5.7、2.9.5.6、2.9.5.5 和 2.9.5.4 只有 Windows，2.9.5.3 和 2.9.5.2 只有 Windows 与 Mac）发行页里只有这些平台的包，其他平台的包在它们各自最新版本的发行页（Windows 是 2.9.5.8，Mac 是 2.9.5.9，其他平台是 2.9.5）。
 
 | 设备 | 包名 | 最低要求 |
 | --- | --- | --- |
 | Windows 安装版 | TigerestTheater-2.9.5.8-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
 | Windows 便携版 | TigerestTheater-2.9.5.8-x64.zip | 同上 |
 | Android | TigerestTheater-2.9.5-android.apk | Android 15+，arm64-v8a / x86_64 |
-| Apple Silicon Mac | TigerestTheater-2.9.5.3-arm64.dmg | macOS 26+，M 系列 |
+| Apple Silicon Mac | TigerestTheater-2.9.5.9-arm64.dmg | macOS 26+，M 系列 |
 | iPad / iPhone | TigerestTheater-2.9.5-universal.ipa（2.9.3 及以前为 ipad.ipa） | iPadOS / iOS 26+，需要自行签名 |
 | Apple TV | TigerestTheater-2.9.5-tvos.ipa | tvOS 26+，需要自行签名 |
 
@@ -108,7 +108,7 @@ Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.5.
 macOS 终端示例：
 
 ```sh
-shasum -a 256 ~/Downloads/TigerestTheater-2.9.5.3-arm64.dmg
+shasum -a 256 ~/Downloads/TigerestTheater-2.9.5.9-arm64.dmg
 ```
 
 摘要应完全相同，大小写不影响比较。如果不同，重新下载该文件；不要使用校验失败的包继续更新。

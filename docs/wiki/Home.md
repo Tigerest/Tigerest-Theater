@@ -1,6 +1,6 @@
 # Tigerest Theater 使用教程
 
-这里是 EMBY 大河版的中文使用说明，对应 Windows 2.9.5.8、Mac 2.9.5.3，以及 Android、iPhone／iPad 与 Apple TV 2.9.5。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
+这里是 EMBY 大河版的中文使用说明，对应 Windows 2.9.5.8、Mac 2.9.5.9，以及 Android、iPhone／iPad 与 Apple TV 2.9.5。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
 
 ## 第一次使用
 
@@ -30,9 +30,15 @@
 | [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture) | 各客户端的实现与架构、播放链路、一起看同步、评论和弹幕的数据流 |
 | [引用来源与鸣谢](https://github.com/Tigerest/Tigerest-Theater/wiki/Credits) | 用到的开源项目、用途和许可证，源码与许可文件在哪里 |
 
+## 2.9.5.9 更新了什么（Mac）
+
+- **一起看：** 开着 RIFE 补帧时，播放不再自己反复暂停、跳转、恢复，也不再因此让整个房间暂停等缓冲。见[一起看](https://github.com/Tigerest/Tigerest-Theater/wiki/Watch-Together#常见问题)。
+- **跳过片头：** Mac 的内置播放器也按 Emby 的「片头跳过模式」显示「跳过片头」按钮或自动跳过。
+- **Windows 2.9.5.4–2.9.5.7 的改动：** 启动超时放宽到 75 秒、字幕没准备好也先开播、IPv6 连不通时评论和连接检测不再卡住、首页海报快速划过不再重影、不再运行服务器写进网页的美化脚本、截图保存到「图片」文件夹，以及和系统应用一样大的图标，这一版起 Mac 也有。
+
 ## 2.9.5.8 更新了什么（Windows）
 
-- **跳过片头：** 内置播放器按 Emby 的「片头跳过模式」处理服务器检测到的片头：显示「跳过片头」按钮，或者自动跳过。见[日常使用](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#跳过片头windows-2958-起)。
+- **跳过片头：** 内置播放器按 Emby 的「片头跳过模式」处理服务器检测到的片头：显示「跳过片头」按钮，或者自动跳过。见[日常使用](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#跳过片头windows-2958mac-2959-起)。
 
 ## 2.9.5.7 更新了什么（Windows）
 

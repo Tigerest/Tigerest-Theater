@@ -1,5 +1,39 @@
 # 更新记录
 
+## v2.9.5.9 — 2026-11-15
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [2.9.5.8 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.8/TigerestTheater-2.9.5.8-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [2.9.5.8 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.8/TigerestTheater-2.9.5.8-x64.zip) | 同上；完整解压后运行 |
+| Android | [2.9.5 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [2.9.5.9 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.9/TigerestTheater-2.9.5.9-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
+只发布 Mac；Windows 仍是 2.9.5.8，Android、iPhone／iPad 与 Apple TV 仍是 2.9.5，这些平台的检查更新不会提示这一版。Windows 2.9.5.4 到 2.9.5.8 里和 Mac 共用的改动从这一版起进入 Mac 安装包。
+
+**一起看**
+
+- 开着补帧（RIFE）在一起看房间里看片时，播放不再自己反复暂停、跳转、恢复，也不再因此让整个房间暂停等「缓冲」。以前客户端对齐进度时，播放器一报告跳到了位置就到点开始，而画面还要从前一个关键帧解码过来（一份 Mac 日志里是 0.2–3.3 秒），实际开始得晚，又要再对齐，连着重来最多 8 次。现在等画面解码出来才开始，也才向房间报告「准备好了」。
+- 本机只是比房间快了一点时不再跳转，停在当前画面等房间赶上来。「显示器重采样」在 120 Hz 屏幕上播放 23.976 帧的视频比房间快 0.1%，开着补帧时每 5 分钟要对齐一次，现在是停顿约 0.3 秒。
+- 跳转连着 4 次没赶上房间时，先从跳到的位置继续播放，30 秒后再对齐。
+- 修复在 Windows 和 Mac 共用的代码里，Windows 要等下一个 Windows 安装包；在那之前 Windows 上可以在一起看时先关闭补帧。这一版没有在真实的一起看房间里验证：依据是那份日志、同步引擎的模拟测试和真实客户端里对新信号的检查。
+
+**跳过片头（#39）**
+
+- Mac 的内置播放器现在按 Emby 的「片头跳过模式」显示「跳过片头」按钮或自动跳过，条件和 Windows 2.9.5.8 相同。
+
+**Windows 2.9.5.4–2.9.5.7 里 Mac 也用得上的改动**
+
+- 播放启动：服务器响应慢时启动计时放宽到 75 秒；选中的外挂字幕还在由服务器准备时，最多等 10 秒就先开始播放；连续打不开视频时每次都马上报错。
+- 评论和连接服务器：服务器域名带着连不通的 IPv6 地址时不再卡住或超时；评论服务没有回应时自动再发一次。
+- 首页（#38）：快速划过底部海报时主视觉不再重影、断层。
+- 连接 Emby 4.8–4.10 时不再运行服务器写进网页的脚本和样式表（#33）。
+- 截图（#36）：没有设置截图目录时保存到「图片」文件夹里的 Tigerest Theater 文件夹，保存失败有提示。
+- 弹幕：大河服务器 API 额度用完时直接提示。mpv.conf 编辑器的「复制给 AI」先用系统剪贴板。
+- 图标（#34）：主体从 1016 px 缩到 824 px，和系统自带应用一样大。
+
 ## v2.9.5.8 — 2026-11-14
 
 | 平台 | 安装包 | 系统要求 |
