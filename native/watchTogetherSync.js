@@ -16,7 +16,9 @@
     const RESTART_LIMIT_MS = 15000, STILL_HOLD_MS = 2500;
     // Held seeks that keep missing the room are given up for a while. A frame
     // that arrives this late is played from at once: another seek costs more.
-    const HOLD_TRIES = 3, HOLD_REST_MS = 30000, HOLD_GRACE_MS = 150;
+    // Four tries lead by up to 5 s. Measured on a Mac with RIFE on, a seek
+    // 8 s into a 10 s GOP took 4.5 s to decode (about 1.8x real time).
+    const HOLD_TRIES = 4, HOLD_REST_MS = 30000, HOLD_GRACE_MS = 150;
     const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
     class WatchSync {

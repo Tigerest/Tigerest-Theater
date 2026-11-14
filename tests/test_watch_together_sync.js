@@ -493,7 +493,7 @@ test('seeks that never finish in time stop being retried and playback goes on', 
     world.run(25000);
     const after = a.player.log.slice(before);
     assert.equal(a.player.paused, false, 'playing again: ' + after.join(','));
-    assert.ok(after.filter(x => x === 'seek').length <= 3, after.join(','));
+    assert.equal(after.filter(x => x === 'seek').length, 4, after.join(','));
     assert.equal(after.filter(x => x === 'play').length, 1, after.join(','));
     const position = a.player.pos;
     world.run(10000);
