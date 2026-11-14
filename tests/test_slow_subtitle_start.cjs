@@ -4,9 +4,7 @@
 // startup watchdog stopped it at 75 s. The client now waits 10 s, starts
 // without the track and selects it when the same request is answered.
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const http = require('node:http');
-const path = require('node:path');
 const {setTimeout: delay} = require('node:timers/promises');
 const withBrowser = require('./community_browser.cjs');
 
@@ -36,9 +34,7 @@ const routes = {
     let result;
     try {
         await withBrowser(routes, async ({evaluate, profile}) => {
-            const log = () => fs.readdirSync(profile, {recursive: true})
-                .filter(file => path.basename(file) === 'Tigerest Theater.log')
-                .map(file => fs.readFileSync(path.join(profile, file), 'utf8')).join('\n');
+            const log = () => withBrowser.clientLog(profile);
             try {
                 await evaluate(`(${(async url => {
                     await window.initCompleted;
@@ -95,5 +91,6 @@ const routes = {
         await new Promise(resolve => slow.close(resolve));
     }
     console.log(JSON.stringify({slowSubtitleStart: result,
-        scope: 'real Windows client, libmpv and local Y4M; isolated profile; local server that answers the subtitle after 14 s'}));
+        scope: 'real ' + (process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'Mac' : process.platform) +
+            ' client, libmpv and local Y4M; isolated profile; local server that answers the subtitle after 14 s'}));
 })().catch(error => {console.error(error); process.exitCode = 1;});

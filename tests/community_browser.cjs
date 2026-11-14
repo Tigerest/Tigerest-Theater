@@ -7,6 +7,11 @@ const net=require('node:net');
 const os=require('node:os');
 const {spawn}=require('node:child_process');
 const {setTimeout:delay}=require('node:timers/promises');
+// The Mac client logs under ~/Library/Logs, one folder per profile id; the
+// other platforms log inside the profile.
+const macLogFolders=profile=>process.platform!=='darwin'||!fs.existsSync(path.join(profile,'profiles'))?[]:
+    fs.readdirSync(path.join(profile,'profiles')).filter(id=>/^[0-9a-f]{32}$/.test(id))
+        .map(id=>path.join(os.homedir(),'Library/Logs/Tigerest Theater/profiles',id));
 const configVersion=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../resources/settings/settings_description.json'),'utf8')).find(section=>section.section==='__meta__').version;
 
 module.exports=async function withBrowser(routes,work,{settings={},gpu=false,visible=false,prepareProfile,startupTimeout=12000,args:extraArgs=[],maximized=false}={}){
@@ -93,6 +98,8 @@ module.exports=async function withBrowser(routes,work,{settings={},gpu=false,vis
         await new Promise(r=>server.close(r));await delay(150);
         assert.equal(path.dirname(path.resolve(profile)),path.resolve(os.tmpdir()));
         assert.ok(path.basename(profile).startsWith('tigerest-messages-'));
+        // This run's log folders would otherwise pile up in the user's Logs.
+        for(const folder of macLogFolders(profile))fs.rmSync(folder,{recursive:true,force:true});
         fs.rmSync(profile,{recursive:true,force:true,maxRetries:10,retryDelay:200});
     }
 };
@@ -101,6 +108,11 @@ module.exports=async function withBrowser(routes,work,{settings={},gpu=false,vis
 // designed late-target fallback depending on timing. Such runs report CTest's
 // skip code instead of a result.
 module.exports.SKIP_CODE=77;
+// Everything the client under test has logged so far.
+module.exports.clientLog=profile=>[...fs.readdirSync(profile,{recursive:true}).map(file=>path.join(profile,file)),
+    ...macLogFolders(profile).map(folder=>path.join(folder,'Tigerest Theater.log'))]
+    .filter(file=>path.basename(file)==='Tigerest Theater.log'&&fs.existsSync(file))
+    .map(file=>fs.readFileSync(file,'utf8')).join('\n');
 module.exports.softwareRenderer=async evaluate=>{
     const renderer=await evaluate(`(()=>{const gl=document.createElement('canvas').getContext('webgl');if(!gl)return 'no WebGL';
         const info=gl.getExtension('WEBGL_debug_renderer_info');return String(gl.getParameter(info?info.UNMASKED_RENDERER_WEBGL:gl.RENDERER));})()`);

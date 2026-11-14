@@ -682,6 +682,23 @@ if(Node_EXECUTABLE)
                      $<TARGET_FILE:${MAIN_TARGET}> --webengine)
     set_tests_properties(test_intro_skip_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
   endif()
+  if(APPLE)
+    # Real playback in a visible window. The first was written and run on the
+    # Mac and has not been run on Windows, so it is not registered there yet;
+    # the other two are the Windows checks above.
+    add_test(NAME test_seek_restart_signal_webengine
+             COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_seek_restart_signal.cjs
+                     $<TARGET_FILE:${MAIN_TARGET}> --webengine)
+    set_tests_properties(test_seek_restart_signal_webengine PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+    add_test(NAME test_slow_subtitle_start_webengine
+             COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_slow_subtitle_start.cjs
+                     $<TARGET_FILE:${MAIN_TARGET}> --webengine)
+    set_tests_properties(test_slow_subtitle_start_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+    add_test(NAME test_intro_skip_webengine
+             COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_intro_skip.cjs
+                     $<TARGET_FILE:${MAIN_TARGET}> --webengine)
+    set_tests_properties(test_intro_skip_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+  endif()
   add_test(NAME test_community_client
            COMMAND ${Node_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test_community_client.js
                    ${CMAKE_CURRENT_SOURCE_DIR}/test_community_registration.js)

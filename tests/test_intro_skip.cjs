@@ -6,6 +6,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const net = require('node:net');
+const os = require('node:os');
 const path = require('node:path');
 const {randomUUID} = require('node:crypto');
 const {setTimeout: delay} = require('node:timers/promises');
@@ -20,12 +21,15 @@ const routes = {
     '/': {type: 'text/html', body: '<!doctype html><title>Isolated intro skip check</title>'},
     '/clip.y4m': {type: 'video/x-yuv4mpeg', body: video}
 };
-const pipe = '\\\\.\\pipe\\TigerestIntroSkip-' + randomUUID();
+// mpv's IPC endpoint: a named pipe on Windows, a socket file elsewhere.
+const pipe = process.platform === 'win32' ? '\\\\.\\pipe\\TigerestIntroSkip-' + randomUUID()
+    : path.join(os.tmpdir(), 'tigerest-intro-skip-' + randomUUID().slice(0, 8) + '.sock');
 const screenshot = process.env.TIGEREST_INTRO_SKIP_SCREENSHOT ? path.resolve(process.env.TIGEREST_INTRO_SKIP_SCREENSHOT) : '';
 
 // TIGEREST_INTRO_SKIP_REAL_POINTER=1 clicks the button with the desktop pointer
 // (it is put back afterwards); without it the check uses UOSC's binding.
-const realPointer = process.env.TIGEREST_INTRO_SKIP_REAL_POINTER === '1';
+// Windows only: the pointer is driven through user32.
+const realPointer = process.env.TIGEREST_INTRO_SKIP_REAL_POINTER === '1' && process.platform === 'win32';
 // One desktop pointer action; resolves to the pointer's screen position after it.
 function pointerAction(action, x = 0, y = 0) {
     const script = `
@@ -73,9 +77,7 @@ async function until(check, label, limit = 150) {
 (async () => {
     let result;
     await withBrowser(routes, async ({evaluate, profile}) => {
-        const log = () => fs.readdirSync(profile, {recursive: true})
-            .filter(file => path.basename(file) === 'Tigerest Theater.log')
-            .map(file => fs.readFileSync(path.join(profile, file), 'utf8')).join('\n');
+        const log = () => withBrowser.clientLog(profile);
         let ipc;
         try {
             await evaluate('window.initCompleted.then(() => true)');
@@ -216,5 +218,6 @@ async function until(check, label, limit = 150) {
         // Reaches mpv.conf's managed tail through the client's test hook before mpv initializes.
         prepareProfile: async () => { process.env.TIGEREST_MPV_TEST_OPTIONS = 'input-ipc-server=' + pipe + '\nmute=yes'; }});
     console.log(JSON.stringify({introSkip: result,
-        scope: 'real Windows client, libmpv, UOSC and a local Y4M; isolated profile; the marker is published through api.player.setIntroSkip, not by an Emby server'}));
+        scope: 'real ' + (process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'Mac' : process.platform) +
+            ' client, libmpv, UOSC and a local Y4M; isolated profile; the marker is published through api.player.setIntroSkip, not by an Emby server'}));
 })().catch(error => { console.error(error); process.exitCode = 1; });
