@@ -14,8 +14,9 @@
     // A player that says when a seek has decoded its frame is believed for this
     // long; a running player this far ahead stops in place instead of seeking.
     const RESTART_LIMIT_MS = 15000, STILL_HOLD_MS = 2500;
-    // Held seeks that keep missing the room are given up for a while.
-    const HOLD_TRIES = 3, HOLD_REST_MS = 30000;
+    // Held seeks that keep missing the room are given up for a while. A frame
+    // that arrives this late is played from at once: another seek costs more.
+    const HOLD_TRIES = 3, HOLD_REST_MS = 30000, HOLD_GRACE_MS = 150;
     const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
     class WatchSync {
@@ -374,13 +375,19 @@
             // position report often arrives before the pause has landed.
             if (this.local.paused === false && !this.expect.play && this.expect.pause <= now) { this.hold = null; return this.control(); }
             if (this.seeking()) {
-                // The room passed the target before its frame was there.
-                if (expected > hold.target - PLAY_LEAD_MS) { this.cancelStart(); this.retryHold(expected); }
+                // The room passed the target and its frame is still not there.
+                if (expected > hold.target + HOLD_GRACE_MS) { this.cancelStart(); this.retryHold(expected); }
                 return this.publish();
             }
             if (Math.abs(this.local.pos - hold.target) > READY_MS) { this.seekPlayer(hold.target); return this.publish(); }
             const wait = this.clock.toLocal(this.room.playback.serverTime + (hold.target - this.room.playback.positionMs)) - now;
-            if (wait < -PLAY_LEAD_MS) return this.retryHold(expected);
+            if (wait < -PLAY_LEAD_MS) {
+                if (wait < -HOLD_GRACE_MS - PLAY_LEAD_MS) return this.retryHold(expected);
+                // Barely late: the paused branch plays from here.
+                this.hold = null;
+                this.holdTries = 0;
+                return this.control();
+            }
             this.scheduleStart(now + wait, () => {
                 this.hold = null;
                 this.holdTries = 0;

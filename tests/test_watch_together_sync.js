@@ -511,3 +511,16 @@ test('a player that does not report its restarts is released on the position, as
     assert.deepEqual(after.filter(x => x === 'play' || x === 'seek' || x === 'pause'), ['pause', 'seek', 'play'], after.join(','));
     assert.ok(Math.abs(drift(a, room)) < 50, 'drift ' + drift(a, room));
 });
+
+test('a frame that arrives just after the room passed it is played, not sought again', () => {
+    const world = new World(), room = new Room(world);
+    // The first hold leads by 1.5 s; this frame takes 1.58 s.
+    const a = playingRoom(world, room, {rateCorrection: false, player: {seekMs: 30, restartSignal: true, restartMs: 1580}});
+    world.run(3000);
+    a.player.pos -= 600;
+    const before = a.player.log.length;
+    world.run(8000);
+    const after = a.player.log.slice(before);
+    assert.deepEqual(after.filter(x => x === 'play' || x === 'seek' || x === 'pause'), ['pause', 'seek', 'play'], after.join(','));
+    assert.ok(Math.abs(drift(a, room)) < 200, 'drift ' + drift(a, room));
+});
