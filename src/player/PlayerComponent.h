@@ -280,6 +280,10 @@ Q_SIGNALS:
   // current position in ms should be triggered 2 times a second
   // when position updates
   void positionUpdate(quint64);
+  // True from a seek until mpv has decoded and shown its frame. The position
+  // reads as the target long before that, so the watch-together sync waits
+  // for this before it starts a held player.
+  void seekingChanged(bool seeking);
 
   void onVideoRecangleChanged();
 
@@ -467,6 +471,8 @@ private:
   bool m_inPlayback;
   bool m_endFileUnreported = false;
   bool m_nativeVideoReady = false;
+  bool m_seeking = false;
+  void setSeeking(bool seeking);
   QVariantMap m_decodedVideoParams;
   // Playback-start notice of HDR/SDR output; the same rules and wording as
   // apple/Core/Sources/AppleCore/DynamicRangeSummary.swift.

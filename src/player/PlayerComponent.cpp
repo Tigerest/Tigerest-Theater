@@ -1319,6 +1319,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
 #endif
     case MPV_EVENT_START_FILE:
     {
+      setSeeking(false);
       m_rangeReported = false; m_rangeSource.clear(); m_rangeTarget.clear(); m_rangeDolbyVisionProfile = 0;
 #ifdef Q_OS_WIN
       ++m_windowsPlaybackGeneration;
@@ -1362,6 +1363,8 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
     case MPV_EVENT_END_FILE:
     {
       m_nativeVideoReady = false;
+      // A seek cut short by the end of the item never restarts.
+      setSeeking(false);
       // mpv aborts an add still fetching when its item ends; the reply must
       // not select a track for the next item.
       for (auto& add : m_pendingStreamAdds)
@@ -1818,6 +1821,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
 #ifdef Q_OS_WIN
       releaseInterpolationResumePrime();
 #endif
+      setSeeking(false);
       break;
 #ifdef Q_OS_MAC
     case MPV_EVENT_IDLE:
@@ -1836,18 +1840,30 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       }
       break;
 #endif
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
     case MPV_EVENT_SEEK:
+#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
       m_nativeVideoReady = false;
 #ifdef Q_OS_WIN
       if(m_windowsRifePlayback)m_windowsRifePlayback->onSeek();
 #else
       if(m_rife)m_rife->onSeek();
 #endif
-      break;
 #endif
+      setSeeking(true);
+      break;
     default:; /* ignore */
   }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::setSeeking(bool seeking)
+{
+  // MPV_EVENT_SEEK and MPV_EVENT_PLAYBACK_RESTART are queued events, so they
+  // reach the page in order with the position reports between them. The
+  // "seeking" property can flip twice between two reads and report nothing.
+  if (m_seeking == seeking) return;
+  m_seeking = seeking;
+  emit seekingChanged(seeking);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

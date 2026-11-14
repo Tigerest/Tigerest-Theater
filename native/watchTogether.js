@@ -351,6 +351,8 @@
             player.paused?.connect(() => sync.onPaused());
             player.positionUpdate?.connect(ms => sync.onPosition(Number(ms)));
             player.finished?.connect(() => sync.onEnded());
+            // Desktop only: mpv has the frame of a seek, not just its position.
+            player.seekingChanged?.connect(seeking => sync.onSeeking(seeking === true));
             player.canceled?.connect(() => { this.canceledAt = performance.now(); });
             player.playbackRateChanged?.connect(rate => this.rateChanged(Number(rate)));
             player.backgrounded?.connect(() => sync.suspend(true));

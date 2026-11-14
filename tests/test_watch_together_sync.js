@@ -41,8 +41,14 @@ function random(seed) {
 // noiseMs adds report jitter like the desktop client's (frame timing and
 // delivery through the web channel); the true position stays exact.
 class Player {
-    constructor(world, {seekMs = 250, playMs = 25, pauseMs = 15, startRate = 1, noiseMs = 0, reportOnPlay = false, seed = 1} = {}) {
-        Object.assign(this, {world, seekMs, playMs, pauseMs, noiseMs, reportOnPlay});
+    // restartMs models mpv more closely: a seek reports its target after seekMs,
+    // but the frame is only there after restartMs of decoding (a number, or a
+    // function of the seek's index). restartSignal says whether the player
+    // tells the page about that, as the desktop client does.
+    constructor(world, {seekMs = 250, playMs = 25, pauseMs = 15, startRate = 1, noiseMs = 0, reportOnPlay = false, seed = 1,
+        restartMs = null, restartSignal = false} = {}) {
+        Object.assign(this, {world, seekMs, playMs, pauseMs, noiseMs, reportOnPlay, restartMs, restartSignal});
+        this.seeks = 0; this.seekToken = 0;
         this.paused = false; this.pos = 0; this.rate = startRate; this.seekingUntil = 0; this.log = [];
         this.lastAdvance = 0; this.alive = true; this.random = random(seed);
         const tick = () => {
@@ -58,11 +64,33 @@ class Player {
     bind(sync) { this.sync = sync; }
     pause() { this.log.push('pause'); this.world.at(this.pauseMs, () => { if (!this.paused) { this.paused = true; this.sync.onPaused(); } }); }
     // reportOnPlay: mpv shows the next frame and reports it right away.
-    play() { this.log.push('play'); this.world.at(this.playMs, () => { if (this.paused) { this.paused = false; this.lastAdvance = this.world.time; this.sync.onPlaying(); if (this.reportOnPlay) this.report(); } }); }
+    play() {
+        this.log.push('play');
+        this.world.at(this.playMs, () => {
+            if (!this.paused) return;
+            this.paused = false; this.lastAdvance = this.world.time;
+            const started = () => { if (this.paused) return; this.sync.onPlaying(); if (this.reportOnPlay) this.report(); };
+            // mpv says "playing" only once the frame is there; until then the
+            // client shows buffering.
+            const restarting = this.restartMs !== null ? this.seekingUntil - this.world.time : 0;
+            if (restarting > 0) this.world.at(restarting, started); else started();
+        });
+    }
     seek(ms) {
         this.log.push('seek');
-        this.seekingUntil = this.world.time + this.seekMs;
-        this.world.at(this.seekMs, () => { this.pos = ms; this.lastAdvance = this.world.time; this.sync.onPosition(ms); });
+        if (this.restartMs === null) {
+            this.seekingUntil = this.world.time + this.seekMs;
+            this.world.at(this.seekMs, () => { this.pos = ms; this.lastAdvance = this.world.time; this.sync.onPosition(ms); });
+            return;
+        }
+        const restart = typeof this.restartMs === 'function' ? this.restartMs(this.seeks) : this.restartMs;
+        const token = ++this.seekToken;
+        this.seeks++;
+        this.seekingUntil = this.world.time + restart;
+        if (this.restartSignal) this.world.at(5, () => this.sync.onSeeking?.(true));
+        this.world.at(this.seekMs, () => { if (token !== this.seekToken) return; this.pos = ms; this.sync.onPosition(ms); });
+        // A newer seek replaces this one; only the last reports its restart.
+        this.world.at(restart, () => { if (token !== this.seekToken) return; this.lastAdvance = this.world.time; if (this.restartSignal) this.sync.onSeeking?.(false); });
     }
     setRate(rate) { this.log.push('rate:' + rate); this.rate = rate / 1000; }
 }
@@ -128,6 +156,10 @@ function client(world, room, {id = 'a', latency = 15, skewMs = 0, clockErrorMs =
     player.bind(sync);
     Object.assign(entry, {player, sync, local});
     room.clients.push(entry);
+    // The plugin looks at deadlines twice a second: a paused player sends no
+    // position reports.
+    const tick = () => { if (sync.attached) sync.control(); world.at(500, tick); };
+    world.at(500, tick);
     return entry;
 }
 // Position on the room timeline at the same instant, for comparing clients.
@@ -378,4 +410,104 @@ test('a late joiner that loaded ahead of the room waits there without seeking', 
     assert.ok(b.player.log.every(x => x !== 'seek'), b.player.log.join(','));
     assert.ok(Math.abs(drift(b, room)) < 40, 'drift ' + drift(b, room));
     assert.deepEqual(room.commands, []);
+});
+
+// Measured on a Mac with RIFE on (2026-11-15): mpv reported the seek target at
+// once, then needed 0.2-3.3 s to decode from the keyframe before it. Holds were
+// released against the reported position, started late, and were repeated up to
+// eight times in a row; the stall was reported as buffering, which paused the
+// whole room.
+const playingRoom = (world, room, options) => {
+    room.playback = {...room.playback, revision: 3, state: 'playing', positionMs: 0, serverTime: room.now()};
+    const entry = client(world, room, options);
+    entry.sync.onPlaying(); entry.sync.setRoom({media: room.media, playback: room.playback}); entry.sync.attach('item1');
+    return entry;
+};
+
+test('with frame interpolation a seek that takes seconds to decode ends in one hold, not a chain', () => {
+    const world = new World(), room = new Room(world);
+    const decode = [3100, 2100, 200];
+    const a = playingRoom(world, room, {rateCorrection: false,
+        player: {seekMs: 30, restartSignal: true, restartMs: n => decode[Math.min(n, decode.length - 1)]}});
+    world.run(3000);
+    a.player.pos -= 600;
+    const before = a.player.log.length, reports = a.reports.length;
+    world.run(20000);
+    const after = a.player.log.slice(before);
+    assert.equal(after.filter(x => x === 'play').length, 1, 'one resume: ' + after.join(','));
+    assert.equal(after.filter(x => x === 'pause').length, 1, 'one pause: ' + after.join(','));
+    assert.equal(a.player.paused, false);
+    assert.ok(Math.abs(drift(a, room)) < 50, 'drift ' + drift(a, room));
+    assert.ok(!a.reports.slice(reports).includes('buffering'), 'the hold is never reported as buffering');
+    assert.deepEqual(room.commands, []);
+});
+
+test('with frame interpolation a player that runs fast stops for a moment instead of seeking', () => {
+    const world = new World(), room = new Room(world);
+    // display-resample on a 120 Hz panel plays 23.976 fps material 0.1% fast:
+    // 300 ms ahead of the room every five minutes.
+    const a = playingRoom(world, room, {rateCorrection: false,
+        player: {noiseMs: 20, seekMs: 30, restartSignal: true, restartMs: 2500}});
+    const setRate = a.player.setRate.bind(a.player);
+    a.player.setRate = rate => { setRate(rate); a.player.rate *= 1.001; };
+    a.player.rate = 1.001;
+    let worst = 0, stopped = 0, longest = 0;
+    for (let i = 0; i < 15 * 60 * 50; i++) {
+        world.run(20);
+        if (i > 250) worst = Math.max(worst, Math.abs(drift(a, room)));
+        stopped = a.player.paused ? stopped + 20 : 0;
+        longest = Math.max(longest, stopped);
+    }
+    const pauses = a.player.log.filter(x => x === 'pause').length;
+    assert.ok(a.player.log.every(x => x !== 'seek'), 'no seek: ' + a.player.log.join(','));
+    assert.ok(pauses >= 2 && pauses <= 4, 'stops in fifteen minutes: ' + pauses);
+    assert.ok(longest <= 500, 'longest stop ' + longest + ' ms');
+    assert.ok(worst < 400, 'worst drift ' + worst.toFixed(1));
+    assert.ok(!a.reports.includes('buffering'));
+    assert.deepEqual(room.commands, []);
+});
+
+test('a room seek resumes only once a slow member has decoded its frame', () => {
+    const world = new World(), room = new Room(world);
+    const a = playingRoom(world, room, {});
+    const b = client(world, room, {id: 'b', latency: 35, rateCorrection: false, player: {seekMs: 30, restartSignal: true, restartMs: 4000}});
+    b.sync.onPlaying(); b.sync.setRoom({media: room.media, playback: room.playback}); b.sync.attach('item1');
+    world.run(5000);
+    const before = b.player.log.length;
+    a.player.seek(300000);
+    world.run(3000);
+    assert.equal(room.playback.state, 'waiting', 'still waiting for the frame');
+    world.run(9000);
+    const after = b.player.log.slice(before);
+    assert.equal(room.playback.state, 'playing');
+    assert.deepEqual(after.filter(x => x === 'play' || x === 'seek'), ['seek', 'play'], after.join(','));
+    assert.ok(Math.abs(a.player.pos - b.player.pos) < 40, 'both resume together: ' + (a.player.pos - b.player.pos));
+});
+
+test('seeks that never finish in time stop being retried and playback goes on', () => {
+    const world = new World(), room = new Room(world);
+    const a = playingRoom(world, room, {rateCorrection: false, player: {seekMs: 30, restartSignal: true, restartMs: 9000}});
+    world.run(3000);
+    a.player.pos -= 600;
+    const before = a.player.log.length;
+    world.run(25000);
+    const after = a.player.log.slice(before);
+    assert.equal(a.player.paused, false, 'playing again: ' + after.join(','));
+    assert.ok(after.filter(x => x === 'seek').length <= 3, after.join(','));
+    assert.equal(after.filter(x => x === 'play').length, 1, after.join(','));
+    const position = a.player.pos;
+    world.run(10000);
+    assert.ok(a.player.pos - position > 9000, 'and left alone for a while');
+});
+
+test('a player that does not report its restarts is released on the position, as before', () => {
+    const world = new World(), room = new Room(world);
+    const a = playingRoom(world, room, {rateCorrection: false, player: {seekMs: 400}});
+    world.run(3000);
+    a.player.pos -= 600;
+    const before = a.player.log.length;
+    world.run(8000);
+    const after = a.player.log.slice(before);
+    assert.deepEqual(after.filter(x => x === 'play' || x === 'seek' || x === 'pause'), ['pause', 'seek', 'play'], after.join(','));
+    assert.ok(Math.abs(drift(a, room)) < 50, 'drift ' + drift(a, room));
 });

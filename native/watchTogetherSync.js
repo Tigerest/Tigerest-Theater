@@ -11,6 +11,11 @@
     // and the first frames after a start are not representative: estimate
     // the drift from a longer window and skip the first half second.
     const DRIFT_WINDOW_MS = 1500, DRIFT_SPAN_MS = 1000, DRIFT_SETTLE_MS = 500;
+    // A player that says when a seek has decoded its frame is believed for this
+    // long; a running player this far ahead stops in place instead of seeking.
+    const RESTART_LIMIT_MS = 15000, STILL_HOLD_MS = 2500;
+    // Held seeks that keep missing the room are given up for a while.
+    const HOLD_TRIES = 3, HOLD_REST_MS = 30000;
     const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
     class WatchSync {
@@ -34,11 +39,13 @@
         // Player signals are tracked even while detached: the "playing" of a
         // freshly loaded item usually arrives before Emby's playbackstart.
         resetLocal(clearPlayer = true) {
-            if (clearPlayer || !this.local) this.local = {paused: null, pos: null, posAt: 0, advanceAt: 0, ended: false};
+            if (clearPlayer || !this.local) this.local = {paused: null, pos: null, posAt: 0, advanceAt: 0, ended: false, restarting: 0};
             else this.local.ended = false;
             this.expect = {pause: 0, play: 0, seek: null};
             this.attachedAt = 0;
             this.hold = null;
+            this.holdTries = 0;
+            this.restUntil = 0;
             this.drifts = [];
             this.timers.clearTimeout(this.startTimer);
             this.startTimer = null;
@@ -54,6 +61,8 @@
             if (playback.revision > previous) {
                 if (this.intent && playback.revision > this.intent.baseRevision) this.intent = null;
                 this.hold = null;
+                this.holdTries = 0;
+                this.restUntil = 0;
             }
             this.control();
         }
@@ -94,7 +103,8 @@
             const wasPaused = this.local.paused;
             this.local.paused = true;
             if (!this.attached) return;
-            if (this.expect.pause > this.now()) { this.expect.pause = 0; this.publish(); return; }
+            // A hold that stops in place takes its target from this pause.
+            if (this.expect.pause > this.now()) { this.expect.pause = 0; return this.hold ? this.control() : this.publish(); }
             if (this.suspended || wasPaused === true || !this.settled()) return this.publish();
             const state = this.room?.playback?.state;
             if (state === 'playing' || state === 'waiting')
@@ -148,6 +158,14 @@
         onEnded() {
             this.local.ended = true;
             this.publish();
+        }
+        // mpv reports the position of a seek at once and then decodes towards
+        // it from the keyframe before, which takes seconds with frame
+        // interpolation. A player that says when the frame is there is not
+        // released, or reported ready, before that.
+        onSeeking(active) {
+            this.local.restarting = active ? this.now() + RESTART_LIMIT_MS : 0;
+            if (this.attached) this.control();
         }
 
         // ---- user actions → room commands ---------------------------------
@@ -241,9 +259,9 @@
             this.player.seek(target);
         }
         seeking() {
-            const seek = this.expect.seek;
-            if (seek && seek.until <= this.now()) this.expect.seek = null;
-            return Boolean(this.expect.seek);
+            const now = this.now(), seek = this.expect.seek;
+            if (seek && seek.until <= now) this.expect.seek = null;
+            return Boolean(this.expect.seek) || this.local.restarting > now;
         }
         setRate(rate) {
             if (this.rate === rate) return;
@@ -295,7 +313,7 @@
                 // Slightly behind or barely ahead: start now and let the speed
                 // close the gap. Further ahead: hold until the room arrives.
                 const offset = this.local.pos - expected;
-                if (offset >= -NO_RATE_SEEK_MS && offset <= PLAY_LEAD_MS + 50) {
+                if (offset >= -NO_RATE_SEEK_MS && offset <= PLAY_LEAD_MS + 50 || offset < 0 && this.resting(now)) {
                     this.setRate(1000);
                     this.playPlayer();
                 } else this.startHold(expected);
@@ -305,7 +323,7 @@
             const drift = this.drift(now);
             if (drift === null) return this.publish();
             const limit = this.rateCorrection ? RATE_SEEK_MS : NO_RATE_SEEK_MS;
-            if (Math.abs(drift) > limit) {
+            if (Math.abs(drift) > limit && !(drift < 0 && this.resting(now))) {
                 this.setRate(1000);
                 this.startHold(expected);
                 return this.publish();
@@ -329,36 +347,77 @@
         // until that frame is ready, then start exactly when the room gets
         // there. Independent of how long the seek itself takes.
         startHold(expected) {
-            // Already stopped ahead of the room (a late joiner loads a few
-            // seconds ahead): wait there instead of seeking.
-            const ahead = this.local.paused === true && !this.seeking() ? this.local.pos - expected : -1;
-            if (ahead > PLAY_LEAD_MS && ahead <= MAX_HOLD_MS) {
-                this.hold = {target: this.local.pos, startedAt: this.now()};
-                return this.continueHold(expected, this.now());
+            const now = this.now();
+            // Ahead of the room: wait for it instead of seeking. A late joiner
+            // loads a few seconds ahead and is already stopped. A running
+            // player that crept ahead (display-resample plays 23.976 fps
+            // material about 0.1% fast) stops on the frame it is showing, so
+            // nothing has to be decoded again.
+            if (!this.seeking()) {
+                const stopped = this.local.paused === true;
+                const ahead = this.position(now) - expected;
+                if (ahead > PLAY_LEAD_MS && ahead <= (stopped ? MAX_HOLD_MS : STILL_HOLD_MS)) {
+                    this.hold = {still: true, target: this.local.pos, startedAt: now};
+                    if (!stopped) this.pausePlayer();
+                    return this.continueHold(expected, now);
+                }
             }
-            this.hold = {target: Math.round(expected + this.holdLead), startedAt: this.now()};
+            this.hold = {target: Math.round(expected + this.holdLead), startedAt: now};
             this.pausePlayer();
             this.seekPlayer(this.hold.target);
             this.publish();
         }
         continueHold(expected, now) {
             const hold = this.hold;
-            if (this.local.paused === false && !this.expect.play) { this.hold = null; return this.control(); }
+            if (hold.still) return this.continueStillHold(now);
+            // Still playing with no pause on its way: the hold is over. A
+            // position report often arrives before the pause has landed.
+            if (this.local.paused === false && !this.expect.play && this.expect.pause <= now) { this.hold = null; return this.control(); }
             if (this.seeking()) {
-                if (expected > hold.target - PLAY_LEAD_MS) this.retryHold(expected);
+                // The room passed the target before its frame was there.
+                if (expected > hold.target - PLAY_LEAD_MS) { this.cancelStart(); this.retryHold(expected); }
                 return this.publish();
             }
             if (Math.abs(this.local.pos - hold.target) > READY_MS) { this.seekPlayer(hold.target); return this.publish(); }
             const wait = this.clock.toLocal(this.room.playback.serverTime + (hold.target - this.room.playback.positionMs)) - now;
             if (wait < -PLAY_LEAD_MS) return this.retryHold(expected);
-            this.holdLead = Math.max(1000, this.holdLead * 0.9);
+            this.scheduleStart(now + wait, () => {
+                this.hold = null;
+                this.holdTries = 0;
+                this.holdLead = Math.max(1000, this.holdLead * 0.9);
+            });
+            this.publish();
+        }
+        // Stopped in place: the frame the pause landed on is where the room
+        // has to get to.
+        continueStillHold(now) {
+            const hold = this.hold, playback = this.room.playback;
+            if (this.local.paused !== true) {
+                if (this.expect.pause > now) return this.publish();
+                this.hold = null;
+                return this.control();
+            }
+            if (this.seeking()) { this.hold = null; return this.control(); }
+            hold.target = this.local.pos;
+            const wait = this.clock.toLocal(playback.serverTime + (hold.target - playback.positionMs)) - now;
+            // The room is already here: the paused branch plays, or seeks.
+            if (wait < -PLAY_LEAD_MS) { this.hold = null; return this.control(); }
             this.scheduleStart(now + wait, () => { this.hold = null; });
             this.publish();
         }
+        // Each miss allows the next seek more time. After a few in a row the
+        // player goes on from wherever the last one lands, behind the room,
+        // and is left alone for a while: playing late beats never playing.
         retryHold(expected) {
             this.holdLead = Math.min(8000, this.holdLead * 1.5);
+            if (++this.holdTries >= HOLD_TRIES) {
+                this.hold = null;
+                this.restUntil = this.now() + HOLD_REST_MS;
+                return this.control();
+            }
             this.startHold(expected);
         }
+        resting(now = this.now()) { return now < this.restUntil; }
         scheduleStart(localTime, started = () => {}) {
             const when = localTime - PLAY_LEAD_MS;
             if (this.startTimer && Math.abs((this.startAt ?? 0) - when) < 5) return;
@@ -368,6 +427,8 @@
                 this.startTimer = null;
                 this.startAt = null;
                 if (!this.attached || this.room?.playback?.state !== 'playing' || this.intent || this.suspended) return;
+                // Something restarted the player since this was scheduled.
+                if (this.seeking()) return this.control();
                 started();
                 this.setRate(1000);
                 this.playPlayer();
