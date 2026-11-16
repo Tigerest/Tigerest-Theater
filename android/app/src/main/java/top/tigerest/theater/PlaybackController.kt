@@ -39,6 +39,7 @@ class PlaybackController(private val context: Context, private val settings: Set
         if(!destroyed && surfaceGate.hasSurface && state.active && video && !hdrOutput) {
             // Recreate EGL after the Android buffer queue settles. A size property update alone
             // can leave the old buffer geometry visible on a paused, resized SurfaceView.
+            DiagnosticsLog.app.record("info","Video output rebuilt for surface $surfaceDimensions")
             MPVLib.setPropertyString("vo","null")
             MPVLib.setPropertyString("vo",videoOutput())
         }
@@ -77,6 +78,7 @@ class PlaybackController(private val context: Context, private val settings: Set
     private val noisyReceiver = object: BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if(intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY && state.active) {
+                DiagnosticsLog.app.record("info","Audio output became noisy (headphones or Bluetooth disconnected), pausing")
                 endTemporarySpeed()
                 pauseIntent++
                 pausedByFocus = false
@@ -87,8 +89,8 @@ class PlaybackController(private val context: Context, private val settings: Set
     private val focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build())
         .setOnAudioFocusChangeListener({ change ->
-            if (change < 0 && state.active) { endTemporarySpeed(); pauseIntent++; if(!isPaused()) { pausedByFocus = true; MPVLib.setPropertyBoolean("pause",true) } }
-            else if (change == AudioManager.AUDIOFOCUS_GAIN && pausedByFocus) { pausedByFocus = false; MPVLib.setPropertyBoolean("pause",false) }
+            if (change < 0 && state.active) { DiagnosticsLog.app.record("info","Audio focus lost ($change), pausing"); endTemporarySpeed(); pauseIntent++; if(!isPaused()) { pausedByFocus = true; MPVLib.setPropertyBoolean("pause",true) } }
+            else if (change == AudioManager.AUDIOFOCUS_GAIN && pausedByFocus) { DiagnosticsLog.app.record("info","Audio focus regained, resuming"); pausedByFocus = false; MPVLib.setPropertyBoolean("pause",false) }
         },main).build()
     init {
         val config = File(context.filesDir,"mpv").apply { mkdirs() }
@@ -107,15 +109,16 @@ class PlaybackController(private val context: Context, private val settings: Set
         applySettings()
         context.registerReceiver(noisyReceiver,IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),Context.RECEIVER_NOT_EXPORTED)
         mediaSession.setCallback(object: MediaSession.Callback() {
-            override fun onPlay() { dispatch("play",JSONArray()) }
-            override fun onPause() { dispatch("pause",JSONArray()) }
-            override fun onStop() { dispatch("stop",JSONArray()) }
+            // Headsets, the notification, a car or a watch send these.
+            override fun onPlay() { DiagnosticsLog.app.record("info","Media session play"); dispatch("play",JSONArray()) }
+            override fun onPause() { DiagnosticsLog.app.record("info","Media session pause"); dispatch("pause",JSONArray()) }
+            override fun onStop() { dispatch("stop",JSONArray(),"media session") }
             override fun onSeekTo(pos: Long) { dispatch("seekTo",JSONArray().put(pos)) }
         },main)
     }
     // The video output opens on the surface first; then a video load held for it starts.
-    @Synchronized fun attach(surface: Surface) { if (!destroyed) { MPVLib.attachSurface(surface); MPVLib.setPropertyString("vo",videoOutput()); MPVLib.setPropertyString("force-window","yes"); surfaceGate.attached() } }
-    @Synchronized fun detach() { surfaceGate.detached(); main.removeCallbacks(resizeOutput); if (!destroyed) { MPVLib.setPropertyString("vo","null"); MPVLib.setPropertyString("force-window","no"); MPVLib.detachSurface() } }
+    @Synchronized fun attach(surface: Surface) { if (!destroyed) { DiagnosticsLog.app.record("info","Video surface attached"); MPVLib.attachSurface(surface); MPVLib.setPropertyString("vo",videoOutput()); MPVLib.setPropertyString("force-window","yes"); surfaceGate.attached() } }
+    @Synchronized fun detach() { surfaceGate.detached(); main.removeCallbacks(resizeOutput); if (!destroyed) { DiagnosticsLog.app.record("info","Video surface detached"); MPVLib.setPropertyString("vo","null"); MPVLib.setPropertyString("force-window","no"); MPVLib.detachSurface() } }
     fun surfaceSize(width: Int,height: Int) {
         if(destroyed || width<=0 || height<=0) return
         val next = "${width}x$height"; if(next == surfaceDimensions) return
@@ -152,12 +155,17 @@ class PlaybackController(private val context: Context, private val settings: Set
         if (type == "sid" && value.toString().startsWith("#,")) MPVLib.command(arrayOf("sub-add",value.toString().removePrefix("#,"),"select"))
         else MPVLib.setPropertyString(type,PlaybackContract.track(value.toString()))
     }
-    @Synchronized fun dispatch(method: String,args: JSONArray): Any? {
+    // Time from mpv, else the last observed position; the duration mpv reported.
+    private fun recordEnd(level: String, cause: String, endOfFile: Boolean = false) =
+        DiagnosticsLog.app.record(level,PlaybackContract.endRecord(cause,positionSeconds(),if(durationMs > 0) durationMs/1000.0 else null,endOfFile))
+    /** [source] names who asked, for the diagnostics of a stop: the web page unless a native control. */
+    @Synchronized fun dispatch(method: String,args: JSONArray,source: String = "web"): Any? {
         check(!destroyed) { "播放器已关闭" }
         when (method) {
             "queueMedia" -> throw IllegalArgumentException("请通过服务器网页的播放队列添加媒体")
             "load" -> {
                 val url = args.getString(0); require(url.startsWith("http://") || url.startsWith("https://") || url.startsWith("content://")) { "不支持的媒体地址" }
+                if(state.active) recordEnd("info","replaced by a new load")
                 val options = args.optJSONObject(1) ?: JSONObject(); metadata = args.optJSONObject(2) ?: JSONObject()
                 video = PlaybackContract.isVideo(metadata.optString("type","video"))
                 val hdr = video && metadata.optString("dynamicRange") == "hdr" && settings.string("video","hardwareDecoding") != "disabled" && displayHdr()
@@ -182,7 +190,7 @@ class PlaybackController(private val context: Context, private val settings: Set
                 if(!surfaceGate.load(generation,url,video)) MPVLib.command(arrayOf("stop"))
                 return true
             }
-            "stop" -> { endTemporarySpeed(); surfaceGate.cancel(); val generation = state.generation; val active = state.end(generation); MPVLib.command(arrayOf("stop")); audioManager.abandonAudioFocusRequest(focus); mediaSession.isActive = false; main.post { if(!state.active && generation == state.generation) visible(false) }; emit("windowVisible",false); if(active){emit("canceled");emit("stopped")}; return true }
+            "stop" -> { if(state.active) recordEnd("info","stop requested by $source"); endTemporarySpeed(); surfaceGate.cancel(); val generation = state.generation; val active = state.end(generation); MPVLib.command(arrayOf("stop")); audioManager.abandonAudioFocusRequest(focus); mediaSession.isActive = false; main.post { if(!state.active && generation == state.generation) visible(false) }; emit("windowVisible",false); if(active){emit("canceled");emit("stopped")}; return true }
             "pause" -> { endTemporarySpeed();pauseIntent++;pausedByFocus=false;MPVLib.setPropertyBoolean("pause",true) }
             "play" -> MPVLib.setPropertyBoolean("pause",false)
             "showMessage" -> MPVLib.command(arrayOf("show-text",args.getString(0).take(200),"3000"))
@@ -204,7 +212,10 @@ class PlaybackController(private val context: Context, private val settings: Set
             "clearQueue" -> MPVLib.command(arrayOf("playlist-clear"))
             "streamSwitch" -> { /* The following load replaces the stream and retains its requested position. */ }
             "setVideoRectangle" -> if(args.optInt(0) >= 0 && args.optInt(2) > 0) emit("onVideoRecangleChanged")
-            "setVideoOnlyMode" -> { if(!args.getBoolean(0)) endTemporarySpeed(); main.post { visible(args.getBoolean(0) && state.active && video) } }
+            "setVideoOnlyMode" -> {
+                // The page closes the video view; mpv itself keeps playing.
+                if(!args.getBoolean(0) && state.active && video) DiagnosticsLog.app.record("info","Web hid the video view during playback")
+                if(!args.getBoolean(0)) endTemporarySpeed(); main.post { visible(args.getBoolean(0) && state.active && video) } }
             "getWebPlaylist" -> return queued
             "getCurrentWebPlaylistItemId" -> return currentId
             "setWebPlaylist" -> { queued = args.getJSONArray(0); currentId = args.optString(1); emit("webPlaylistChanged",queued,currentId) }
@@ -250,8 +261,10 @@ class PlaybackController(private val context: Context, private val settings: Set
         val status = if(!state.active) android.media.session.PlaybackState.STATE_STOPPED else if(state.paused) android.media.session.PlaybackState.STATE_PAUSED else android.media.session.PlaybackState.STATE_PLAYING
         mediaSession.setPlaybackState(android.media.session.PlaybackState.Builder().setActions(android.media.session.PlaybackState.ACTION_PLAY_PAUSE or android.media.session.PlaybackState.ACTION_SEEK_TO or android.media.session.PlaybackState.ACTION_STOP).setState(status,state.positionMs,state.speed.toFloat()).build())
     }
-    private fun finish(generation: Long) {
+    private fun finish(generation: Long, cause: String) {
         if(!state.end(generation)) return
+        // mpv's position is still the last frame's until the stop below.
+        recordEnd("info",cause,endOfFile = true)
         endTemporarySpeed()
         MPVLib.command(arrayOf("stop")); pausedByFocus = false; audioManager.abandonAudioFocusRequest(focus); mediaSession.isActive = false
         visible(false); emit("windowVisible",false); emit("finished"); emit("stopped"); updateMediaSession()
@@ -271,7 +284,7 @@ class PlaybackController(private val context: Context, private val settings: Set
             MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> if(generation == state.generation && state.active) { if(startMs > 0) MPVLib.command(arrayOf("seek",(startMs/1000).toString(),"absolute+exact")); setTrack("aid",audio); setTrack("sid",subtitle); val paused = MPVLib.getPropertyBoolean("pause") == true; state.update(generation,positionSeconds(),paused,MPVLib.getPropertyDouble("speed") ?: 1.0); emit(if(paused) "paused" else "playing"); emit("videoPlaybackActive",!paused) }
             MPVLib.MpvEvent.MPV_EVENT_END_FILE -> if(generation == state.generation && state.active) {
                 val eof = MPVLib.getPropertyBoolean("eof-reached") == true
-                if(eof) finish(generation) else { DiagnosticsLog.app.record("error","Player end-file without EOF; media load or network failure"); endTemporarySpeed(); state.end(generation); visible(false); audioManager.abandonAudioFocusRequest(focus); mediaSession.isActive = false; emit("windowVisible",false); emit("error","mpv 无法播放此媒体，请检查地址、格式和网络"); emit("stopped"); updateMediaSession() }
+                if(eof) finish(generation,"end of file (end-file event)") else { recordEnd("error","end-file without EOF; media load or network failure"); endTemporarySpeed(); state.end(generation); visible(false); audioManager.abandonAudioFocusRequest(focus); mediaSession.isActive = false; emit("windowVisible",false); emit("error","mpv 无法播放此媒体，请检查地址、格式和网络"); emit("stopped"); updateMediaSession() }
             }
         }
     } }
@@ -287,7 +300,7 @@ class PlaybackController(private val context: Context, private val settings: Set
     } }
     override fun eventProperty(property: String, value: Boolean) { val generation = eventGeneration; main.post {
         if(destroyed || !state.active || generation != state.generation) return@post
-        if(property == "eof-reached" && value) { finish(generation); return@post }
+        if(property == "eof-reached" && value) { finish(generation,"end of file (eof-reached)"); return@post }
         if(property == "pause") { state.update(state.generation,positionSeconds(),value,state.speed); emit(if(value) "paused" else "playing"); emit("videoPlaybackActive",!value); updateMediaSession() }
         if(property == "paused-for-cache") { state.buffering(generation,value); emit("buffering",if(value) 0 else 100) }
     } }

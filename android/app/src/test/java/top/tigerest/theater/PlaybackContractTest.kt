@@ -41,4 +41,24 @@ class PlaybackContractTest {
   assertEquals(PlaybackContract.Size(1600,1200),PlaybackContract.fit(2400,1200,4.0/3))
   assertEquals(PlaybackContract.Size(2224,2488),PlaybackContract.fit(2224,2488,0.0))
  }
+ @Test fun playbackEndRecordTellsAStreamCutShortFromTheEnd() {
+  assertEquals("Player ended: end of file (eof-reached) at 812.4s of 1420.0s, 607.6s left (ended before the duration)",
+   PlaybackContract.endRecord("end of file (eof-reached)",812.43,1420.0,endOfFile = true))
+  assertEquals("Player ended: end of file (eof-reached) at 1415.0s of 1420.0s, 5.0s left",
+   PlaybackContract.endRecord("end of file (eof-reached)",1415.0,1420.0,endOfFile = true))
+  // Only an end of file is early: a stop is the viewer's or the page's choice.
+  assertEquals("Player ended: stop requested by media session at 60.0s of 1420.0s, 1360.0s left",
+   PlaybackContract.endRecord("stop requested by media session",60.0,1420.0))
+  assertEquals("Player ended: replaced by a new load at 0.0s of unknown",PlaybackContract.endRecord("replaced by a new load",0.0,null))
+  assertEquals("Player ended: stop requested by web at unknown of unknown",PlaybackContract.endRecord("stop requested by web",Double.NaN,0.0))
+ }
+ @Test fun playbackDiagnosticRecordsSurviveTheReportSanitizer() {
+  // The report drops a whole record that looks private; these must arrive intact.
+  for(record in listOf(PlaybackContract.endRecord("end-file without EOF; media load or network failure",3.5,1420.0),
+   PlaybackContract.endRecord("stop requested by player back button",600.0,1420.0),PlaybackContract.endRecord("stop requested by system back",1.0,2.0),
+   "Video output rebuilt for surface 1080x2400","Video surface attached","Video surface detached","Audio focus lost (-2), pausing",
+   "Audio focus regained, resuming","Media session play","Media session pause","Web hid the video view during playback",
+   "Audio output became noisy (headphones or Bluetooth disconnected), pausing"))
+   assertEquals(record,ReportLogSanitizer.sanitize(record))
+ }
 }

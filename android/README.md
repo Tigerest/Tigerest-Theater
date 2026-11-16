@@ -80,6 +80,7 @@ node android/tests/test_navigation.cjs
 node android/tests/test_player_layout.cjs
 node android/tests/test_danmaku_motion.cjs
 node android/tests/test_gestures.cjs
+node android/tests/test_playback_end_diagnostics.cjs
 ```
 
 更新流程的实机夹具见 `tests/test_app_update.cjs`，其中 2.4.1 → 2.4.2 是测试专用版本组合，不代表当前正式版。先将同一份代码构建为调试版 2.4.1（versionCode 2040103）作为已安装旧版本，再保存同签名的调试版 2.4.2（2040200）到 `test-artifacts/update-candidate-2.4.2-debug.apk`。可通过 `TIGEREST_UPDATE_APK` 指定候选包。脚本验证启动检查、稍后与跳过、手动检查、损坏包拒绝、取消重试和导航后的安装交接，结束在系统授权／安装页，需继续完成系统确认并核对安装后版本。

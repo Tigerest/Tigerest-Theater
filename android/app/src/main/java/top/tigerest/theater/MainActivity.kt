@@ -135,7 +135,7 @@ class MainActivity: ComponentActivity(),DisplayManager.DisplayListener {
             getSystemService(DisplayManager::class.java).registerDisplayListener(this,android.os.Handler(mainLooper))
             onBackPressedDispatcher.addCallback(this,object: OnBackPressedCallback(true) { override fun handleOnBackPressed() {
                 if(video.visibility == View.VISIBLE && playbackTouchLocked) { controls.showUnlock(); return }
-                if(video.visibility == View.VISIBLE) { model.player.dispatch("stop",JSONArray()); endPlaybackSession() }
+                if(video.visibility == View.VISIBLE) { model.player.dispatch("stop",JSONArray(),"system back"); endPlaybackSession() }
                 else if(model.player.state.active && model.player.isVideo()) { video.visibility = View.VISIBLE; setPlaybackScreenAwake(true); setFullscreen(true); controls.showControls() }
                 else if(webHost.rollbackSelection(false)) return
                 else web.evaluateJavascript("Boolean(window.tigerestServerSelectionBack?.() || window.tigerestClientMenuBack?.() || (window.TigerestHomeMotion && window.TigerestHomeMotion.handleNativeBack()))") { handled ->

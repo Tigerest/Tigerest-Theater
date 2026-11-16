@@ -56,4 +56,20 @@ object PlaybackContract {
             "gamma2.4" to "Gamma 2.4","linear" to "线性")[params.gamma] ?: params.gamma.ifEmpty { "未知" }
         return "$primaries / $transfer"
     }
+    /** An end of file this far from the duration is a stream cut short, not the credits. */
+    const val EARLY_END_SECONDS = 10.0
+    /**
+     * The diagnostic line for a playback that ends: why and when, nothing else
+     * (no title, address or account). A network stream cut short reaches mpv's
+     * end of file as well; the time left tells it apart from a finished episode.
+     */
+    fun endRecord(cause: String, positionSeconds: Double?, durationSeconds: Double?, endOfFile: Boolean = false): String {
+        val position = positionSeconds?.takeIf { it.isFinite() && it >= 0 }
+        val duration = durationSeconds?.takeIf { it.isFinite() && it > 0 }
+        fun seconds(value: Double?) = if(value == null) "unknown" else String.format(java.util.Locale.ROOT,"%.1fs",value)
+        val left = if(position != null && duration != null) (duration-position).coerceAtLeast(0.0) else null
+        val early = endOfFile && left != null && left > EARLY_END_SECONDS
+        return "Player ended: $cause at ${seconds(position)} of ${seconds(duration)}" +
+            (if(left != null) ", ${seconds(left)} left" else "") + (if(early) " (ended before the duration)" else "")
+    }
 }

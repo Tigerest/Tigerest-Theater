@@ -156,7 +156,7 @@ class VideoControls(private val activity: MainActivity,private val player: Playb
         isClickable = true
         setOnClickListener { if(activity.playbackTouchLocked) showUnlock() else if(controls.visibility == View.VISIBLE) { handler.removeCallbacks(hide); setControlsVisible(false) } else showControls() }
         header = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL; background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,intArrayOf(0xd0101010.toInt(),0x10101010)) }
-        header.addView(button("返回") { player.dispatch("stop",JSONArray()); activity.endPlaybackSession() })
+        header.addView(button("返回") { player.dispatch("stop",JSONArray(),"player back button"); activity.endPlaybackSession() })
         header.addView(title,LinearLayout.LayoutParams(0,LayoutParams.MATCH_PARENT,1f))
         header.addView(button("防误触") { lockTouch() })
         addView(header,LayoutParams(LayoutParams.MATCH_PARENT,dp(64),Gravity.TOP))
