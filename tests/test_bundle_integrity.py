@@ -429,6 +429,15 @@ def test_mpv_bundle() -> None:
     require("local visible = get_danmaku_visibility()" in danmaku_menu and
             'visible and "on" or "off"' in danmaku_menu,
             "uosc button does not restore the saved danmaku visibility")
+    # Copied addresses carry spaces and line breaks; one with a leading space
+    # was taken for a local file path, and an empty Enter closed the menu.
+    add_source = danmaku_menu.split('mp.register_script_message("add-source-event"', 1)[1].split("end)", 1)[0]
+    require('gsub("^%s*(.-)%s*$", "%1")' in add_source and 'if query == "" then return end' in add_source,
+            "a pasted danmaku source address is not trimmed before it is added")
+    uosc_menu = read("resources/mpv/plugins/uosc/elements/Menu.lua")
+    require("payload = trim((payload:gsub('[\\r\\n\\t]+', ' ')))" in uosc_menu and
+            "id == 'ctrl+v' or id == 'meta+v'" in uosc_menu,
+            "uosc search paste keeps line breaks or misses the Mac Command key")
 
 
 def test_default_server_seed() -> None:
@@ -469,6 +478,12 @@ def test_native_player_composition() -> None:
     require("visible: video.nativeGpuNext" in qml and "webRestoreDelay" not in qml and
             "webRestoreReady" not in qml and "layer.enabled" not in qml,
             "WebEngine composition is not separated for GPU-Next and libmpv")
+    # A window shortcut takes the key press before the focused video item sees
+    # it: left enabled during uosc playback, Ctrl+V never reached uosc's menus.
+    for key in ("Copy", "Cut", "Paste", "SelectAll", "Undo", "Redo", "Back", "Forward"):
+        action = qml.split(f"shortcut: StandardKey.{key}\n", 1)[0].rsplit("Action", 1)[-1]
+        require("enabled: web.enabled" in action,
+                f"the page's {key} shortcut stays active while uosc owns playback input")
     player = read("native/mpvVideoPlayer.js")
     require("getExternalSubtitleUrl" in player and "new URL(deliveryUrl, this._currentSrc).href" in player,
             "external subtitle URLs are not resolved for libmpv")

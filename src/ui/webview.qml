@@ -169,8 +169,13 @@ Window
     onTriggered: mainWindow.toggleDebug()
   }
 
+  // The page's editing and history keys, only while the page takes input. A
+  // window shortcut takes the key press before the focused item sees it, so
+  // while uosc owns playback these stayed with the disabled page: Ctrl+V never
+  // reached uosc's search box and mpv saw the key release alone.
   Action
   {
+    enabled: web.enabled
     shortcut: StandardKey.Copy
     onTriggered: runWebAction(WebEngineView.Copy)
     id: action_copy
@@ -178,6 +183,7 @@ Window
 
   Action
   {
+    enabled: web.enabled
     shortcut: StandardKey.Cut
     onTriggered: runWebAction(WebEngineView.Cut)
     id: action_cut
@@ -185,6 +191,7 @@ Window
 
   Action
   {
+    enabled: web.enabled
     shortcut: StandardKey.Paste
     onTriggered: runWebAction(WebEngineView.Paste)
     id: action_paste
@@ -192,6 +199,7 @@ Window
 
   Action
   {
+    enabled: web.enabled
     shortcut: StandardKey.SelectAll
     onTriggered: runWebAction(WebEngineView.SelectAll)
     id: action_selectall
@@ -199,6 +207,7 @@ Window
 
   Action
   {
+    enabled: web.enabled
     shortcut: StandardKey.Undo
     onTriggered: runWebAction(WebEngineView.Undo)
     id: action_undo
@@ -206,6 +215,7 @@ Window
 
   Action
   {
+    enabled: web.enabled
     shortcut: StandardKey.Redo
     onTriggered: runWebAction(WebEngineView.Redo)
     id: action_redo
@@ -213,6 +223,7 @@ Window
 
   Action
   {
+    enabled: web.enabled
     shortcut: StandardKey.Back
     onTriggered: runWebAction(WebEngineView.Back)
     id: action_back
@@ -220,6 +231,7 @@ Window
 
   Action
   {
+    enabled: web.enabled
     shortcut: StandardKey.Forward
     onTriggered: runWebAction(WebEngineView.Forward)
     id: action_forward

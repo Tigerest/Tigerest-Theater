@@ -1432,6 +1432,9 @@ mp.register_script_message("load-danmaku", function(animeTitle, episodeTitle, ep
 end)
 
 mp.register_script_message("add-source-event", function(query)
+    -- 复制来的网址常带空格或换行：开头有空格时会被当成本地文件路径。没有内容时保留菜单。
+    query = (query or ""):gsub("^%s*(.-)%s*$", "%1")
+    if query == "" then return end
     if uosc_available then
         mp.commandv("script-message-to", "uosc", "close-menu", "menu_source")
     end

@@ -789,6 +789,9 @@ function Menu:paste()
 	local payload = get_clipboard()
 	if not payload then return end
 	if menu.search then
+		-- The search box is one line, and copied text often ends with a line break.
+		payload = trim((payload:gsub('[\r\n\t]+', ' ')))
+		if payload == '' then return end
 		self:search_query_insert(payload)
 	elseif menu.on_paste then
 		local selected_item = menu.items and menu.selected_index and menu.items[menu.selected_index]
@@ -1196,6 +1199,8 @@ end
 
 function Menu:enable_key_bindings()
 	local standalone_keys = {'/', 'kp_divide', 'mbtn_back', 'ctrl+f', 'ctrl+v', 'ctrl+c'}
+	-- The Mac host forwards Command as Meta: Cmd+V and Cmd+C act as Ctrl+V and Ctrl+C.
+	if state.platform == 'darwin' then itable_append(standalone_keys, {'meta+v', 'meta+c'}) end
 	if type(self.root.bind_keys) == 'table' then itable_append(standalone_keys, self.root.bind_keys) end
 	-- `+` at the end enables `repeatable` flag
 	local modifiable_keys = {'up+', 'down+', 'left', 'right', 'enter', 'kp_enter', 'bs', 'tab', 'esc', 'pgup+',
@@ -1319,8 +1324,10 @@ function Menu:handle_shortcut(shortcut, info)
 		end
 	elseif key == 'mbtn_back' then
 		self:back()
-	elseif id == 'ctrl+v' then
+	elseif id == 'ctrl+v' or id == 'meta+v' then
 		self:paste()
+	elseif id == 'meta+c' then
+		trigger_shortcut(create_shortcut('ctrl+c'))
 	else
 		trigger_shortcut(shortcut)
 	end
