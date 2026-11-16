@@ -29,6 +29,14 @@ jobs:
           libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
           libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 \
           libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxkbfile1
+        # mpv asks PipeWire for the audio devices first. Without PipeWire's
+        # client.conf that fails at once and mpv stops the loop thread it has
+        # just started; PipeWire 1.6 can miss a stop that early, and the test
+        # then hangs until its timeout. With the configuration the attempt fails
+        # later, at the connection, when the thread is already waiting for the
+        # lock. The package ships the configuration; no daemon is started.
+        sudo apt-get install --yes --no-install-recommends pipewire-bin
+        test -f /usr/share/pipewire/client.conf
 
     # Ubuntu's Qt from debian/control stays installed but unused: CMake and the
     # tests use this Qt (QTROOT, PATH and LD_LIBRARY_PATH from the action).
