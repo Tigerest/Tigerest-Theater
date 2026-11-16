@@ -49,6 +49,12 @@ jobs:
         xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
           ctest --test-dir build --output-on-failure
 
+    # lcov 2.4 (Ubuntu 26.04) checks a tracefile for consistency and stops on a
+    # lambda that is connected but never called: the enclosing function hits its
+    # first line while the lambda itself is not hit, as in src/main.cpp. lcov
+    # exempts lambdas by demangled name only, and these names are mangled.
+    # Skipping the check keeps the numbers as gcov reports them; ignoring the
+    # error instead would count those lambdas as hit.
     - name: Collect coverage
       run: |
         lcov --capture --directory build --output-file coverage.info \
@@ -56,8 +62,9 @@ jobs:
         lcov --remove coverage.info \
           '/usr/*' '*/Qt/*' '*/external/*' '*/tests/*' '*/build/*' \
           --output-file coverage.info \
-          --ignore-errors unused
-        lcov --summary coverage.info 2>&1 | grep -v 'no data found' > coverage_summary.txt
+          --ignore-errors unused \
+          --rc check_data_consistency=0
+        lcov --summary coverage.info --rc check_data_consistency=0 2>&1 | grep -v 'no data found' > coverage_summary.txt
 
     - name: Save PR number
       if: github.event_name == 'pull_request'
