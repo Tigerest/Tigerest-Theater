@@ -4,6 +4,12 @@
 // players against the position and they started late (Mac log of 2026-11-15:
 // up to 3.3 s late with RIFE on, repeated up to eight times in a row).
 //
+// It must also seek to a keyframe and say where that was (seekToKeyframe and
+// keyframeSeekLanded): with frame interpolation a keyframe has its frame in a
+// quarter of a second where a seek to the millisecond decodes for seconds, so
+// the sync sends a member that is behind to the next keyframe and takes the
+// room to one when a viewer seeks.
+//
 // Without TIGEREST_TEST_CLIP a generated Y4M checks the order of the signals.
 // With it (a local file with long GOPs), the gap between "position reported"
 // and "frame there" is measured too; TIGEREST_TEST_RIFE=1 turns RIFE on and
@@ -50,6 +56,8 @@ const targets = clip ? [21700, 47300, 33900, 58200] : [12000, 30000, 5000];
                 const add = (name, value) => state.events.push([name, value, Math.round(performance.now())]);
                 if (!api.player.seekingChanged) throw Error('api.player.seekingChanged is missing');
                 api.player.seekingChanged.connect(seeking => add('seeking', seeking === true));
+                if (!api.player.keyframeSeekLanded || !api.player.seekToKeyframe) throw Error('api.player.seekToKeyframe is missing');
+                api.player.keyframeSeekLanded.connect(ms => add('landed', Number(ms)));
                 api.player.positionUpdate.connect(ms => add('position', Number(ms)));
                 api.player.playing.connect(() => add('playing', 0));
                 api.player.paused.connect(() => add('paused', 0));
@@ -97,9 +105,40 @@ const targets = clip ? [21700, 47300, 33900, 58200] : [12000, 30000, 5000];
             // Released on the frame, a start never waits for decoding.
             const slowest = Math.max(...seeks.map(seek => seek.movingAfterPlayMs));
             assert.ok(slowest < 700, 'a player released after its frame starts at once: ' + JSON.stringify(seeks));
+            assert.ok(!(await events()).some(([name]) => name === 'landed'), 'a seek to the millisecond reports no keyframe');
+
+            // Keyframe seeks: the first one at or after the target, the one
+            // before it, and one sent while a seek to the millisecond is
+            // still on its way (the restart of that seek must not be taken
+            // for the keyframe's). Every frame of the Y4M is a keyframe.
+            const span = clip ? 30000 : 50, keyframes = [];
+            for (const [target, after, first] of [[20010, true, null], [20010, false, null], [31010, false, 9000]]) {
+                await evaluate('api.player.pause()');
+                await until(async () => (await events()).findLast(([name]) => name === 'paused' || name === 'playing')?.[0] === 'paused', 'the pause');
+                await delay(300);
+                const mark = (await events()).length;
+                const sentAt = await evaluate(`(() => { ${first === null ? '' : `api.player.seekTo(${first});`} api.player.seekToKeyframe(${target}, ${after}); return Math.round(performance.now()); })()`);
+                const list = await until(async () => {
+                    const seen = (await events()).slice(mark);
+                    const landed = seen.findIndex(([name]) => name === 'landed');
+                    return landed >= 0 && seen.slice(landed).some(([name, value]) => name === 'seeking' && value === false) && seen;
+                }, 'the keyframe seek to ' + target);
+                await delay(300);
+                const landed = list.findIndex(([name]) => name === 'landed');
+                const done = list.findIndex(([name, value], index) => index > landed && name === 'seeking' && value === false);
+                assert.equal((await events()).slice(mark).filter(([name]) => name === 'landed').length, 1, 'one landing per keyframe seek: ' + JSON.stringify(list));
+                assert.ok(done > landed, 'the landing is reported before the restart: ' + JSON.stringify(list));
+                const position = list[landed][1];
+                assert.ok(after ? position >= target && position < target + span : position <= target && position > target - span,
+                    'landed on the ' + (after ? 'first keyframe from ' : 'keyframe before ') + target + ': ' + position);
+                assert.equal(await evaluate('Promise.resolve(api.player.getPosition())'), position, 'and that is where the player is');
+                keyframes.push({target, after, duringSeekTo: first, landedMs: position, frameReadyAfterMs: list[done][2] - sentAt});
+                await evaluate('api.player.play()');
+                await until(async () => (await events()).findLast(([name]) => name === 'paused' || name === 'playing')?.[0] === 'playing', 'playback after the keyframe seek');
+            }
             const errors = log().split('\n').filter(line => /Lua error|stack traceback/i.test(line));
             assert.deepEqual(errors, [], 'scripts reported errors');
-            result = {seeks, rife, clip: clip ? path.basename(clip) : 'generated Y4M'};
+            result = {seeks, keyframes, rife, clip: clip ? path.basename(clip) : 'generated Y4M'};
             await evaluate('api.player.stop()');
         } catch (error) {
             console.error(log().split('\n').slice(-40).join('\n'));

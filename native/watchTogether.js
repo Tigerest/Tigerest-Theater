@@ -10,6 +10,18 @@
     const endedText = {replaced: '你已在其他设备进入这个房间，本机已退出同步。', kicked: '你已被房主移出房间。',
         ended: '房间已结束。', room_closed: '房主已解散房间。', room_expired: '房间已到期结束。',
         auth: '登录已失效，请重新登录后再加入。', protocol: '一起看服务已更新，请升级客户端后再加入。'};
+    // What the sync did to this player, for the viewer: [text, how long].
+    const offsetText = ms => (Math.abs(ms) / 1000).toFixed(1) + ' 秒';
+    const noticeText = {
+        seeking: () => ['跳转中，等待房间同步…', 8000],
+        catching: data => [data.offsetMs < 0 ? `比房间慢 ${offsetText(data.offsetMs)}，正在加速追上` : `比房间快 ${offsetText(data.offsetMs)}，正在放慢等房间`, 4000],
+        still: data => [`比房间快 ${offsetText(data.offsetMs)}，停在这里等房间`, Math.min(10000, data.offsetMs + 500)],
+        jump: data => [`与房间相差 ${offsetText(data.offsetMs)}，正在重新对齐…`, 8000],
+        wait: data => [`已跳到前面，约 ${Math.ceil(data.waitMs / 1000)} 秒后和房间一起继续`, Math.min(10000, data.waitMs + 500)],
+        synced: () => ['已和房间同步', 2000],
+        gaveup: () => ['暂时没能对齐，先继续播放，稍后再试', 4000],
+        slow: () => ['本机播放跟不上房间的速度，先按自己的进度播放，1 分钟后再对齐', 6000]
+    };
     function node(tag, text, className) {
         const element = document.createElement(tag);
         if (text != null) element.textContent = String(text);
@@ -186,7 +198,7 @@
             this.sync = null;
             this.lastStop = null;
             this.onStart = (event, player) => this.playbackStarted(player);
-            this.onStop = () => this.playbackStopped();
+            this.onStop = (event, info) => this.playbackStopped(info);
             events?.on(playbackManager, 'playbackstart', this.onStart);
             events?.on(playbackManager, 'playbackstop', this.onStop);
             this.onVisibility = () => {
@@ -313,6 +325,7 @@
             this.connection?.dispose();
             this.connection = null;
             this.sync?.clearRoom();
+            this.roomTimed(false);
             this.close();
         }
 
@@ -334,9 +347,13 @@
             const player = window.api?.player;
             if (!player) return null;
             const plugin = this;
+            const controls = {pause: () => player.pause(), play: () => player.play(),
+                seek: ms => player.seekTo(Math.round(ms)), setRate: rate => player.setPlaybackRate(rate)};
+            // Desktop: a seek to a keyframe, which says where it landed.
+            if (typeof player.seekToKeyframe === 'function' && player.keyframeSeekLanded)
+                controls.seekKeyframe = (ms, after) => player.seekToKeyframe(Math.round(ms), after === true);
             this.sync = new Sync({
-                player: {pause: () => player.pause(), play: () => player.play(),
-                    seek: ms => player.seekTo(Math.round(ms)), setRate: rate => player.setPlaybackRate(rate)},
+                player: controls,
                 // The clock lives on whichever connection is current.
                 clock: {get ready() { return Boolean(plugin.connection?.clock.ready); },
                     get rttMs() { return plugin.connection?.clock.rttMs || 0; },
@@ -344,6 +361,7 @@
                     toLocal: value => plugin.connectionClock().toLocal(value)},
                 command: (type, fields) => this.connection ? this.connection.command(type, fields) : Promise.reject(new Error(message('DISCONNECTED'))),
                 report: report => this.report(report),
+                notice: (kind, data) => { const [text, ms] = noticeText[kind]?.(data) || []; this.notify(text, ms); },
                 log: text => console.info('[Watch] ' + text)});
             this.sync.onCommandError = (type, error) => this.notify(message(error.code));
             const sync = this.sync;
@@ -351,8 +369,9 @@
             player.paused?.connect(() => sync.onPaused());
             player.positionUpdate?.connect(ms => sync.onPosition(Number(ms)));
             player.finished?.connect(() => sync.onEnded());
-            // Desktop only: mpv has the frame of a seek, not just its position.
+            // Desktop and Android: mpv has the frame of a seek, not just its position.
             player.seekingChanged?.connect(seeking => sync.onSeeking(seeking === true));
+            player.keyframeSeekLanded?.connect(ms => sync.onKeyframe(Number(ms)));
             player.canceled?.connect(() => { this.canceledAt = performance.now(); });
             player.playbackRateChanged?.connect(rate => this.rateChanged(Number(rate)));
             player.backgrounded?.connect(() => sync.suspend(true));
@@ -396,6 +415,7 @@
                 const text = endedText[data.reason];
                 this.connection = null;
                 this.sync?.clearRoom();
+                this.roomTimed(false);
                 this.launching = null;
                 if (text) this.notify(text);
                 this.ensureEntry();
@@ -407,6 +427,7 @@
                 this.sync?.setRoom(room);
                 this.reconcile();
             }
+            if (type === 'welcome' || type === 'state' || type === 'waiting') this.announceWaiting(room);
             if (type === 'members') this.announceMembers(room);
             if (type === 'itemChange') this.announceChange(data.change);
             if (type === 'welcome' || type === 'clock') this.publish();
@@ -429,6 +450,25 @@
                 buffer: `等待 ${name} 缓冲…`,
                 timeout: '有成员没跟上，已先开始播放'}[action.type];
             if (text) this.notify(text);
+        }
+        // The room stands still until every member has its frame: say for
+        // whom, and when it starts again.
+        announceWaiting(room) {
+            const playback = room?.playback;
+            if (!this.sync?.attached || this.panel || !playback) return;
+            if (playback.state === 'waiting') {
+                const me = this.connection.memberId, action = playback.lastAction || {};
+                const mine = action.memberId === me, who = mine ? '' : this.memberName(action.memberId) + ' ';
+                const others = (playback.waiting?.memberIds || []).filter(id => id !== me).map(id => this.memberName(id));
+                const rest = others.length ? `，等待 ${others.join('、')} 就绪…` : '，即将同步开始…';
+                const text = action.type === 'buffer' ? (mine ? '缓冲中，房间在等你…' : `等待 ${who.trim()} 缓冲…`)
+                    : (action.type === 'seek' ? `${who}跳转到 ${clock(playback.positionMs)}` : '等待房间同步') + rest;
+                this.waitingShown = true;
+                this.notify(text, 16000);
+            } else if (this.waitingShown) {
+                this.waitingShown = false;
+                if (playback.state === 'playing' && playback.lastAction?.type === 'resume') this.notify('同步开始', 1500);
+            }
         }
         announceMembers(room) {
             const before = this.previousRoom?.members || [], after = room?.members || [];
@@ -459,17 +499,20 @@
                 this.attach(item.Id);
                 return;
             }
-            // Next episode, autoplay or a playlist pick straight after room
-            // playback moves the whole room. Other playback is private.
+            // The next episode, the previous one, autoplay or a playlist pick
+            // straight after room playback moves the whole room: Emby stops
+            // the item for these and says what follows. Playback started
+            // after the player was closed is private.
             const stop = this.lastStop, now = performance.now();
-            if (stop && stop.room === room.roomId && now - stop.at < 8000 && !(this.canceledAt > stop.at - 1000) &&
-                ['Movie', 'Episode'].includes(item.Type)) {
+            const follows = stop && stop.room === room.roomId && now - stop.at < 8000 && (stop.next || !(this.canceledAt > stop.at - 1000));
+            if (follows && ['Movie', 'Episode'].includes(item.Type)) {
                 const source = this.playbackManager.currentMediaSource?.(player);
                 this.lastStop = null;
                 this.launching = {itemId: item.Id, at: now};
+                console.info('[Watch] watch moves the room to the item that followed in the player');
                 this.connection.command('changeItem', {itemId: item.Id, mediaSourceId: String(source?.Id || item.Id), positionMs: 0})
                     .catch(error => { if (error.code !== 'CHANGE_IN_PROGRESS' && error.code !== 'STALE_REVISION') this.notify(message(error.code)); });
-            }
+            } else console.info('[Watch] watch leaves the room where it is: this playback is private');
         }
         attach(itemId) {
             const sync = this.ensureSync();
@@ -480,8 +523,14 @@
             // offsets are fixed by held seeks only on these platforms.
             sync.rateCorrection = !(window.jmpInfo?.settings?.video?.aiRife === true && ['Windows', 'macOS', 'iPadOS', 'iOS'].includes(platform()));
             sync.attach(itemId);
+            this.roomTimed(true);
             this.readPosition();
         }
+        // Windows holds a resume after a pause of 5 s or more until frame
+        // interpolation has refilled, which starts this member a second or
+        // more after the room. The room times the starts of the item it
+        // follows, so the player is told not to.
+        roomTimed(active) { window.api?.player?.setRoomTimeline?.(active); }
         // A player loaded stopped at the start of the file reports no
         // position change, so ask for it; until then the member is loading.
         readPosition() {
@@ -493,11 +542,16 @@
                 if (sync.attached && sync.local.pos === null && Number.isFinite(value) && value >= 0) sync.onPosition(value);
             }).catch(() => {}).finally(() => { this.readingPosition = false; });
         }
-        playbackStopped() {
+        // info.nextMediaType is set when Emby stopped the item for another
+        // one from the same player (2.9.5.8 took every stop that mpv reports
+        // as cancelled for a closed player, so "next episode" left the room
+        // behind on the old one).
+        playbackStopped(info) {
             const sync = this.sync, room = this.connection?.room;
             const wasRoom = Boolean(sync?.attached);
             sync?.detach();
-            this.lastStop = wasRoom && room ? {room: room.roomId, at: performance.now()} : null;
+            this.roomTimed(false);
+            this.lastStop = wasRoom && room ? {room: room.roomId, at: performance.now(), next: Boolean(info?.nextMediaType)} : null;
             this.publish();
             // Leaving the player while in a room returns to the room page.
             if (wasRoom) setTimeout(() => { if (this.connection && !this.currentItemId() && !this.launching) this.open(); }, 1500);
@@ -515,14 +569,32 @@
             const starting = room.playback.state === 'waiting' && room.playback.lastAction?.type === 'changeItem';
             if (starting && (this.sync?.attached || this.panel || current)) this.launch();
         }
+        // Where the room is now, and whether that is the end of its film (with
+        // the three seconds a player needs to load).
+        roomPosition() {
+            const playback = this.connection?.room?.playback, clock = this.connection?.clock;
+            if (!playback) return 0;
+            if (playback.state !== 'playing' || !clock?.ready) return playback.positionMs;
+            return playback.positionMs + Math.max(0, clock.toServer(performance.now()) - playback.serverTime);
+        }
+        roomOver() {
+            const room = this.connection?.room, runTime = Number(room?.media?.runTimeMs);
+            return room?.playback?.state === 'playing' && runTime > 0 && this.roomPosition() >= runTime - 3000;
+        }
         launch() {
             const room = this.connection?.room, media = room?.media, api = this.apiClient();
             if (!media || !api) return;
             if (this.launching?.itemId === media.itemId && performance.now() - this.launching.at < 15000) return;
             const playback = room.playback;
-            const position = playback.state === 'playing' && this.connection.clock.ready
-                ? playback.positionMs + Math.max(0, this.connection.clock.toServer(performance.now()) - playback.serverTime) + 3000
-                : playback.positionMs;
+            // The room's clock runs on after the film is over. Loading at a
+            // position the file does not have opens the player on nothing.
+            if (this.roomOver()) {
+                console.info('[Watch] watch not entering: the room is past the end of the film');
+                this.notify('这一集在房间里已经播完，更换影片后可以继续一起看。');
+                return;
+            }
+            const position = playback.state === 'playing' ? this.roomPosition() + 3000 : playback.positionMs;
+            console.info('[Watch] watch enters the room\'s film at ' + Math.round(position) + ' ms');
             this.launching = {itemId: media.itemId, at: performance.now()};
             this.close();
             this.publish();
@@ -543,16 +615,16 @@
         }
 
         // ---- messages -------------------------------------------------------
-        notify(text) {
+        notify(text, ms = 3000) {
             if (!text) return;
             if (this.panel) { this.setStatus(text); return; }
             const player = window.api?.player;
             if (this.sync?.attached && typeof player?.userCommand === 'function') {
                 const quoted = '"' + String(text).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ') + '"';
-                player.userCommand('show-text ' + quoted + ' 3000');
+                player.userCommand('show-text ' + quoted + ' ' + Math.round(ms));
                 return;
             }
-            if (this.sync?.attached && typeof player?.showMessage === 'function') { player.showMessage(String(text)); return; }
+            if (this.sync?.attached && typeof player?.showMessage === 'function') { player.showMessage(String(text), Math.round(ms)); return; }
             installStyle();
             let toast = document.getElementById('tigerest-watch-toast');
             if (!toast) { toast = node('div'); toast.id = 'tigerest-watch-toast'; toast.setAttribute('role', 'status'); document.body.appendChild(toast); }
@@ -691,7 +763,8 @@
             filmText.appendChild(node('div', mainLine, 'tw-film'));
             if (detailLine) filmText.appendChild(node('div', detailLine, 'tw-film-detail'));
             const state = {paused: '已暂停在 ', playing: '正在播放 ', waiting: '等待成员就绪 '}[playback.state] || '';
-            filmText.appendChild(node('p', state + clock(playback.positionMs) + ' / ' + clock(room.media?.runTimeMs), 'tw-muted'));
+            filmText.appendChild(node('p', this.roomOver() ? '已播完，可以更换影片继续一起看'
+                : state + clock(playback.positionMs) + ' / ' + clock(room.media?.runTimeMs), 'tw-muted'));
             filmHead.appendChild(filmText);
             film.appendChild(filmHead);
             if (playback.state === 'waiting' && playback.waiting?.memberIds?.length)

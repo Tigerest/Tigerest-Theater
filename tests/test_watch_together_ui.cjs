@@ -25,8 +25,8 @@ const fixture = `(() => {
     window.addEventListener('unhandledrejection', event => log.errors.push(String(event.reason?.stack || event.reason)));
     const signal = () => { const set = new Set(); return {connect: f => set.add(f), disconnect: f => set.delete(f), emit: (...a) => set.forEach(f => f(...a))}; };
     const player = window.api = {player: {}};
-    for (const name of ['playing', 'paused', 'positionUpdate', 'finished', 'canceled', 'playbackRateChanged']) api.player[name] = signal();
-    for (const name of ['pause', 'play', 'seekTo', 'setPlaybackRate', 'userCommand']) api.player[name] = (...args) => log.player.push(name + ':' + args.join(','));
+    for (const name of ['playing', 'paused', 'positionUpdate', 'finished', 'canceled', 'playbackRateChanged', 'keyframeSeekLanded']) api.player[name] = signal();
+    for (const name of ['pause', 'play', 'seekTo', 'seekToKeyframe', 'setPlaybackRate', 'userCommand', 'setRoomTimeline']) api.player[name] = (...args) => log.player.push(name + ':' + args.join(','));
     const episodes = [1, 2, 3].map(n => ({Id: 'ep' + n, Type: 'Episode', Name: '第 ' + n + ' 集', IndexNumber: n, ParentIndexNumber: 1, SeriesId: 'series', SeasonId: 'season1',
         SeriesName: '兽王武神', MediaSources: [{Id: 'src-ep' + n, Name: '1080p'}], UserData: {PlaybackPositionTicks: 0}}));
     window.emby = {serverId: () => '62526c3bf747439c99327ddec5fed4a8', getCurrentUserId: () => 'u1', accessToken: () => 'fixture-token',
@@ -237,6 +237,8 @@ withBrowser(routes, async ({evaluate}) => {
     await wait(`serverLog.some(m => m.type === 'status' && m.state === 'ready' && m.revision === 2)`, 'ready report');
     assert.equal(await evaluate(`log.player.filter(x => x === 'pause:' || x === 'play:' || x.startsWith('seekTo:')).length`), 0, 'a stopped load needs no pause or seek');
     assert.equal(await evaluate(`serverLog.filter(m => ['pause', 'play', 'seek'].includes(m.type)).length`), 0, 'following the room sends no commands');
+    assert.equal(await evaluate(`log.player.findLast(x => x.startsWith('setRoomTimeline:'))`), 'setRoomTimeline:true',
+        'the player is told that the room times the starts of this item');
 
     await evaluate(`sockets[0].deliver({type: 'state', revision: 3, media: snapshot.media, playback: {revision: 3, state: 'playing', positionMs: 0,
         serverTime: performance.now() + 1e6 + 400, rate: 1, waiting: null, lastAction: {type: 'resume', memberId: null}}})`);
@@ -254,6 +256,30 @@ withBrowser(routes, async ({evaluate}) => {
     await evaluate(`api.player.playing.emit()`);
     await wait(`serverLog.some(m => m.type === 'play')`, 'a local play becomes a room command');
 
+    // The desktop player seeks to keyframes and says where they are, and what
+    // the sync does to the player is shown on the mpv OSD.
+    assert.equal(await evaluate(`plugin.sync.keySeek`), true, 'the desktop player offers keyframe seeks');
+    await evaluate(`plugin.sync.player.seekKeyframe(40123.4, true)`);
+    assert.ok(await evaluate(`log.player.includes('seekToKeyframe:40123,true')`), 'a keyframe seek reaches the player');
+    await evaluate(`api.player.keyframeSeekLanded.emit(50050)`);
+    assert.equal(await evaluate(`plugin.sync.local.pos`), 50050, 'and where it landed reaches the sync');
+    // (Back on the room's frame, as the seek the sync sent for the pause above.)
+    await evaluate(`api.player.keyframeSeekLanded.emit(1200); api.player.positionUpdate.emit(1200);
+        plugin.sync.notice('wait', {waitMs: 4200}); plugin.sync.notice('catching', {offsetMs: -1400})`);
+    assert.ok(await evaluate(`log.player.includes('userCommand:show-text "已跳到前面，约 5 秒后和房间一起继续" 4700')`), 'a wait on a keyframe is shown for as long as it lasts');
+    assert.ok(await evaluate(`log.player.includes('userCommand:show-text "比房间慢 1.4 秒，正在加速追上" 4000')`), 'catching up is shown');
+    // A seek stops the room until every member has the frame, and says so.
+    await evaluate(`sockets[0].deliver({type: 'state', revision: 5, media: snapshot.media, playback: {revision: 5, state: 'waiting', positionMs: 754002,
+        serverTime: performance.now() + 1e6, rate: 1, waiting: {memberIds: ['m1', 'm2'], deadline: performance.now() + 1e6 + 15000, resumeTo: 'playing'},
+        lastAction: {type: 'seek', memberId: 'm2'}}})`);
+    await wait(`log.player.includes('userCommand:show-text "朋友 跳转到 12:34，等待 朋友 就绪…" 16000')`, 'who the room is waiting for');
+    await wait(`log.player.includes('seekTo:754002')`, 'the seek is followed to the frame');
+    await evaluate(`sockets[0].deliver({type: 'waiting', revision: 5, memberIds: ['m1'], deadline: performance.now() + 1e6 + 15000})`);
+    await wait(`log.player.includes('userCommand:show-text "朋友 跳转到 12:34，即将同步开始…" 16000')`, 'the others are ready');
+    await evaluate(`sockets[0].deliver({type: 'state', revision: 6, media: snapshot.media, playback: {revision: 6, state: 'playing', positionMs: 754002,
+        serverTime: performance.now() + 1e6 + 400, rate: 1, waiting: null, lastAction: {type: 'resume', memberId: null}}})`);
+    await wait(`log.player.includes('userCommand:show-text "同步开始" 1500')`, 'the start is announced');
+
     // iPad RIFE must not repeatedly bypass/re-warm for tiny room speed corrections.
     await evaluate(`window.jmpInfo = {platform: 'ipad', settings: {video: {aiRife: true}}}; plugin.attach(current.Id)`);
     assert.equal(await evaluate(`plugin.sync.rateCorrection`), false, 'iPad RIFE uses the same held-seek correction as desktop');
@@ -262,10 +288,36 @@ withBrowser(routes, async ({evaluate}) => {
     await evaluate(`delete api.player.userCommand; api.player.showMessage = text => log.player.push('showMessage:' + text); plugin.notify('朋友 跳转了')`);
     assert.equal(await evaluate(`log.player.at(-1)`), 'showMessage:朋友 跳转了', 'native iPad overlay receives room actions');
 
+    // "Next episode" in the player: Emby stops the item, which mpv reports as
+    // cancelled, and says what follows. The whole room moves to it.
+    await evaluate(`api.player.canceled.emit(); current = null; events.trigger('playbackstop', {nextMediaType: 'Video'});
+        current = {Id: 'ep3', Type: 'Episode'}; events.trigger('playbackstart', {})`);
+    await wait(`serverLog.some(m => m.type === 'changeItem' && m.itemId === 'ep3')`, 'next episode in the player moves the room');
+    assert.deepEqual(JSON.parse(await evaluate(`JSON.stringify((({itemId, mediaSourceId, positionMs}) => ({itemId, mediaSourceId, positionMs}))(serverLog.find(m => m.type === 'changeItem' && m.itemId === 'ep3')))`)),
+        {itemId: 'ep3', mediaSourceId: 'src-ep3', positionMs: 0});
+    // The player was closed and something else was started soon after: private.
+    await evaluate(`{ const sent = serverLog.find(m => m.type === 'changeItem' && m.itemId === 'ep3');
+        sockets[0].deliver({type: 'error', requestId: sent.requestId, code: 'STALE_REVISION'}); plugin.launching = null;
+        current = {Id: 'ep2', Type: 'Episode'}; events.trigger('playbackstart', {});
+        api.player.canceled.emit(); current = null; events.trigger('playbackstop', {nextMediaType: null});
+        current = {Id: 'ep1', Type: 'Episode'}; events.trigger('playbackstart', {}); }`);
+    await new Promise(r => setTimeout(r, 300));
+    assert.equal(await evaluate(`serverLog.filter(m => m.type === 'changeItem' && m.itemId === 'ep1').length`), 0, 'playback after the player was closed stays private');
+
     await evaluate(`current = null; events.trigger('playbackstop')`);
     await wait(`serverLog.some(m => m.type === 'status' && m.state === 'away')`);
+    assert.equal(await evaluate(`log.player.findLast(x => x.startsWith('setRoomTimeline:'))`), 'setRoomTimeline:false', 'a stopped player is no longer timed by the room');
     await evaluate(`plugin.open()`);
     await wait(`!!document.querySelector('#tigerest-watch .tw-danger')`);
+    // The room's clock has run past the end of the 24-minute film: the page
+    // says so, and entering does not open the player on the end of the file.
+    const plays = await evaluate(`log.plays.length`);
+    await evaluate(`sockets[0].deliver({type: 'state', revision: 9, media: snapshot.media, playback: {revision: 9, state: 'playing', positionMs: 1439000,
+        serverTime: performance.now() + 1e6 - 10000, rate: 1, waiting: null, lastAction: {type: 'resume', memberId: null}}})`);
+    await wait(`document.querySelector('#tigerest-watch').textContent.includes('已播完')`, 'the room page says the film is over');
+    await click('进入播放');
+    await wait(`document.querySelector('#tigerest-watch .tw-status').textContent.includes('已经播完')`, 'entering a finished film says why nothing opens');
+    assert.equal(await evaluate(`log.plays.length`), plays, 'the player is not opened on the end of the file');
     await click('离开房间');
     await wait(`log.fetch.some(c => c.url.endsWith('/leave'))`);
     assert.match(await evaluate(`document.querySelector('#tigerest-watch').textContent`), /选择影片并创建/);

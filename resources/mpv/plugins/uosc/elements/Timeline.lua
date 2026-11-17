@@ -135,9 +135,15 @@ function Timeline:clear_thumbnail()
 end
 
 function Timeline:handle_cursor_down()
-	self.pressed = {pause = state.pause, distance = 0, last = {x = cursor.x, y = cursor.y}}
-	mp.set_property_native('pause', true)
-	self:set_from_cursor()
+	-- A watch-together room is told of every pause and play. Held, the
+	-- timeline paused and then played again, and one click reached the others
+	-- as a pause, a seek and a play. In a room the sync stops the player for
+	-- the seek itself, and takes the room to the keyframe before it, so the
+	-- timeline seeks to keyframes too.
+	local room = mp.get_property_native('user-data/tigerest/room-timeline') == true
+	self.pressed = {pause = state.pause, room = room, distance = 0, last = {x = cursor.x, y = cursor.y}}
+	if not room then mp.set_property_native('pause', true) end
+	self:set_from_cursor(room)
 end
 function Timeline:on_prop_duration() self:decide_enabled() end
 function Timeline:on_prop_time() self:decide_enabled() end
@@ -154,7 +160,7 @@ function Timeline:on_options()
 end
 function Timeline:handle_cursor_up()
 	if self.pressed then
-		mp.set_property_native('pause', self.pressed.pause)
+		if not self.pressed.room then mp.set_property_native('pause', self.pressed.pause) end
 		self.pressed = false
 	end
 end
@@ -166,7 +172,7 @@ function Timeline:on_global_mouse_move()
 	if self.pressed then
 		self.pressed.distance = self.pressed.distance + get_point_to_point_proximity(self.pressed.last, cursor)
 		self.pressed.last.x, self.pressed.last.y = cursor.x, cursor.y
-		if state.is_video and math.abs(cursor:get_velocity().x) / self.width * state.duration > 30 then
+		if self.pressed.room or state.is_video and math.abs(cursor:get_velocity().x) / self.width * state.duration > 30 then
 			self:set_from_cursor(true)
 		else
 			self:set_from_cursor()
