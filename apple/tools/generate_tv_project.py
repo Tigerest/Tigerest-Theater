@@ -50,6 +50,13 @@ def generate(fixture_media=None):
     resources.append(g.obj('tvfontsres','PBXBuildFile',fileRef=ref))
     ref=g.file('Resources/TV.xcassets','folder.assetcatalog');files.append(ref)
     resources.append(g.obj('tviconsres','PBXBuildFile',fileRef=ref))
+    # Apple-native interpolation (prepare_native_filters.py): the efficient
+    # mode, the only frame processor tvOS has.
+    native_filters=(ROOT/'Generated/NativeFilters/source.json').exists()
+    if native_filters:
+        for path in [ROOT/'NativeInterpolation/vf_tigerest_vtfi.c',ROOT/'NativeInterpolation/TigerestVTInterpolator.m',ROOT/'Generated/NativeFilters/user_filters_tv.c']:
+            relative=str(path.relative_to(ROOT));ref=g.file(relative,'sourcecode.c.c' if path.suffix=='.c' else 'sourcecode.c.objc');files.append(ref)
+            sources.append(g.obj(relative+'tvbuild','PBXBuildFile',fileRef=ref))
     if fixture_media:
         fixture=ROOT/'Generated/TV/tv-fixture.mp4';shutil.copyfile(fixture_media,fixture)
         ref=g.file('Generated/TV/tv-fixture.mp4','file');files.append(ref);resources.append(g.obj('tvfixtureres','PBXBuildFile',fileRef=ref))
@@ -59,6 +66,9 @@ def generate(fixture_media=None):
     mpvlib=g.obj('tvmpvlib','XCSwiftPackageProductDependency',productName='MPVKit',package=mpv)
     product=g.obj('tvproduct','PBXFileReference',explicitFileType='wrapper.application',path='TigerestTV.app',sourceTree='BUILT_PRODUCTS_DIR')
     settings={'PRODUCT_NAME':'TigerestTV','PRODUCT_BUNDLE_IDENTIFIER':'top.tigerest.theater.tv','INFOPLIST_FILE':'Config/TVInfo.plist','SWIFT_VERSION':'5.0','TVOS_DEPLOYMENT_TARGET':'26.0','TARGETED_DEVICE_FAMILY':'3','CODE_SIGN_STYLE':'Automatic','SDKROOT':'appletvos','SUPPORTED_PLATFORMS':'appletvos appletvsimulator','CLANG_ENABLE_MODULES':'YES','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks','ENABLE_USER_SCRIPT_SANDBOXING':'YES','GENERATE_INFOPLIST_FILE':'NO'}
+    if native_filters:
+        include=['$(inherited)','$(SRCROOT)/Generated/NativeFilters','$(SRCROOT)/Generated/NativeFilters/mpv','$(SRCROOT)/Generated/NativeFilters/mpv/filters','$(SRCROOT)/NativeInterpolation']
+        settings.update({'HEADER_SEARCH_PATHS':include,'HEADER_SEARCH_PATHS[sdk=appletvos*]':include+['$(SRCROOT)/Generated/NativeFilters/tvos'],'HEADER_SEARCH_PATHS[sdk=appletvsimulator*]':include+['$(SRCROOT)/Generated/NativeFilters/tvsimulator'],'CLANG_ENABLE_OBJC_ARC':'YES','GCC_C_LANGUAGE_STANDARD':'gnu11','OTHER_LDFLAGS':'$(inherited) -framework VideoToolbox -framework CoreMedia -framework CoreVideo','SWIFT_ACTIVE_COMPILATION_CONDITIONS':'$(inherited) NATIVE_VTFI'})
     target=g.obj('tvapp','PBXNativeTarget',name='TigerestTV',productName='TigerestTV',productReference=product,productType='com.apple.product-type.application',buildConfigurationList=g.configurations('tvapp',{**settings,'ASSETCATALOG_COMPILER_APPICON_NAME':'App Icon & Top Shelf Image'}),buildPhases=[g.obj('tvsrc','PBXSourcesBuildPhase',buildActionMask=2147483647,files=sources,runOnlyForDeploymentPostprocessing=0),g.obj('tvres','PBXResourcesBuildPhase',buildActionMask=2147483647,files=resources,runOnlyForDeploymentPostprocessing=0),g.obj('tvframeworks','PBXFrameworksBuildPhase',buildActionMask=2147483647,files=[g.obj(x+'tvlink','PBXBuildFile',productRef=x) for x in [corelib,mpvlib]],runOnlyForDeploymentPostprocessing=0)],buildRules=[],dependencies=[],packageProductDependencies=[corelib,mpvlib])
     testfiles=[]
     for path in sorted((ROOT/'TVUITests').glob('*.swift')):

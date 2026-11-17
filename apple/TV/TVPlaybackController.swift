@@ -8,6 +8,10 @@ import AppleCore
     var onStopReported: ((JSONValue, EmbyClient) -> Void)?
     let surface = MetalSurface(frame: .zero)
     let subtitles = TVSubtitleController()
+    let settings: TVPlaybackSettings
+    /// A message about this video's playback settings or interpolation, once per item.
+    @Published private(set) var notice: String?
+    private var nativeNoticeShown = "", nativePolledAt = 0.0
     @Published private(set) var active = false
     @Published private(set) var paused = false
     @Published private(set) var buffering = false
@@ -42,6 +46,7 @@ import AppleCore
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
         probeEnabled = arguments.contains("--tv-playback-probe")
         fixtureMode = arguments.contains("--tv-fixture")
+        settings = TVPlaybackSettings(fixtureMode: fixtureMode)
         if !fixtureMode {
             let saved = UserDefaults.standard.string(forKey: "tv.qualityPreset") ?? "native"
             qualityPreset = ["tigerest-default", "tv-balanced"].contains(saved) ? saved : "native"
@@ -100,11 +105,17 @@ import AppleCore
                 qualityMessage = "增强滤镜未能启用，当前使用原生画质。"
             }
             subtitles.begin(playback: playback, engine: next)
+            // The settings replace the subtitle controller's television defaults.
+            var refused = settings.apply(to: next)
+            if let filter = settings.interpolationFilter {
+                do { try next.command(["vf", "add", filter]) } catch { refused.append("vf") }
+            }
+            notice = refused.isEmpty ? nil : "部分播放设置未能应用，已保持默认：" + refused.joined(separator: "、")
             try next.command(["loadfile", playback.url.absoluteString, "replace"])
         } catch { subtitles.reset(); next.close(); try? audio.setActive(false); throw error }
         self.engine = next; self.playback = playback; self.client = client
         generation = UUID(); loaded = false; reporting = false; reportTask = nil
-        lastProbe = 0
+        lastProbe = 0; nativeNoticeShown = ""; nativePolledAt = 0
         frameStability = TVFrameStability()
         position = 0; duration = 0; paused = false; buffering = true; error = nil
         let season = playback.item["ParentIndexNumber"].number, episode = playback.item["IndexNumber"].number
@@ -135,6 +146,7 @@ import AppleCore
             case .loaded:
                 loaded = true
                 subtitles.fileLoaded()
+                try? settings.applyAspect(to: engine)
                 if let start = playback?.startSeconds, start > 0 {
                     do { try engine.command(["seek", String(start), "absolute+exact"]); position = start }
                     catch { self.error = "续播位置未能恢复" }
@@ -148,7 +160,7 @@ import AppleCore
         if let value = Double(engine.string("time-pos")), value.isFinite, value >= 0 { position = safeTime(value) }
         if let value = Double(engine.string("duration")), value.isFinite, value > 0 { duration = safeTime(value) }
         paused = engine.flag("pause"); buffering = !loaded || engine.flag("paused-for-cache")
-        if loaded { subtitles.update() }
+        if loaded { subtitles.update(); pollNativeInterpolation(engine, now: now) }
         if loaded && engine.flag("eof-reached") { stop(); return }
         stabilizeQuality(now: now)
         guard active else { return }
@@ -165,6 +177,14 @@ import AppleCore
             stop(); error = "播放长时间没有进展，请检查网络后重试。"; return
         }
         if loaded && now - lastReport >= 10 { sendReport(.progress) }
+    }
+    /// Once a second: why the native filter keeps the video's frames, told once per item.
+    private func pollNativeInterpolation(_ engine: MPVEngine, now: Double) {
+        guard settings.interpolationFilter != nil, now - nativePolledAt >= 1 else { return }
+        nativePolledAt = now
+        guard let status = engine.json("vf-metadata/" + NativeInterpolation.label)["status"].string, status != nativeNoticeShown else { return }
+        nativeNoticeShown = status
+        if let message = NativeInterpolation.notice(status: status, fellBack: false) { notice = message }
     }
     private func sendReport(_ event: EmbyPlaybackEvent) {
         guard let client, let playback, !reporting, !isLocalFixture(playback) else { return }
@@ -226,7 +246,7 @@ import AppleCore
         }
         if wasActive, loaded, let playback { onStopped?(playback.item, position, duration) }
         generation = UUID(); reportTask = nil; reporting = false
-        playback = nil; client = nil; loaded = false; buffering = false
+        playback = nil; client = nil; loaded = false; buffering = false; notice = nil
         if !preservingPresentation { active = false }
         UIApplication.shared.isIdleTimerDisabled = false
         if wasActive { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
@@ -339,6 +359,8 @@ import AppleCore
             "capturedAt": .string(ISO8601DateFormatter().string(from: Date())),
             "position": .number(position), "paused": .bool(paused), "buffering": .bool(buffering),
             "qualityPreset": .string(qualityPreset),
+            "nativeInterpolation": engine.json("vf-metadata/" + NativeInterpolation.label),
+            "playbackSettings": .object(settings.values.mapValues(JSONValue.string)),
             "effectiveQualityPreset": .string(effectiveQualityPreset),
             "estimated-vf-fps": number("estimated-vf-fps"),
             "display-fps": number("display-fps"), "estimated-display-fps": number("estimated-display-fps"),

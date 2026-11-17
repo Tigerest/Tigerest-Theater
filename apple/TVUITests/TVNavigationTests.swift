@@ -188,6 +188,38 @@ final class TVNavigationTests: XCTestCase {
         XCTAssertTrue(hero.waitForExistence(timeout: 5), app.debugDescription)
     }
 
+    /// 播放设置 outside playback: a choice shows on its row, and native
+    /// interpolation reaches the engine as the tvOS filter. Simulators have no
+    /// frame processors and keep the video's frames, saying so; nothing may be
+    /// refused by the engine.
+    func testPlaybackSettingsReachTheEngine() throws {
+        let app = launchFixture(media: true)
+        try select("tv.library.fixture.movies", in: app)
+        try select("tv.item.fixture.movie", in: app)
+        try select("tv.quality", in: app)
+        let row = app.buttons["tv.setting.video.nativeInterpolation"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(row.label.contains("关闭"), row.label)
+        try select("tv.setting.video.nativeInterpolation", in: app)
+        XCTAssertTrue(app.buttons["tv.setting.choice.1"].waitForExistence(timeout: 5), app.debugDescription)
+        try select("tv.setting.choice.1", in: app)
+        expect("The choice shows on its row") { row.exists && row.label.contains("开启") }
+        XCUIRemote.shared.press(.menu)
+        try select("tv.play", in: app)
+        XCTAssertTrue(app.buttons["tv.player.pause"].waitForExistence(timeout: 20))
+        expect("The local fixture must actually advance through MPV", timeout: 15) { self.position(in: app) >= 1 }
+        let notice = app.staticTexts["tv.player.notice"]
+        expect("The filter reports why it keeps the frames", timeout: 15) {
+            if !notice.exists && app.buttons["tv.player.reveal"].exists { XCUIRemote.shared.press(.down) }
+            return notice.exists
+        }
+        XCTAssertFalse(notice.label.contains("未能应用"), notice.label)
+        XCTAssertTrue(notice.label.contains("保持原帧播放"), notice.label)
+        XCUIRemote.shared.press(.menu)
+        XCUIRemote.shared.press(.menu)
+        XCTAssertTrue(app.buttons["tv.play"].waitForExistence(timeout: 5))
+    }
+
     func testFixturePlaybackPauseAndBack() throws {
         let app = launchFixture(media: true)
         try select("tv.library.fixture.movies", in: app)
@@ -209,9 +241,12 @@ final class TVNavigationTests: XCTestCase {
         XCUIRemote.shared.press(.playPause)
         expect("The remote resumes actual playback", timeout: 10) { self.position(in: app) > pausedPosition + 1 }
         let positionBeforeExit = position(in: app)
+        // Back first hides visible controls (since 2.9.4), then leaves playback.
         XCUIRemote.shared.press(.menu)
+        if app.buttons["tv.player.reveal"].waitForExistence(timeout: 2) { XCUIRemote.shared.press(.menu) }
         XCTAssertTrue(app.buttons["tv.play"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["tv.player.pause"].exists)
+        XCTAssertFalse(app.buttons["tv.player.reveal"].exists, "Back must leave playback once the controls are hidden")
         let resume = app.buttons["tv.resume"]
         XCTAssertTrue(resume.waitForExistence(timeout: 5), "Stopping playback must immediately expose the updated resume position")
         let resumeClock = resume.label.components(separatedBy: "·").last?.trimmingCharacters(in: .whitespaces) ?? ""

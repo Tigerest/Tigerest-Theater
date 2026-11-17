@@ -71,7 +71,7 @@ struct TVRootView: View {
             if model.isAuthenticated {
                 Button { model.openServerSettings() } label: { Label("服务器", systemImage: "server.rack") }
                     .accessibilityIdentifier("tv.servers").focused($focused, equals: "tv.servers")
-                Button { showQuality = true } label: { Label("画质", systemImage: "sparkles.tv") }
+                Button { showQuality = true } label: { Label("播放设置", systemImage: "slider.horizontal.3") }
                     .accessibilityIdentifier("tv.quality")
                     .focused($focused, equals: "tv.quality")
                 if !model.canGoBack {

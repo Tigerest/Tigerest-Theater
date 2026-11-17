@@ -59,6 +59,7 @@ struct TVPlayerView: View {
                         Button("退出播放") { player.stop() }.accessibilityIdentifier("tv.player.close")
                     }
                     if let error = player.error { Text(error).font(.callout).foregroundStyle(.yellow) }
+                    if let notice = player.notice { Text(notice).font(.callout).foregroundStyle(.secondary).accessibilityIdentifier("tv.player.notice") }
                 }
                 .padding(50).background(.black.opacity(0.78))
             } else {
@@ -86,6 +87,8 @@ struct TVPlayerView: View {
         // Pausing (remote, route loss or a room) shows the controls; they stay
         // until Back hides them because the timer below skips paused playback.
         .onChange(of: player.paused) { _, paused in if paused { reveal() } }
+        // A new playback notice (settings, interpolation) shows with the controls.
+        .onChange(of: player.notice) { _, notice in if notice != nil { reveal() } }
         .task(id: interaction) {
             try? await Task.sleep(for: .seconds(5))
             guard !Task.isCancelled, !player.paused, !player.buffering, !model.busy, !panelVisible else { return }

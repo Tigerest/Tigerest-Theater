@@ -172,6 +172,24 @@
 			<key>fileRef</key>
 			<string>5B6CB03F43F10DF0F8672BA0</string>
 		</dict>
+		<key>0F2DAF77932E7D622D0D1652</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.swift</string>
+			<key>path</key>
+			<string>TV/TVPlaybackSettings.swift</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>604D0CE76550E6D7194E6E60</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>0F2DAF77932E7D622D0D1652</string>
+		</dict>
 		<key>84786CAF55D8F9089AEAE8EC</key>
 		<dict>
 			<key>isa</key>
@@ -478,6 +496,60 @@
 			<key>fileRef</key>
 			<string>A3F82A4A6930AACC4A0ABD4D</string>
 		</dict>
+		<key>97C7B7EF1D526370E2A21846</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.c.c</string>
+			<key>path</key>
+			<string>NativeInterpolation/vf_tigerest_vtfi.c</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>FE4B74B8511A36C6178847B2</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>97C7B7EF1D526370E2A21846</string>
+		</dict>
+		<key>40E1B8C4265F6BE626998CBF</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.c.objc</string>
+			<key>path</key>
+			<string>NativeInterpolation/TigerestVTInterpolator.m</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>4C59CA7E5C3F896EC8B489F6</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>40E1B8C4265F6BE626998CBF</string>
+		</dict>
+		<key>47BA0F7CDAFC13F6069E5813</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.c.c</string>
+			<key>path</key>
+			<string>Generated/NativeFilters/user_filters_tv.c</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>7473FDFA72819C6B1B38AE39</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>47BA0F7CDAFC13F6069E5813</string>
+		</dict>
 		<key>35A44ABCD1083C4498F32DD5</key>
 		<dict>
 			<key>isa</key>
@@ -575,14 +647,46 @@
 				<string>YES</string>
 				<key>GENERATE_INFOPLIST_FILE</key>
 				<string>NO</string>
+				<key>HEADER_SEARCH_PATHS</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+				</array>
+				<key>HEADER_SEARCH_PATHS[sdk=appletvos*]</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/tvos</string>
+				</array>
+				<key>HEADER_SEARCH_PATHS[sdk=appletvsimulator*]</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/tvsimulator</string>
+				</array>
+				<key>CLANG_ENABLE_OBJC_ARC</key>
+				<string>YES</string>
+				<key>GCC_C_LANGUAGE_STANDARD</key>
+				<string>gnu11</string>
+				<key>OTHER_LDFLAGS</key>
+				<string>$(inherited) -framework VideoToolbox -framework CoreMedia -framework CoreVideo</string>
+				<key>SWIFT_ACTIVE_COMPILATION_CONDITIONS</key>
+				<string>$(inherited) NATIVE_VTFI DEBUG</string>
 				<key>ASSETCATALOG_COMPILER_APPICON_NAME</key>
 				<string>App Icon &amp; Top Shelf Image</string>
 				<key>ONLY_ACTIVE_ARCH</key>
 				<string>YES</string>
 				<key>SWIFT_OPTIMIZATION_LEVEL</key>
 				<string>-Onone</string>
-				<key>SWIFT_ACTIVE_COMPILATION_CONDITIONS</key>
-				<string> DEBUG</string>
 			</dict>
 		</dict>
 		<key>0689DA9B16E2D67615934BFA</key>
@@ -621,6 +725,40 @@
 				<string>YES</string>
 				<key>GENERATE_INFOPLIST_FILE</key>
 				<string>NO</string>
+				<key>HEADER_SEARCH_PATHS</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+				</array>
+				<key>HEADER_SEARCH_PATHS[sdk=appletvos*]</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/tvos</string>
+				</array>
+				<key>HEADER_SEARCH_PATHS[sdk=appletvsimulator*]</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/tvsimulator</string>
+				</array>
+				<key>CLANG_ENABLE_OBJC_ARC</key>
+				<string>YES</string>
+				<key>GCC_C_LANGUAGE_STANDARD</key>
+				<string>gnu11</string>
+				<key>OTHER_LDFLAGS</key>
+				<string>$(inherited) -framework VideoToolbox -framework CoreMedia -framework CoreVideo</string>
+				<key>SWIFT_ACTIVE_COMPILATION_CONDITIONS</key>
+				<string>$(inherited) NATIVE_VTFI</string>
 				<key>ASSETCATALOG_COMPILER_APPICON_NAME</key>
 				<string>App Icon &amp; Top Shelf Image</string>
 				<key>ONLY_ACTIVE_ARCH</key>
@@ -660,6 +798,7 @@
 				<string>CC84E1C1518BFCED5DD612EF</string>
 				<string>21CBE42E4237F0C7827960D6</string>
 				<string>41EF540DFC1ADE800D8064E3</string>
+				<string>604D0CE76550E6D7194E6E60</string>
 				<string>B5D9A930288B403E180AEFED</string>
 				<string>C9BD21996FF49BBC99333455</string>
 				<string>866B18FA05402F88E614313D</string>
@@ -673,6 +812,9 @@
 				<string>755F59BE49122DF5EB1027AF</string>
 				<string>750290FA57BC32AC3110AEBB</string>
 				<string>788D41FBA3C0E9202C7CF5A0</string>
+				<string>FE4B74B8511A36C6178847B2</string>
+				<string>4C59CA7E5C3F896EC8B489F6</string>
+				<string>7473FDFA72819C6B1B38AE39</string>
 			</array>
 			<key>runOnlyForDeploymentPostprocessing</key>
 			<integer>0</integer>
@@ -838,14 +980,46 @@
 				<string>YES</string>
 				<key>GENERATE_INFOPLIST_FILE</key>
 				<string>YES</string>
+				<key>HEADER_SEARCH_PATHS</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+				</array>
+				<key>HEADER_SEARCH_PATHS[sdk=appletvos*]</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/tvos</string>
+				</array>
+				<key>HEADER_SEARCH_PATHS[sdk=appletvsimulator*]</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/tvsimulator</string>
+				</array>
+				<key>CLANG_ENABLE_OBJC_ARC</key>
+				<string>YES</string>
+				<key>GCC_C_LANGUAGE_STANDARD</key>
+				<string>gnu11</string>
+				<key>OTHER_LDFLAGS</key>
+				<string>$(inherited) -framework VideoToolbox -framework CoreMedia -framework CoreVideo</string>
+				<key>SWIFT_ACTIVE_COMPILATION_CONDITIONS</key>
+				<string>$(inherited) NATIVE_VTFI DEBUG</string>
 				<key>TEST_TARGET_NAME</key>
 				<string>TigerestTV</string>
 				<key>ONLY_ACTIVE_ARCH</key>
 				<string>YES</string>
 				<key>SWIFT_OPTIMIZATION_LEVEL</key>
 				<string>-Onone</string>
-				<key>SWIFT_ACTIVE_COMPILATION_CONDITIONS</key>
-				<string> DEBUG</string>
 			</dict>
 		</dict>
 		<key>1C390B4476DC92CBD3958A9A</key>
@@ -884,6 +1058,40 @@
 				<string>YES</string>
 				<key>GENERATE_INFOPLIST_FILE</key>
 				<string>YES</string>
+				<key>HEADER_SEARCH_PATHS</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+				</array>
+				<key>HEADER_SEARCH_PATHS[sdk=appletvos*]</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/tvos</string>
+				</array>
+				<key>HEADER_SEARCH_PATHS[sdk=appletvsimulator*]</key>
+				<array>
+					<string>$(inherited)</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/tvsimulator</string>
+				</array>
+				<key>CLANG_ENABLE_OBJC_ARC</key>
+				<string>YES</string>
+				<key>GCC_C_LANGUAGE_STANDARD</key>
+				<string>gnu11</string>
+				<key>OTHER_LDFLAGS</key>
+				<string>$(inherited) -framework VideoToolbox -framework CoreMedia -framework CoreVideo</string>
+				<key>SWIFT_ACTIVE_COMPILATION_CONDITIONS</key>
+				<string>$(inherited) NATIVE_VTFI</string>
 				<key>TEST_TARGET_NAME</key>
 				<string>TigerestTV</string>
 				<key>ONLY_ACTIVE_ARCH</key>
@@ -973,6 +1181,7 @@
 				<string>374F0B047EC7FEECFD61F516</string>
 				<string>D34BC27E7F843E2BD9F13C4F</string>
 				<string>5B6CB03F43F10DF0F8672BA0</string>
+				<string>0F2DAF77932E7D622D0D1652</string>
 				<string>84786CAF55D8F9089AEAE8EC</string>
 				<string>6BABB3B78EC3C2377591A44C</string>
 				<string>63344657058E0EA1F8EFD364</string>
@@ -990,6 +1199,9 @@
 				<string>FC178867AD461E3C97D94B56</string>
 				<string>188694BC498E2E6E0231298B</string>
 				<string>A3F82A4A6930AACC4A0ABD4D</string>
+				<string>97C7B7EF1D526370E2A21846</string>
+				<string>40E1B8C4265F6BE626998CBF</string>
+				<string>47BA0F7CDAFC13F6069E5813</string>
 				<string>DBCF258C0E434F3DFBDA5648</string>
 				<string>79BBD3B852F40BDCEA1D0F8D</string>
 			</array>
