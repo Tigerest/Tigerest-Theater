@@ -46,6 +46,48 @@ static void fail(char *error, size_t size, const char *text)
         snprintf(error, size, "%s", text);
 }
 
+#if TARGET_OS_SIMULATOR
+// Simulators have no frame processors (VTFrameProcessor.h declares nothing
+// there): every mode reports unsupported, and the filter keeps the video's
+// own frames.
+bool tgvt_mode_supported(int mode)
+{
+    (void)mode;
+    return false;
+}
+
+bool tgvt_size_supported(int mode, int width, int height)
+{
+    (void)mode, (void)width, (void)height;
+    return false;
+}
+
+int tgvt_mode(const tgvt_engine *engine)
+{
+    return engine ? engine->mode : 0;
+}
+
+tgvt_engine *tgvt_create(int mode, int width, int height, int points, char *error, size_t error_size)
+{
+    (void)mode, (void)width, (void)height, (void)points;
+    fail(error, error_size, "VideoToolbox frame processors are not available in the simulator");
+    return NULL;
+}
+
+void tgvt_destroy(tgvt_engine *engine)
+{
+    (void)engine;
+}
+
+bool tgvt_interpolate(tgvt_engine *e, CVPixelBufferRef prev, double prev_pts,
+                      CVPixelBufferRef next, double next_pts, const float *phases, int count,
+                      CVPixelBufferRef *out, double *ms, char *error, size_t error_size)
+{
+    (void)e, (void)prev, (void)prev_pts, (void)next, (void)next_pts, (void)phases, (void)count, (void)out, (void)ms;
+    fail(error, error_size, "VideoToolbox frame processors are not available in the simulator");
+    return false;
+}
+#else
 static void fail_ns(char *error, size_t size, const char *what, NSError *err)
 {
     if (!error || !size)
@@ -413,6 +455,8 @@ bool tgvt_interpolate(tgvt_engine *e, CVPixelBufferRef prev, double prev_pts,
         *ms = now_ms() - start;
     return true;
 }
+
+#endif // TARGET_OS_SIMULATOR
 
 // Luma code value at a sample point, normalised to 0..1 of 8 or 16 bits.
 static inline double luma_at(const uint8_t *row, int x, bool wide)

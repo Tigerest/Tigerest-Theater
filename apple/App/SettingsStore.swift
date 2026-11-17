@@ -18,15 +18,22 @@ import AppleCore
         "home": ["displayOrder", "libraryLayout"],
         "main": ["checkForUpdates", "enableMPV", "allowBrowserZoom", "userWebClient", "serverConnectionMode", "knownServers"],
         "audio": ["channels", "normalize"],
-        "video": ["aiRife", "hardwareDecoding", "deinterlace", "cache", "aspect", "sync_mode", "default_playback_speed", "audio_delay.normal", "force_transcode_hevc", "force_transcode_4k", "force_transcode_av1", "force_transcode_hdr", "force_transcode_hi10p", "force_transcode_dovi", "always_force_transcode", "allow_transcode_to_hevc", "prefer_transcode_to_h265"],
-        "mpv": ["shaderPreset", "enableDanmaku", "audioLanguage", "subtitleLanguage", "cachePause", "deband", "toneMapping", "targetColorspaceHint"],
-        "subtitles": ["ass_scale_border_and_shadow", "ass_style_override", "placement", "color", "border_color", "border_size", "background_color", "background_transparency", "size", "font"],
+        "video": ["aiRife", "nativeInterpolation", "nativeInterpolationTarget", "hardwareDecoding", "deinterlace", "cache", "aspect", "sync_mode", "default_playback_speed", "audio_delay.normal", "force_transcode_hevc", "force_transcode_4k", "force_transcode_av1", "force_transcode_hdr", "force_transcode_hi10p", "force_transcode_dovi", "always_force_transcode", "allow_transcode_to_hevc", "prefer_transcode_to_h265"],
+        "mpv": ["shaderPreset", "enableDanmaku", "audioLanguage", "subtitleLanguage", "cachePause", "deband", "toneMapping", "targetColorspaceHint",
+                // The desktop's quality parameters: they override the preset only with advancedProfileOverrides on.
+                "advancedProfileOverrides", "scale", "cscale", "dscale", "interpolation", "tscale", "debandIterations", "debandThreshold", "debandRange", "debandGrain",
+                "sigmoidUpscaling", "correctDownscaling", "scaleAntiring", "cscaleAntiring", "gamutMappingMode", "hdrComputePeak", "ditherDepth", "blendSubtitles",
+                "demuxerMaxBackBytes"],
+        "subtitles": ["ass_scale_border_and_shadow", "ass_style_override", "placement", "vertical_position", "color", "border_color", "border_size", "background_color", "background_transparency", "size", "font", "bold"],
         "danmaku": ["bold", "fontsize", "outline", "shadow", "scrolltime", "opacity", "displayarea", "apiServer"]
     ]
     init(directory: URL) throws {
         file = directory.appending(path: "settings.json")
         #if !RIFE_NATIVE
         supported["video"]?.remove("aiRife")
+        #endif
+        #if !NATIVE_VTFI
+        supported["video"]?.subtract(["nativeInterpolation", "nativeInterpolationTarget"])
         #endif
         let source = Bundle.main.url(forResource: "settings_description", withExtension: "json", subdirectory: "Web")!
         let groups = try JSONDecoder().decode([JSONValue].self, from: Data(contentsOf: source))
@@ -42,6 +49,8 @@ import AppleCore
                 if name == "mpv" && key == "configMode" { value = .string("embedded") }
                 if name == "video" && key == "hardwareDecoding" { value = .string("enabled") }
                 if name == "subtitles" && key == "font" { value = .string("Source Han Sans SC") }
+                // The bundled Source Han Sans has one weight; bold would be synthesized.
+                if name == "subtitles" && key == "bold" { value = .bool(false) }
                 raw[key] = value
                 guard supported[name]?.contains(key) == true, entry["hidden"].bool != true else { continue }
                 var description: [String: JSONValue] = ["key": .string(key), "displayName": entry["display_name"], "help": entry["help"]]
@@ -49,6 +58,12 @@ import AppleCore
                     description["help"] = .string("实验性 RIFE 4.25 lite：对 1920×1080、BT.709 SDR、23–30 fps 片源进行 2× 补帧。快于正常速度时暂用原帧，恢复正常速度后自动恢复补帧；不支持的片源保留原帧。开关在重新打开视频后生效。")
                 }
                 if name == "video" && key == "hardwareDecoding" { description["help"] = .string("使用 Apple VideoToolbox 硬件解码。异常时可选择复制模式或关闭。") }
+                if name == "video" && key == "nativeInterpolation" {
+                    description["help"] = .string("用 Apple VideoToolbox 在设备的图形处理器和神经引擎上补帧，不需要下载模型。「画质优先」用帧率转换，鬼影最少；「低功耗」用低延迟插帧，更省电，只有 2 倍和 4 倍。处理 1080p 以内、30 fps 以内的 SDR 视频，其他片源和倍速播放保持原帧；镜头切换和停住的画面不补。跟不上播放时先改用低功耗，再跟不上就恢复原帧。开启后由它代替 RIFE，重新打开视频后生效。")
+                }
+                if name == "video" && key == "nativeInterpolationTarget" {
+                    description["help"] = .string("「2 倍」：23.976 帧变 47.95 帧，开销最小；「60 fps」：23.976 帧变 59.94 帧；「跟随屏幕刷新率」：补到屏幕的刷新率，ProMotion 屏幕是 120 Hz（最多 5 倍）。低功耗模式只有 2 倍和 4 倍。重新打开视频后生效。")
+                }
                 if entry["input_type"] != .null { description["inputType"] = entry["input_type"] }
                 if entry["possible_range"] != .null { description["range"] = entry["possible_range"] }
                 if let choices = entry["possible_values"].array {

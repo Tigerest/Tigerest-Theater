@@ -41,22 +41,35 @@ def generate():
         mpv=obj('mpv','XCRemoteSwiftPackageReference',repositoryURL='https://github.com/mpvkit/MPVKit.git',requirement={'kind':'revision','revision':'d9194243bdc68b87d8989376ab52aee7da6c8e0b'})
         packages.append(mpv);libs.append(obj('mpvlib','XCSwiftPackageProductDependency',productName='MPVKit',package=mpv))
     native_rife=(ROOT/'Generated/NativeRIFE/source.json').exists()
+    # Apple-native interpolation (prepare_native_filters.py): its registry
+    # also lists the RIFE filter when that is built.
+    native_filters=(ROOT/'Generated/NativeFilters/source.json').exists()
     resources=[resource]
     ref=file('Resources/SubtitleFonts','folder');files.append(ref)
     resources.append(obj('ipad-subtitle-fonts-resource','PBXBuildFile',fileRef=ref))
     ref=file('Resources/iPad.xcassets','folder.assetcatalog');files.append(ref)
     resources.append(obj('ipad-icons-resource','PBXBuildFile',fileRef=ref))
     if native_rife:
-        native_sources=[*sorted((ROOT/'NativeRIFE').glob('*.c')),*sorted((ROOT/'NativeRIFE').glob('*.mm')),ROOT/'Generated/NativeRIFE/user_filters.c',*[ROOT.parent/'src/player/interpolation'/f'{name}.mm' for name in ['RifeEngine','RifeMetalWarp','RifeCoarseMetal']]]
+        native_sources=[*sorted((ROOT/'NativeRIFE').glob('*.c')),*sorted((ROOT/'NativeRIFE').glob('*.mm')),*([] if native_filters else [ROOT/'Generated/NativeRIFE/user_filters.c']),*[ROOT.parent/'src/player/interpolation'/f'{name}.mm' for name in ['RifeEngine','RifeMetalWarp','RifeCoarseMetal']]]
         for path in native_sources:
             relative=os.path.relpath(path,ROOT)
             ref=file(relative,'sourcecode.c.c' if path.suffix=='.c' else 'sourcecode.cpp.objcpp');files.append(ref);sources.append(obj(relative+'build','PBXBuildFile',fileRef=ref))
         ref=file('Generated/RifeModel','folder');files.append(ref);resources.append(obj('rife-model-resource','PBXBuildFile',fileRef=ref))
+    if native_filters:
+        registry=ROOT/'Generated/NativeFilters'/('user_filters_ios_rife.c' if native_rife else 'user_filters_ios.c')
+        for path in [ROOT/'NativeInterpolation/vf_tigerest_vtfi.c',ROOT/'NativeInterpolation/TigerestVTInterpolator.m',registry]:
+            relative=os.path.relpath(path,ROOT)
+            ref=file(relative,'sourcecode.c.c' if path.suffix=='.c' else 'sourcecode.c.objc');files.append(ref);sources.append(obj(relative+'build','PBXBuildFile',fileRef=ref))
     phases=[obj('srcphase' ,'PBXSourcesBuildPhase',buildActionMask=2147483647,files=sources,runOnlyForDeploymentPostprocessing=0),obj('resphase','PBXResourcesBuildPhase',buildActionMask=2147483647,files=resources,runOnlyForDeploymentPostprocessing=0),obj('frameworkphase','PBXFrameworksBuildPhase',buildActionMask=2147483647,files=[obj(x+'link','PBXBuildFile',productRef=x) for x in libs],runOnlyForDeploymentPostprocessing=0)]
     settings={'PRODUCT_NAME':'TigerestTheater','PRODUCT_BUNDLE_IDENTIFIER':'top.tigerest.theater.universal','INFOPLIST_FILE':'Config/Info.plist','SWIFT_VERSION':'5.0','IPHONEOS_DEPLOYMENT_TARGET':'26.0','TARGETED_DEVICE_FAMILY':'1,2','CODE_SIGN_STYLE':'Automatic','SDKROOT':'iphoneos','SUPPORTED_PLATFORMS':'iphoneos iphonesimulator','SUPPORTS_MACCATALYST':'NO','CLANG_ENABLE_MODULES':'YES','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks','ENABLE_USER_SCRIPT_SANDBOXING':'YES','GENERATE_INFOPLIST_FILE':'NO'}
-    if native_rife:
-        include=['$(inherited)','$(SRCROOT)/Generated/NativeRIFE','$(SRCROOT)/Generated/NativeRIFE/mpv','$(SRCROOT)/Generated/NativeRIFE/mpv/filters','$(SRCROOT)/NativeRIFE','$(SRCROOT)/../src/player/interpolation']
-        settings.update({'HEADER_SEARCH_PATHS':include,'HEADER_SEARCH_PATHS[sdk=iphoneos*]':include+['$(SRCROOT)/Generated/NativeRIFE/device'],'HEADER_SEARCH_PATHS[sdk=iphonesimulator*]':include+['$(SRCROOT)/Generated/NativeRIFE/simulator'],'CLANG_CXX_LANGUAGE_STANDARD':'c++17','CLANG_ENABLE_OBJC_ARC':'YES','GCC_C_LANGUAGE_STANDARD':'gnu11','OTHER_LDFLAGS':'$(inherited) -framework CoreML -framework Metal','SWIFT_ACTIVE_COMPILATION_CONDITIONS':'$(inherited) RIFE_NATIVE'})
+    if native_rife or native_filters:
+        # Both filters compile against the same private mpv headers.
+        generated='Generated/NativeFilters' if native_filters else 'Generated/NativeRIFE'
+        include=['$(inherited)',f'$(SRCROOT)/{generated}',f'$(SRCROOT)/{generated}/mpv',f'$(SRCROOT)/{generated}/mpv/filters']
+        include+=(['$(SRCROOT)/NativeRIFE','$(SRCROOT)/../src/player/interpolation'] if native_rife else [])+(['$(SRCROOT)/NativeInterpolation'] if native_filters else [])
+        conditions=' '.join((['RIFE_NATIVE'] if native_rife else [])+(['NATIVE_VTFI'] if native_filters else []))
+        frameworks=(' -framework CoreML -framework Metal' if native_rife else '')+(' -framework VideoToolbox -framework CoreMedia -framework CoreVideo' if native_filters else '')
+        settings.update({'HEADER_SEARCH_PATHS':include,'HEADER_SEARCH_PATHS[sdk=iphoneos*]':include+[f'$(SRCROOT)/{generated}/device'],'HEADER_SEARCH_PATHS[sdk=iphonesimulator*]':include+[f'$(SRCROOT)/{generated}/simulator'],'CLANG_CXX_LANGUAGE_STANDARD':'c++17','CLANG_ENABLE_OBJC_ARC':'YES','GCC_C_LANGUAGE_STANDARD':'gnu11','OTHER_LDFLAGS':'$(inherited)'+frameworks,'SWIFT_ACTIVE_COMPILATION_CONDITIONS':'$(inherited) '+conditions})
     target=obj('app' ,'PBXNativeTarget',name='TigerestTheater',productName='TigerestTheater',productReference=product,productType='com.apple.product-type.application',buildConfigurationList=configurations('app',{**settings,'ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon'}),buildPhases=phases,buildRules=[],dependencies=[],packageProductDependencies=libs)
     testFiles=[]
     for path in sorted((ROOT/'UITests').glob('*.swift')):

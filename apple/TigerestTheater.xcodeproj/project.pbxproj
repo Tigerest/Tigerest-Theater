@@ -672,24 +672,6 @@
 			<key>fileRef</key>
 			<string>A7B66DD105352AB6E57D1143</string>
 		</dict>
-		<key>FCF19CFB2067FAAE19F52A60</key>
-		<dict>
-			<key>isa</key>
-			<string>PBXFileReference</string>
-			<key>lastKnownFileType</key>
-			<string>sourcecode.c.c</string>
-			<key>path</key>
-			<string>Generated/NativeRIFE/user_filters.c</string>
-			<key>sourceTree</key>
-			<string>&lt;group&gt;</string>
-		</dict>
-		<key>343D8A807638D6B32766DA98</key>
-		<dict>
-			<key>isa</key>
-			<string>PBXBuildFile</string>
-			<key>fileRef</key>
-			<string>FCF19CFB2067FAAE19F52A60</string>
-		</dict>
 		<key>7A114A0CF5DC1FAAE46BF09E</key>
 		<dict>
 			<key>isa</key>
@@ -762,6 +744,60 @@
 			<key>fileRef</key>
 			<string>3AF843C0B03FD9397EF6752C</string>
 		</dict>
+		<key>97C7B7EF1D526370E2A21846</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.c.c</string>
+			<key>path</key>
+			<string>NativeInterpolation/vf_tigerest_vtfi.c</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>8D8E11DD7709963576B2DF07</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>97C7B7EF1D526370E2A21846</string>
+		</dict>
+		<key>40E1B8C4265F6BE626998CBF</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.c.objc</string>
+			<key>path</key>
+			<string>NativeInterpolation/TigerestVTInterpolator.m</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>6BA9919BA55B69F5A26605A8</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>40E1B8C4265F6BE626998CBF</string>
+		</dict>
+		<key>F753FB1721C0B16CA2F67948</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.c.c</string>
+			<key>path</key>
+			<string>Generated/NativeFilters/user_filters_ios_rife.c</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>D401224F86682FB90F341410</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>F753FB1721C0B16CA2F67948</string>
+		</dict>
 		<key>05C78377BDB0B6342769023E</key>
 		<dict>
 			<key>isa</key>
@@ -801,10 +837,12 @@
 				<string>C5D04CD8850043FC6A21B639</string>
 				<string>7F1F9EB30F9BBCDB38FFE691</string>
 				<string>3455BC18BA13DC97644EF8D6</string>
-				<string>343D8A807638D6B32766DA98</string>
 				<string>58448CCDC67395AD655AB8FE</string>
 				<string>DFCA459EFD6C7F7F07D7CECA</string>
 				<string>424E2DA648634479081F6EF0</string>
+				<string>8D8E11DD7709963576B2DF07</string>
+				<string>6BA9919BA55B69F5A26605A8</string>
+				<string>D401224F86682FB90F341410</string>
 			</array>
 			<key>runOnlyForDeploymentPostprocessing</key>
 			<integer>0</integer>
@@ -905,31 +943,34 @@
 				<key>HEADER_SEARCH_PATHS</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
 				</array>
 				<key>HEADER_SEARCH_PATHS[sdk=iphoneos*]</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/device</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/device</string>
 				</array>
 				<key>HEADER_SEARCH_PATHS[sdk=iphonesimulator*]</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/simulator</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/simulator</string>
 				</array>
 				<key>CLANG_CXX_LANGUAGE_STANDARD</key>
 				<string>c++17</string>
@@ -938,9 +979,9 @@
 				<key>GCC_C_LANGUAGE_STANDARD</key>
 				<string>gnu11</string>
 				<key>OTHER_LDFLAGS</key>
-				<string>$(inherited) -framework CoreML -framework Metal</string>
+				<string>$(inherited) -framework CoreML -framework Metal -framework VideoToolbox -framework CoreMedia -framework CoreVideo</string>
 				<key>SWIFT_ACTIVE_COMPILATION_CONDITIONS</key>
-				<string>$(inherited) RIFE_NATIVE DEBUG</string>
+				<string>$(inherited) RIFE_NATIVE NATIVE_VTFI DEBUG</string>
 				<key>ASSETCATALOG_COMPILER_APPICON_NAME</key>
 				<string>AppIcon</string>
 				<key>ONLY_ACTIVE_ARCH</key>
@@ -992,31 +1033,34 @@
 				<key>HEADER_SEARCH_PATHS</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
 				</array>
 				<key>HEADER_SEARCH_PATHS[sdk=iphoneos*]</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/device</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/device</string>
 				</array>
 				<key>HEADER_SEARCH_PATHS[sdk=iphonesimulator*]</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/simulator</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/simulator</string>
 				</array>
 				<key>CLANG_CXX_LANGUAGE_STANDARD</key>
 				<string>c++17</string>
@@ -1025,9 +1069,9 @@
 				<key>GCC_C_LANGUAGE_STANDARD</key>
 				<string>gnu11</string>
 				<key>OTHER_LDFLAGS</key>
-				<string>$(inherited) -framework CoreML -framework Metal</string>
+				<string>$(inherited) -framework CoreML -framework Metal -framework VideoToolbox -framework CoreMedia -framework CoreVideo</string>
 				<key>SWIFT_ACTIVE_COMPILATION_CONDITIONS</key>
-				<string>$(inherited) RIFE_NATIVE</string>
+				<string>$(inherited) RIFE_NATIVE NATIVE_VTFI</string>
 				<key>ASSETCATALOG_COMPILER_APPICON_NAME</key>
 				<string>AppIcon</string>
 				<key>ONLY_ACTIVE_ARCH</key>
@@ -1235,31 +1279,34 @@
 				<key>HEADER_SEARCH_PATHS</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
 				</array>
 				<key>HEADER_SEARCH_PATHS[sdk=iphoneos*]</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/device</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/device</string>
 				</array>
 				<key>HEADER_SEARCH_PATHS[sdk=iphonesimulator*]</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/simulator</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/simulator</string>
 				</array>
 				<key>CLANG_CXX_LANGUAGE_STANDARD</key>
 				<string>c++17</string>
@@ -1268,9 +1315,9 @@
 				<key>GCC_C_LANGUAGE_STANDARD</key>
 				<string>gnu11</string>
 				<key>OTHER_LDFLAGS</key>
-				<string>$(inherited) -framework CoreML -framework Metal</string>
+				<string>$(inherited) -framework CoreML -framework Metal -framework VideoToolbox -framework CoreMedia -framework CoreVideo</string>
 				<key>SWIFT_ACTIVE_COMPILATION_CONDITIONS</key>
-				<string>$(inherited) RIFE_NATIVE DEBUG</string>
+				<string>$(inherited) RIFE_NATIVE NATIVE_VTFI DEBUG</string>
 				<key>TEST_TARGET_NAME</key>
 				<string>TigerestTheater</string>
 				<key>ONLY_ACTIVE_ARCH</key>
@@ -1320,31 +1367,34 @@
 				<key>HEADER_SEARCH_PATHS</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
 				</array>
 				<key>HEADER_SEARCH_PATHS[sdk=iphoneos*]</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/device</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/device</string>
 				</array>
 				<key>HEADER_SEARCH_PATHS[sdk=iphonesimulator*]</key>
 				<array>
 					<string>$(inherited)</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/mpv/filters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/mpv/filters</string>
 					<string>$(SRCROOT)/NativeRIFE</string>
 					<string>$(SRCROOT)/../src/player/interpolation</string>
-					<string>$(SRCROOT)/Generated/NativeRIFE/simulator</string>
+					<string>$(SRCROOT)/NativeInterpolation</string>
+					<string>$(SRCROOT)/Generated/NativeFilters/simulator</string>
 				</array>
 				<key>CLANG_CXX_LANGUAGE_STANDARD</key>
 				<string>c++17</string>
@@ -1353,9 +1403,9 @@
 				<key>GCC_C_LANGUAGE_STANDARD</key>
 				<string>gnu11</string>
 				<key>OTHER_LDFLAGS</key>
-				<string>$(inherited) -framework CoreML -framework Metal</string>
+				<string>$(inherited) -framework CoreML -framework Metal -framework VideoToolbox -framework CoreMedia -framework CoreVideo</string>
 				<key>SWIFT_ACTIVE_COMPILATION_CONDITIONS</key>
-				<string>$(inherited) RIFE_NATIVE</string>
+				<string>$(inherited) RIFE_NATIVE NATIVE_VTFI</string>
 				<key>TEST_TARGET_NAME</key>
 				<string>TigerestTheater</string>
 				<key>ONLY_ACTIVE_ARCH</key>
@@ -1511,11 +1561,13 @@
 				<string>F411B6DE337B11F9A0947421</string>
 				<string>8EC36EC682A40B0C657E04C4</string>
 				<string>A7B66DD105352AB6E57D1143</string>
-				<string>FCF19CFB2067FAAE19F52A60</string>
 				<string>7A114A0CF5DC1FAAE46BF09E</string>
 				<string>6156F6FBE9966162E46029C0</string>
 				<string>6CD29CB503CA703D25BF51D9</string>
 				<string>3AF843C0B03FD9397EF6752C</string>
+				<string>97C7B7EF1D526370E2A21846</string>
+				<string>40E1B8C4265F6BE626998CBF</string>
+				<string>F753FB1721C0B16CA2F67948</string>
 				<string>B8BD42B6C7B245B11D7EE4D1</string>
 				<string>E3C3E8FB911DB112998F819A</string>
 				<string>91DE35C6EEF4CDE2A1A6432E</string>
