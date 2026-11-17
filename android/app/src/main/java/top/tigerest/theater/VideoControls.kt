@@ -64,36 +64,73 @@ class VideoControls(private val activity: MainActivity,private val player: Playb
         accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
     }
     private val hideDanmakuStatus = Runnable { danmakuStatus.visibility=View.GONE }
+    // Watch-together messages and the player's own notices. A native label rather than
+    // mpv's OSD, which HDR output (MediaCodec straight to the surface) does not draw.
+    private val notice = TextView(activity).apply {
+        setTextColor(Color.WHITE);textSize=14f;gravity=Gravity.CENTER
+        setPadding(dp(16),dp(10),dp(16),dp(10));visibility=View.GONE
+        background=GradientDrawable().apply { setColor(0xdc101010.toInt());cornerRadius=dp(12).toFloat() }
+        accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
+    }
+    private val hideNotice = Runnable { notice.visibility=View.GONE }
+    private val messages = LinearLayout(activity).apply { orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER_HORIZONTAL }
+    // Emby's intro marker: offered while the video is inside the intro (PlaybackController).
+    private val skipIntro = button("跳过片头") { player.skipIntro() }.apply {
+        visibility=View.GONE;setTypeface(typeface,android.graphics.Typeface.BOLD)
+        // Over the picture rather than on the bar: a backing and an outline, as on the desktop.
+        background=RippleDrawable(ColorStateList.valueOf(0x40ffbe38),GradientDrawable().apply { cornerRadius=dp(12).toFloat();setColor(0xb8101010.toInt());setStroke(dp(1),Color.rgb(255,190,56)) },null)
+    }
     private val gestures = PlayerGestures(activity,player,{ performClick() },{ text ->
         handler.removeCallbacks(hideFeedback);gestureFeedback.text=text;gestureFeedback.visibility=if(text.isEmpty()) View.GONE else View.VISIBLE
         if(text.isNotEmpty() && !touching) handler.postDelayed(hideFeedback,1000)
     })
     private val hide = Runnable { if(!dragging && !touching && !menuOpen && hasWindowFocus() && !player.state.paused) setControlsVisible(false) }
-    private fun setControlsVisible(shown: Boolean) { header.visibility = if(shown && !activity.playbackTouchLocked) View.VISIBLE else View.GONE; controls.visibility = header.visibility }
+    private fun setControlsVisible(shown: Boolean) { header.visibility = if(shown && !activity.playbackTouchLocked) View.VISIBLE else View.GONE; controls.visibility = header.visibility; placeSkipIntro() }
     private fun scheduleHide() { handler.removeCallbacks(hide); if(!player.state.paused && !dragging && !touching && !menuOpen) handler.postDelayed(hide,3500) }
     fun showControls() { if(activity.playbackTouchLocked) { setControlsVisible(false); showUnlock() } else { setControlsVisible(true); updateLoadingIndicator(); scheduleHide() } }
     fun showUnlock() { unlock.visibility = if(activity.playbackTouchLocked) View.VISIBLE else View.GONE }
     private fun lockTouch() {
         cancelGesture(); handler.removeCallbacks(hide); handler.removeCallbacks(hideFeedback); gestureFeedback.visibility = View.GONE
-        activity.playbackTouchLocked = true; setControlsVisible(false); showUnlock()
+        activity.playbackTouchLocked = true; setControlsVisible(false); showUnlock(); refreshIntroSkip()
         unlock.announceForAccessibility("防误触已开启，长按解锁")
     }
-    fun unlockTouch() { activity.playbackTouchLocked = false; unlock.visibility = View.GONE; if(player.state.active) showControls() }
+    fun unlockTouch() { activity.playbackTouchLocked = false; unlock.visibility = View.GONE; if(player.state.active) showControls(); refreshIntroSkip() }
     fun controlsVisible() = controls.visibility == View.VISIBLE
     fun playbackStarted() { post { if(player.state.active && player.isVideo()) gestures.playbackStarted() } }
     fun cancelGesture() { touching = false; gestures.cancelTouch() }
-    fun playbackHidden() { touching = false; gestures.suspend();gestureFeedback.visibility=View.GONE;loadingIndicator.visibility=View.GONE;handler.removeCallbacks(hideDanmakuStatus);danmakuStatus.visibility=View.GONE }
+    fun playbackHidden() { touching = false; gestures.suspend();gestureFeedback.visibility=View.GONE;loadingIndicator.visibility=View.GONE;handler.removeCallbacks(hideDanmakuStatus);danmakuStatus.visibility=View.GONE;handler.removeCallbacks(hideNotice);notice.visibility=View.GONE;skipIntro.visibility=View.GONE }
     fun showDanmakuStatus(text: String): Boolean {
         if(!player.state.active || !player.isVideo() || visibility!=View.VISIBLE) return false
         handler.removeCallbacks(hideDanmakuStatus);danmakuStatus.text=text;danmakuStatus.visibility=View.VISIBLE
         handler.postDelayed(hideDanmakuStatus,5000)
         return true
     }
+    /** A message over the video for [ms]. Like mpv's OSD it belongs to the video: none while the page is shown instead. */
+    fun showNotice(text: String,ms: Long) {
+        if(!player.state.active || !player.isVideo() || !isShown) return
+        handler.removeCallbacks(hideNotice);notice.text=text;notice.visibility=View.VISIBLE
+        handler.postDelayed(hideNotice,ms)
+    }
+    /** The "跳过片头" button, while the player offers it; a keyboard or remote gets its focus. */
+    fun refreshIntroSkip() {
+        val shown = player.introSkipOffered() && !activity.playbackTouchLocked
+        if(shown) placeSkipIntro()
+        if((skipIntro.visibility == View.VISIBLE) == shown) return
+        skipIntro.visibility = if(shown) View.VISIBLE else View.GONE
+        if(shown && !isInTouchMode) skipIntro.requestFocus()
+    }
+    // Bottom right, above the controls while they are shown.
+    private fun placeSkipIntro() {
+        val params = skipIntro.layoutParams as? LayoutParams ?: return
+        val bottom = (if(controlsVisible()) controls.height else safeInsets.bottom) + dp(20)
+        val right = safeInsets.right + dp(20)
+        if(params.bottomMargin != bottom || params.rightMargin != right) skipIntro.layoutParams = params.apply { bottomMargin = bottom; rightMargin = right }
+    }
     private fun updateLoadingIndicator() {
         val shown = player.isVideo() && player.state.loading
         loadingIndicator.visibility = if(shown) View.VISIBLE else View.GONE
         if(shown) {
-            val label = if(player.state.opening) "正在加载视频…" else "正在缓冲…"
+            val label = if(player.state.opening) "正在加载视频…" else if(player.state.held) "正在加载字幕…" else "正在缓冲…"
             loadingLabel.text = label; loadingIndicator.contentDescription = label
         }
     }
@@ -116,6 +153,7 @@ class VideoControls(private val activity: MainActivity,private val player: Playb
         header.setPadding(value.left+dp(8),value.top+dp(8),value.right+dp(8),dp(8))
         controls.setPadding(value.left+dp(12),dp(8),value.right+dp(12),value.bottom+dp(8))
         if(unlock.parent != null) unlock.layoutParams = (unlock.layoutParams as LayoutParams).apply { leftMargin=value.left+dp(8); topMargin=value.top; bottomMargin=value.bottom }
+        placeSkipIntro()
     }
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if(activity.playbackTouchLocked) {
@@ -140,6 +178,7 @@ class VideoControls(private val activity: MainActivity,private val player: Playb
     private val update = object: Runnable { override fun run() {
         if(!isAttachedToWindow) return
         updateLoadingIndicator()
+        refreshIntroSkip()
         gestures.refreshPlayback()
         if(lastPaused != player.state.paused) { lastPaused = player.state.paused; showControls() }
         val duration = player.dispatch("getDuration",JSONArray()) as Long
@@ -179,7 +218,12 @@ class VideoControls(private val activity: MainActivity,private val player: Playb
         controls.addView(actions); addView(controls,LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT,Gravity.BOTTOM))
         addView(loadingIndicator,LayoutParams(LayoutParams.WRAP_CONTENT,LayoutParams.WRAP_CONTENT,Gravity.CENTER))
         addView(gestureFeedback,LayoutParams(LayoutParams.WRAP_CONTENT,LayoutParams.WRAP_CONTENT,Gravity.CENTER))
-        addView(danmakuStatus,LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT,Gravity.TOP).apply { topMargin=dp(76);leftMargin=dp(16);rightMargin=dp(16) })
+        messages.addView(danmakuStatus,LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT))
+        messages.addView(notice,LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT,LayoutParams.WRAP_CONTENT).apply { topMargin=dp(8) })
+        addView(messages,LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT,Gravity.TOP).apply { topMargin=dp(76);leftMargin=dp(16);rightMargin=dp(16) })
+        addView(skipIntro,LayoutParams(LayoutParams.WRAP_CONTENT,dp(48),Gravity.BOTTOM or Gravity.END))
+        // The controls' height is known after their layout; the button sits above them.
+        controls.addOnLayoutChangeListener { _,_,_,_,_,_,_,_,_ -> if(skipIntro.visibility == View.VISIBLE) post { placeSkipIntro() } }
         addView(unlock,LayoutParams(LayoutParams.WRAP_CONTENT,dp(48),Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin=dp(8) })
         setControlsVisible(!activity.playbackTouchLocked)
         showUnlock()
@@ -219,6 +263,8 @@ class VideoControls(private val activity: MainActivity,private val player: Playb
         visit(this)
         return JSONObject().put("header",rect(header)).put("bottom",rect(controls)).put("seek",rect(seek)).put("buttons",buttons).put("dragging",dragging).put("time",time.text).put("gesture",if(gestureFeedback.isShown) gestureFeedback.text else "").put("touchLocked",activity.playbackTouchLocked)
             .put("loading",loadingIndicator.isShown).put("opening",player.state.opening).put("speed",player.state.speed).put("temporarySpeed",player.temporarySpeedActive)
+            .put("loadingLabel",if(loadingIndicator.isShown) loadingLabel.text.toString() else "").put("notice",if(notice.isShown) notice.text.toString() else "")
+            .put("introSkip",if(skipIntro.isShown) rect(skipIntro) else JSONObject.NULL)
     }
     fun setTitle(value: String) { title.text = value }
     private fun tracks(type: String) {
@@ -286,6 +332,6 @@ class VideoControls(private val activity: MainActivity,private val player: Playb
     private fun network(action: () -> Unit) { thread { runCatching(action).onFailure { activity.runOnUiThread { activity.notify(it.message ?: "弹幕服务暂不可用") } } } }
     override fun onAttachedToWindow() { super.onAttachedToWindow(); handler.post(update) }
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) { super.onWindowFocusChanged(hasWindowFocus); menuOpen = !hasWindowFocus; if(hasWindowFocus && visibility == View.VISIBLE) showControls() else { cancelGesture(); handler.removeCallbacks(hide) } }
-    override fun onDetachedFromWindow() { handler.removeCallbacks(update); handler.removeCallbacks(hide);handler.removeCallbacks(hideFeedback);handler.removeCallbacks(hideDanmakuStatus);gestures.suspend(); super.onDetachedFromWindow() }
+    override fun onDetachedFromWindow() { handler.removeCallbacks(update); handler.removeCallbacks(hide);handler.removeCallbacks(hideFeedback);handler.removeCallbacks(hideDanmakuStatus);handler.removeCallbacks(hideNotice);gestures.suspend(); super.onDetachedFromWindow() }
     private fun format(ms: Long): String { val seconds = ms/1000; return "%d:%02d".format(seconds/60,seconds%60) }
 }

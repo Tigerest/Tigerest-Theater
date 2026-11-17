@@ -1,7 +1,38 @@
 package top.tigerest.theater
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 class PlaybackContractTest {
+ @Test fun externalSubtitlesAreFetchedByTheirAddressAndSelectedByIt() {
+  assertEquals("https://media.example/Videos/1/Subtitles/3/0/Stream.srt",PlaybackContract.externalSubtitle("#,https://media.example/Videos/1/Subtitles/3/0/Stream.srt"))
+  for(value in listOf<Any?>("#,","#, ","#3","3","-1","",null,-1)) assertNull(value.toString(),PlaybackContract.externalSubtitle(value))
+  val tracks = JSONArray("""[{"id":1,"type":"video"},{"id":2,"type":"sub","external":true,"external-filename":"a.srt"},{"id":3,"type":"sub","external":true,"external-filename":"b.srt"},
+   {"id":4,"type":"sub","external":true,"external-filename":"a.srt"},{"id":5,"type":"sub","external":false,"external-filename":"a.srt"},{"id":6,"type":"audio","external":true,"external-filename":"a.srt"}]""")
+  assertEquals("the newest copy of the file",4,PlaybackContract.externalSubtitleTrack(tracks,"a.srt"))
+  assertEquals(3,PlaybackContract.externalSubtitleTrack(tracks,"b.srt"))
+  assertNull("a failed fetch adds no track",PlaybackContract.externalSubtitleTrack(tracks,"c.srt"))
+ }
+ @Test fun aPageMessageStaysForItsOwnDuration() {
+  for(missing in listOf<Any?>(null,JSONObject.NULL,"soon",Double.NaN,Double.POSITIVE_INFINITY)) assertEquals(missing.toString(),3000L,PlaybackContract.noticeMillis(missing))
+  assertEquals(16000L,PlaybackContract.noticeMillis(16000)); assertEquals(1500L,PlaybackContract.noticeMillis(1500.4)); assertEquals(4700L,PlaybackContract.noticeMillis("4700"))
+  assertEquals(500L,PlaybackContract.noticeMillis(0)); assertEquals(500L,PlaybackContract.noticeMillis(-3000)); assertEquals(30000L,PlaybackContract.noticeMillis(1e9))
+ }
+ @Test fun subtitleVerticalPositionGoesBeforeThePlacement() {
+  assertEquals(PlaybackContract.SubtitleVertical("bottom",100),PlaybackContract.subtitleVertical(null,-1.0))
+  assertEquals(PlaybackContract.SubtitleVertical("bottom",100),PlaybackContract.subtitleVertical("",-1.0))
+  assertEquals(PlaybackContract.SubtitleVertical("top",100),PlaybackContract.subtitleVertical("top",-1.0))
+  // sub-pos is measured from the top, and libass applies it to bottom-aligned text only.
+  assertEquals(PlaybackContract.SubtitleVertical("bottom",80),PlaybackContract.subtitleVertical("top",80.0))
+  assertEquals(PlaybackContract.SubtitleVertical("bottom",0),PlaybackContract.subtitleVertical("center",0.0))
+  assertEquals(PlaybackContract.SubtitleVertical("bottom",150),PlaybackContract.subtitleVertical(null,400.0))
+  // The HDR overlay: the text's bottom at (height - margin) * position / 100, inside the video.
+  assertEquals(870f,PlaybackContract.subtitleTop(1000f,100f,30f,100.0),.01f)
+  assertEquals(385f,PlaybackContract.subtitleTop(1000f,100f,30f,50.0),.01f)
+  assertEquals(0f,PlaybackContract.subtitleTop(1000f,100f,30f,0.0),.01f)
+  assertEquals(900f,PlaybackContract.subtitleTop(1000f,100f,30f,150.0),.01f)
+  assertEquals("taller than the video",0f,PlaybackContract.subtitleTop(100f,200f,10f,100.0),.01f)
+ }
  @Test fun sharedMusicAndTrackSelectionHaveNativeSemantics() {
   assertFalse(PlaybackContract.isVideo("music")); assertFalse(PlaybackContract.isVideo("audio")); assertTrue(PlaybackContract.isVideo("video"))
   assertEquals("1",PlaybackContract.track("#1")); assertEquals("no",PlaybackContract.track("")); assertEquals("no",PlaybackContract.track("-1")); assertEquals("2",PlaybackContract.track("2"))
@@ -58,7 +89,10 @@ class PlaybackContractTest {
    PlaybackContract.endRecord("stop requested by player back button",600.0,1420.0),PlaybackContract.endRecord("stop requested by system back",1.0,2.0),
    "Video output rebuilt for surface 1080x2400","Video surface attached","Video surface detached","Audio focus lost (-2), pausing",
    "Audio focus regained, resuming","Media session play","Media session pause","Web hid the video view during playback",
-   "Audio output became noisy (headphones or Bluetooth disconnected), pausing"))
+   "Audio output became noisy (headphones or Bluetooth disconnected), pausing",
+   "External subtitle requested","Player waits up to 10 s for its external subtitle","External subtitle still loading after 10 s; starting playback without it",
+   "External subtitle loaded","External subtitle failed after playback started","Intro marker set (button)","Intro marker set (automatic skip)",
+   "Intro marker cleared","Intro skipped (button)","Intro skipped (automatic)"))
    assertEquals(record,ReportLogSanitizer.sanitize(record))
  }
 }

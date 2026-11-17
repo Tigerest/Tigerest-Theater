@@ -18,7 +18,7 @@ class SettingsStore(context: Context) {
         "audio" to setOf("channels","normalize"),
         "video" to setOf("hardwareDecoding","deinterlace","cache","aspect","sync_mode","default_playback_speed","audio_delay.normal","force_transcode_hevc","force_transcode_4k","force_transcode_av1","force_transcode_hdr","force_transcode_hi10p","force_transcode_dovi","always_force_transcode","allow_transcode_to_hevc","prefer_transcode_to_h265"),
         "mpv" to setOf("enableDanmaku","audioLanguage","subtitleLanguage","cachePause","deband","toneMapping"),
-        "subtitles" to setOf("ass_scale_border_and_shadow","ass_style_override","placement","color","border_color","border_size","background_color","background_transparency","size","font"),
+        "subtitles" to setOf("ass_scale_border_and_shadow","ass_style_override","vertical_position","placement","color","border_color","border_size","background_color","background_transparency","size","font","bold"),
         "danmaku" to setOf("bold","fontsize","outline","shadow","scrolltime","opacity","displayarea","apiServer")
     )
     init {
@@ -30,7 +30,9 @@ class SettingsStore(context: Context) {
             for (j in 0 until entries.length()) {
                 val entry = entries.getJSONObject(j); val key = entry.getString("value")
                 var default = entry.opt("default") ?: ""
-                if (default is JSONArray) default = default.optJSONObject(0)?.opt("value") ?: ""
+                if (default is JSONArray) default = SettingsPolicy.platformDefault(default)
+                // Android has always detected the output's channels (MaxAudioChannels 6 for Emby).
+                if (name == "audio" && key == "channels") default = "auto"
                 if (name == "mpv" && key == "configMode") default = "embedded"
                 if (name == "video" && key == "hardwareDecoding") default = "enabled"
                 if (name == "subtitles" && key == "font") default = "sans-serif"
@@ -40,6 +42,9 @@ class SettingsStore(context: Context) {
                 val androidHelp = mapOf("hardwareDecoding" to "使用安卓 MediaCodec 解码；遇到异常可选择复制模式或关闭硬件解码。", "sync_mode" to "选择音视频同步时钟。弹幕始终按实际播放时间独立渲染。", "enableDanmaku" to "按播放器时间显示弹幕，可在播放页搜索、导入、屏蔽来源或调整偏移。", "cache" to "网络视频缓存上限，单位 MB。", "audio_delay.normal" to "正值延迟音频，负值提前音频，单位毫秒。")
                 androidHelp[key]?.let { description.put("help",it) }
                 if(name == "danmaku" && key == "bold") description.put("help","切换滚动与固定弹幕的粗体显示，立即应用。")
+                if(name == "audio" && key == "channels") description.put("help","限制播放器可使用的声道数；安卓默认自动检测。")
+                if(name == "subtitles" && key == "bold") description.put("help","用字体的粗体显示 SRT 等纯文本字幕；ASS 字幕保留脚本自带样式。安卓默认关闭。")
+                if(name == "subtitles" && key == "vertical_position") description.put("help","0–150 的整数：100 贴着画面底部，数值越小越靠上；-1 表示按下面的「字幕位置」。")
                 if(name == "mpv" && key == "enableDanmaku") description.put("displayName","启用弹幕")
                 entry.optString("input_type").takeIf { it.isNotEmpty() }?.let { description.put("inputType", it) }
                 entry.optJSONObject("possible_range")?.let { description.put("range", it) }

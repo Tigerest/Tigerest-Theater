@@ -17,6 +17,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.thread
+import kotlin.concurrent.withLock
 
 class PlaybackController(private val context: Context, private val settings: SettingsStore) : MPVLib.EventObserver, MPVLib.LogObserver {
     val state = PlaybackState()
@@ -25,7 +29,7 @@ class PlaybackController(private val context: Context, private val settings: Set
     private val main = Handler(Looper.getMainLooper())
     private val starts = ConcurrentLinkedQueue<Long>()
     @Volatile private var eventGeneration = 0L
-    private var destroyed = false
+    @Volatile private var destroyed = false
     // Only a file mpv actually starts is queued for its START_FILE event.
     private val surfaceGate = VideoSurfaceGate { generation, url ->
         if(!destroyed && state.active && generation == state.generation) { starts.add(generation); MPVLib.command(arrayOf("loadfile",url,"replace")) }
@@ -59,10 +63,32 @@ class PlaybackController(private val context: Context, private val settings: Set
     private var subtitle: Any = -1
     private var audio: Any = 1
     private var startMs = 0.0
+    // The item whose file is loaded: its tracks can be selected.
+    private var loadedGeneration = 0L
+    // Emby's intro marker from the page (setIntroSkip) and the "跳过片头" offer.
+    private val introSkip = IntroSkip()
+    private val introSeekTimeout = Runnable { introSkip.seekTimedOut() }
+    // mpv's SEEK and PLAYBACK_RESTART events, reported to the page as on the desktop.
+    private var seeking = false
+    // External subtitles mpv fetches on a worker thread. A video that starts with one
+    // waits for it, at most HOLD_MS, paused by this hold rather than by the viewer;
+    // `play` is how the item starts once the hold ends.
+    private val externalSubtitles = ExternalSubtitles()
+    private class Hold(val generation: Long, var play: Boolean)
+    private var hold: Hold? = null
+    private val holdTimeout = Runnable { startWithoutSubtitle() }
+    // Fetches inside mpv; mpv must outlive them (see destroy).
+    private val fetchLock = ReentrantLock()
+    private val fetchDone = fetchLock.newCondition()
+    private var fetching = 0
     var signal: (String, JSONArray) -> Unit = { _, _ -> }
     var visible: (Boolean) -> Unit = {}
     var itemChanged: (JSONObject) -> Unit = {}
     var message: (String) -> Unit = {}
+    /** Text over the video for a time in ms: the page's showMessage and the player's own notices; also shown on HDR output. */
+    var notice: (String, Long) -> Unit = { _, _ -> }
+    /** The "跳过片头" button is offered, or no longer. */
+    var introSkipChanged: (Boolean) -> Unit = {}
     var subtitleText: (String) -> Unit = {}
     /** The playback-start HDR/SDR notice. */
     var dynamicRange: (String) -> Unit = {}
@@ -82,15 +108,15 @@ class PlaybackController(private val context: Context, private val settings: Set
                 endTemporarySpeed()
                 pauseIntent++
                 pausedByFocus = false
-                MPVLib.setPropertyBoolean("pause",true)
+                setPaused(true)
             }
         }
     }
     private val focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build())
         .setOnAudioFocusChangeListener({ change ->
-            if (change < 0 && state.active) { DiagnosticsLog.app.record("info","Audio focus lost ($change), pausing"); endTemporarySpeed(); pauseIntent++; if(!isPaused()) { pausedByFocus = true; MPVLib.setPropertyBoolean("pause",true) } }
-            else if (change == AudioManager.AUDIOFOCUS_GAIN && pausedByFocus) { DiagnosticsLog.app.record("info","Audio focus regained, resuming"); pausedByFocus = false; MPVLib.setPropertyBoolean("pause",false) }
+            if (change < 0 && state.active) { DiagnosticsLog.app.record("info","Audio focus lost ($change), pausing"); endTemporarySpeed(); pauseIntent++; if(!isPaused()) { pausedByFocus = true; setPaused(true) } }
+            else if (change == AudioManager.AUDIOFOCUS_GAIN && pausedByFocus) { DiagnosticsLog.app.record("info","Audio focus regained, resuming"); pausedByFocus = false; setPaused(false) }
         },main).build()
     init {
         val config = File(context.filesDir,"mpv").apply { mkdirs() }
@@ -126,7 +152,15 @@ class PlaybackController(private val context: Context, private val settings: Set
         main.removeCallbacks(resizeOutput); main.postDelayed(resizeOutput,180)
     }
     fun positionSeconds(): Double = if (destroyed) 0.0 else MPVLib.getPropertyDouble("time-pos") ?: state.positionMs / 1000.0
-    fun isPaused(): Boolean = destroyed || MPVLib.getPropertyBoolean("pause") != false
+    /** Paused by the viewer or the system; a video waiting for its subtitle is paused as it will start. */
+    fun isPaused(): Boolean = destroyed || hold?.let { !it.play } ?: (MPVLib.getPropertyBoolean("pause") != false)
+    /** Every pause and resume: during a subtitle hold it only sets how the video starts. */
+    private fun setPaused(paused: Boolean) {
+        val held = hold
+        if(held == null) { MPVLib.setPropertyBoolean("pause",paused); return }
+        held.play = !paused
+        state.update(held.generation,state.positionMs/1000.0,paused,state.speed); updateMediaSession()
+    }
     @Synchronized fun beginTemporarySpeed(): Double? {
         if (destroyed || !state.active || state.loading || isPaused()) return null
         val rate = temporarySpeed.begin(MPVLib.getPropertyDouble("speed") ?: state.speed) ?: return null
@@ -137,7 +171,7 @@ class PlaybackController(private val context: Context, private val settings: Set
         val rate = temporarySpeed.end() ?: return
         if (!destroyed) MPVLib.setPropertyDouble("speed",rate)
     }
-    fun pauseForTutorial() { pausedByFocus=false;MPVLib.setPropertyBoolean("pause",true) }
+    fun pauseForTutorial() { pausedByFocus=false;setPaused(true) }
     fun danmakuPosition(nanos: Long): Double = danmakuClock.position(positionSeconds(),nanos,
         !destroyed && state.active && MPVLib.getPropertyBoolean("core-idle") == false,
         state.speed,clockEpoch)
@@ -152,9 +186,91 @@ class PlaybackController(private val context: Context, private val settings: Set
         main.post { if(!destroyed && generation == state.generation) signal(name,array) }
     }
     private fun setTrack(type: String, value: Any) {
-        if (type == "sid" && value.toString().startsWith("#,")) MPVLib.command(arrayOf("sub-add",value.toString().removePrefix("#,"),"select"))
+        if (type == "sid") selectSubtitle(value)
         else MPVLib.setPropertyString(type,PlaybackContract.track(value.toString()))
     }
+    private fun selectSubtitle(value: Any) {
+        val url = PlaybackContract.externalSubtitle(value)
+        if (url == null) { externalSubtitles.supersede(); MPVLib.setPropertyString("sid",PlaybackContract.track(value.toString())); return }
+        // A file this item already has is selected at once.
+        PlaybackContract.externalSubtitleTrack(tracks(),url)?.let { track -> externalSubtitles.supersede(); MPVLib.setPropertyString("sid",track.toString()); return }
+        fetchSubtitle(externalSubtitles.request(state.generation,url) ?: return)
+    }
+    // Emby can take a minute to extract a subtitle from a large file. mpv fetches it on
+    // this thread, the UI keeps running, and the reply selects the track. sub-add ends
+    // with its item, so a stop or the next item aborts the fetch.
+    private fun fetchSubtitle(request: ExternalSubtitles.Request) {
+        DiagnosticsLog.app.record("info","External subtitle requested")
+        thread(isDaemon = true,name = "mpv subtitle") {
+            fetchLock.withLock { if (destroyed) return@thread; fetching++ }
+            try { MPVLib.command(arrayOf("sub-add",request.url,"auto")) }
+            finally { fetchLock.withLock { fetching--; fetchDone.signalAll() } }
+            main.post { subtitleFetched(request) }
+        }
+    }
+    private fun subtitleFetched(request: ExternalSubtitles.Request) {
+        if (destroyed || !externalSubtitles.complete(request) || !state.active || request.generation != state.generation) return
+        val track = PlaybackContract.externalSubtitleTrack(tracks(),request.url)
+        MPVLib.setPropertyString("sid",track?.toString() ?: "no")
+        DiagnosticsLog.app.record(if (track == null) "warning" else "info","External subtitle ${if (track == null) "failed" else "loaded"}${if (request.late) " after playback started" else ""}")
+        // The viewer was told it would follow; say how that ended.
+        if (request.late) notice(if (track == null) "字幕加载失败，可以在菜单里重新选择" else "字幕已加载",4000)
+        if (hold?.generation == request.generation) releaseHold()
+    }
+    // The desktop starts a file whose subtitle is still on its way after 10 s, too.
+    private fun startWithoutSubtitle() {
+        val held = hold ?: return
+        if (destroyed || !state.active || held.generation != state.generation) return
+        if (externalSubtitles.startedWithout(held.generation)) {
+            DiagnosticsLog.app.record("info","External subtitle still loading after 10 s; starting playback without it")
+            notice("服务器还在准备字幕，先开始播放，准备好后自动加载",6000)
+        }
+        releaseHold()
+    }
+    private fun releaseHold() {
+        val held = hold ?: return
+        hold = null; main.removeCallbacks(holdTimeout)
+        if (destroyed || !state.active || held.generation != state.generation) return
+        state.hold(held.generation,false)
+        MPVLib.setPropertyBoolean("pause",!held.play)
+        // Before its file is loaded, the item starts as any other (FILE_LOADED).
+        if (loadedGeneration == held.generation) { announceStart(held.generation); emit("positionUpdate",state.positionMs) }
+    }
+    // The state an item starts in, for the page.
+    private fun announceStart(generation: Long) {
+        val paused = MPVLib.getPropertyBoolean("pause") == true
+        state.update(generation,positionSeconds(),paused,MPVLib.getPropertyDouble("speed") ?: 1.0)
+        emit(if (paused) "paused" else "playing"); emit("videoPlaybackActive",!paused)
+    }
+    /** What belongs to one item: its pending subtitle and hold, its intro marker. */
+    private fun resetItem() {
+        externalSubtitles.supersede(); hold = null; main.removeCallbacks(holdTimeout)
+        introSkip.clear(); main.removeCallbacks(introSeekTimeout); main.post { introSkipChanged(false) }
+    }
+    private fun setSeeking(value: Boolean) {
+        // Queued events, in order with the position reports between them (as on the desktop).
+        if (seeking == value) return
+        seeking = value; emit("seekingChanged",value)
+    }
+    /** The "跳过片头" button is offered for the playing video. */
+    fun introSkipOffered() = !destroyed && state.active && video && introSkip.button
+    /** The button: jump past the intro. */
+    fun skipIntro() {
+        if (destroyed || !state.active) return
+        introSkip.skip()?.let { end -> DiagnosticsLog.app.record("info","Intro skipped (button)"); jumpPastIntro(end) }
+        introSkipChanged(introSkipOffered())
+    }
+    private fun jumpPastIntro(end: Double) {
+        main.removeCallbacks(introSeekTimeout); main.postDelayed(introSeekTimeout,IntroSkip.SEEK_TIMEOUT_MS)
+        clockEpoch++; MPVLib.command(arrayOf("seek",end.toString(),"absolute+exact"))
+    }
+    // Runs one of IntroSkip's decisions; a target is an automatic skip.
+    private fun introDecision(decide: () -> Double?) {
+        val shown = introSkip.button
+        decide()?.let { end -> DiagnosticsLog.app.record("info","Intro skipped (automatic)"); jumpPastIntro(end); notice("已跳过片头",2000) }
+        if (introSkip.button != shown) introSkipChanged(introSkip.button)
+    }
+    private fun loadedPosition(): Double? = if (state.active && loadedGeneration == state.generation) MPVLib.getPropertyDouble("time-pos") else null
     // Time from mpv, else the last observed position; the duration mpv reported.
     private fun recordEnd(level: String, cause: String, endOfFile: Boolean = false) =
         DiagnosticsLog.app.record(level,PlaybackContract.endRecord(cause,positionSeconds(),if(durationMs > 0) durationMs/1000.0 else null,endOfFile))
@@ -175,13 +291,16 @@ class PlaybackController(private val context: Context, private val settings: Set
                 DiagnosticsLog.app.record("info","Player output ${videoOutput()}")
                 DiagnosticsLog.app.record("info","Player load requested video=$video")
                 audio = args.opt(3) ?: 1; subtitle = args.opt(4) ?: -1; startMs = options.optDouble("startMilliseconds",0.0)
-                endTemporarySpeed()
+                endTemporarySpeed(); resetItem()
                 val generation = state.begin(url); durationMs = 0; clockEpoch++
                 currentId = EpisodeQueue.currentIdFor(queued,metadata.optJSONObject("metadata") ?: JSONObject())
                 val headers = metadata.optJSONObject("headers") ?: JSONObject()
                 val fields = headers.keys().asSequence().map { key -> require(key == "User-Agent" || key == "Referer") { "不支持的媒体请求头" }; val value = headers.getString(key); require(!value.contains('\n') && !value.contains('\r')); "$key: $value" }.toList()
                 MPVLib.setPropertyString("http-header-fields",fields.joinToString(","))
-                MPVLib.setPropertyBoolean("pause",!options.optBoolean("autoplay",true)); MPVLib.setPropertyDouble("speed",settings.number("video","default_playback_speed"))
+                // A video that starts with an external subtitle waits for it (FILE_LOADED), paused meanwhile.
+                val autoplay = options.optBoolean("autoplay",true)
+                if(video && PlaybackContract.externalSubtitle(subtitle) != null) hold = Hold(generation,autoplay)
+                MPVLib.setPropertyBoolean("pause",hold != null || !autoplay); MPVLib.setPropertyDouble("speed",settings.number("video","default_playback_speed"))
                 audioManager.requestAudioFocus(focus); mediaSession.isActive = true
                 main.post { if(!destroyed && state.active && generation == state.generation) { visible(video); itemChanged(metadata.optJSONObject("metadata") ?: JSONObject()) } }
                 emit("windowVisible",video); emit("onMetaData",metadata,url)
@@ -190,10 +309,11 @@ class PlaybackController(private val context: Context, private val settings: Set
                 if(!surfaceGate.load(generation,url,video)) MPVLib.command(arrayOf("stop"))
                 return true
             }
-            "stop" -> { if(state.active) recordEnd("info","stop requested by $source"); endTemporarySpeed(); surfaceGate.cancel(); val generation = state.generation; val active = state.end(generation); MPVLib.command(arrayOf("stop")); audioManager.abandonAudioFocusRequest(focus); mediaSession.isActive = false; main.post { if(!state.active && generation == state.generation) visible(false) }; emit("windowVisible",false); if(active){emit("canceled");emit("stopped")}; return true }
-            "pause" -> { endTemporarySpeed();pauseIntent++;pausedByFocus=false;MPVLib.setPropertyBoolean("pause",true) }
-            "play" -> MPVLib.setPropertyBoolean("pause",false)
-            "showMessage" -> MPVLib.command(arrayOf("show-text",args.getString(0).take(200),"3000"))
+            "stop" -> { if(state.active) recordEnd("info","stop requested by $source"); endTemporarySpeed(); resetItem(); surfaceGate.cancel(); val generation = state.generation; val active = state.end(generation); MPVLib.command(arrayOf("stop")); audioManager.abandonAudioFocusRequest(focus); mediaSession.isActive = false; main.post { if(!state.active && generation == state.generation) visible(false) }; emit("windowVisible",false); if(active){emit("canceled");emit("stopped")}; return true }
+            "pause" -> { endTemporarySpeed();pauseIntent++;pausedByFocus=false;setPaused(true) }
+            "play" -> setPaused(false)
+            // [text] or [text, ms]: watch-together notices last 1.5–16 s. Drawn natively, so HDR output shows them too.
+            "showMessage" -> { val text = args.getString(0).take(200); val ms = PlaybackContract.noticeMillis(args.opt(1)); main.post { if(!destroyed) notice(text,ms) } }
             "seekTo" -> { clockEpoch++; MPVLib.command(arrayOf("seek",(args.getDouble(0)/1000.0).coerceAtLeast(0.0).toString(),"absolute+exact")) }
             "setPlaybackRate" -> { val rate = args.getDouble(0)/1000.0; require(rate in 0.25..4.0); endTemporarySpeed(); MPVLib.setPropertyDouble("speed",rate) }
             "setVolume" -> MPVLib.setPropertyDouble("volume",args.getDouble(0).coerceIn(0.0,100.0))
@@ -204,7 +324,22 @@ class PlaybackController(private val context: Context, private val settings: Set
             "getDuration" -> return durationMs
             "getSubtitleStreams" -> return metadata.optJSONObject("media")?.optJSONArray("subtitleStreams") ?: JSONArray()
             "setAudioStream" -> setTrack("aid",args.get(0))
-            "setSubtitleStream" -> setTrack("sid",args.get(0))
+            "setSubtitleStream" -> {
+                // Before its file is loaded, the item's selection is applied at FILE_LOADED.
+                subtitle = args.get(0)
+                val loaded = state.active && loadedGeneration == state.generation
+                if(loaded) selectSubtitle(subtitle)
+                // A video waiting for a subtitle the viewer no longer wants starts now.
+                val held = hold
+                if(held != null && (if(loaded) !externalSubtitles.pending(held.generation) else PlaybackContract.externalSubtitle(subtitle) == null)) releaseHold()
+            }
+            "setIntroSkip" -> {
+                // An invalid marker clears the previous one, as on the desktop; it never fails the page.
+                val intro = IntroSkip.parse(args.opt(0))
+                DiagnosticsLog.app.record("info",if(intro == null) "Intro marker cleared" else "Intro marker set (${if(intro.auto) "automatic skip" else "button"})")
+                main.removeCallbacks(introSeekTimeout)
+                introDecision { introSkip.set(intro,loadedPosition()) }
+            }
             "setAudioDelay" -> MPVLib.setPropertyDouble("audio-delay",args.getDouble(0)/1000.0)
             "setSubtitleDelay" -> MPVLib.setPropertyDouble("sub-delay",args.getDouble(0)/1000.0)
             "getAudioDeviceList" -> return JSONArray().put(JSONObject().put("name","auto").put("description","安卓系统输出"))
@@ -221,6 +356,9 @@ class PlaybackController(private val context: Context, private val settings: Set
             "setWebPlaylist" -> { queued = args.getJSONArray(0); currentId = args.optString(1); emit("webPlaylistChanged",queued,currentId) }
             "mpvDiagnostics" -> return JSONObject().put("version",MPVLib.getPropertyString("mpv-version")).put("renderBackend","Android Surface / OpenGL ES").put("configMode","embedded").put("configuredProfile","fast / Android MediaCodec").put("currentVo",MPVLib.getPropertyString("vo")).put("hwdec",MPVLib.getPropertyString("hwdec-current")).put("audioTrack",MPVLib.getPropertyInt("aid") ?: -1).put("subtitleTrack",MPVLib.getPropertyInt("sid") ?: -1).put("subtitleDelay",MPVLib.getPropertyDouble("sub-delay") ?: 0.0).put("tracks",tracks()).put("sourceWidth",MPVLib.getPropertyInt("video-params/w") ?: 0).put("sourceHeight",MPVLib.getPropertyInt("video-params/h") ?: 0)
                 .put("surfaceSize",MPVLib.getPropertyString("android-surface-size")).put("osdDimensions",MPVLib.getPropertyString("osd-dimensions"))
+                .put("subtitleBold",MPVLib.getPropertyString("sub-bold")).put("subtitlePosition",MPVLib.getPropertyString("sub-pos")).put("subtitleAlignY",MPVLib.getPropertyString("sub-align-y"))
+                .put("subtitleHeld",state.held).put("seeking",seeking)
+                .put("introSkip",introSkip.intro?.let { JSONObject().put("start",it.start).put("end",it.end).put("auto",it.auto) } ?: JSONObject.NULL).put("introSkipOffered",introSkip.offered)
             "notifyMetadata" -> { val item = args.optJSONObject(0) ?: JSONObject(); mediaSession.setMetadata(MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,item.optString("Name",item.optString("title"))).build()) }
             "notifyStreamingBitrateResult" -> main.post { message(if(args.optBoolean(1)) "画质已切换" else args.optString(2,"品质切换失败")) }
             else -> {
@@ -245,9 +383,11 @@ class PlaybackController(private val context: Context, private val settings: Set
         val mapping = mapOf("ass_style_override" to "sub-ass-override","color" to "sub-color","border_color" to "sub-border-color","border_size" to "sub-border-size","size" to "sub-font-size","font" to "sub-font")
         val defaults = mapOf("ass_style_override" to "yes","color" to "#FFFFFF","border_color" to "#000000","border_size" to "3","size" to "55")
         for((key,property) in mapping) { var value = settings.string("subtitles",key); if(value.isEmpty() || value == "-1") value = defaults[key] ?: ""; if(value.isNotEmpty()) MPVLib.setPropertyString(property,if(value == "true") "yes" else if(value == "false") "no" else value) }
+        MPVLib.setPropertyString("sub-bold",if(settings.bool("subtitles","bold")) "yes" else "no")
         val placement = settings.string("subtitles","placement").split(',')
         MPVLib.setPropertyString("sub-align-x",placement.getOrNull(0)?.ifEmpty { "center" } ?: "center")
-        MPVLib.setPropertyString("sub-align-y",placement.getOrNull(1) ?: "bottom")
+        val vertical = PlaybackContract.subtitleVertical(placement.getOrNull(1),settings.number("subtitles","vertical_position"))
+        MPVLib.setPropertyString("sub-align-y",vertical.align); MPVLib.setPropertyString("sub-pos",vertical.position.toString())
         val back = settings.string("subtitles","background_color").ifBlank { "#000000" }
         val alpha = settings.string("subtitles","background_transparency").ifBlank { "00" }
         MPVLib.setPropertyString("sub-back-color",PlaybackContract.subtitleBackground(back,alpha))
@@ -265,7 +405,7 @@ class PlaybackController(private val context: Context, private val settings: Set
         if(!state.end(generation)) return
         // mpv's position is still the last frame's until the stop below.
         recordEnd("info",cause,endOfFile = true)
-        endTemporarySpeed()
+        endTemporarySpeed(); resetItem()
         MPVLib.command(arrayOf("stop")); pausedByFocus = false; audioManager.abandonAudioFocusRequest(focus); mediaSession.isActive = false
         visible(false); emit("windowVisible",false); emit("finished"); emit("stopped"); updateMediaSession()
     }
@@ -280,18 +420,39 @@ class PlaybackController(private val context: Context, private val settings: Set
         main.post {
         if(destroyed) return@post
         when(eventId) {
-            MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> state.ready(generation)
-            MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> if(generation == state.generation && state.active) { if(startMs > 0) MPVLib.command(arrayOf("seek",(startMs/1000).toString(),"absolute+exact")); setTrack("aid",audio); setTrack("sid",subtitle); val paused = MPVLib.getPropertyBoolean("pause") == true; state.update(generation,positionSeconds(),paused,MPVLib.getPropertyDouble("speed") ?: 1.0); emit(if(paused) "paused" else "playing"); emit("videoPlaybackActive",!paused) }
-            MPVLib.MpvEvent.MPV_EVENT_END_FILE -> if(generation == state.generation && state.active) {
-                val eof = MPVLib.getPropertyBoolean("eof-reached") == true
-                if(eof) finish(generation,"end of file (end-file event)") else { recordEnd("error","end-file without EOF; media load or network failure"); endTemporarySpeed(); state.end(generation); visible(false); audioManager.abandonAudioFocusRequest(focus); mediaSession.isActive = false; emit("windowVisible",false); emit("error","mpv 无法播放此媒体，请检查地址、格式和网络"); emit("stopped"); updateMediaSession() }
+            MPVLib.MpvEvent.MPV_EVENT_START_FILE -> setSeeking(false)
+            MPVLib.MpvEvent.MPV_EVENT_SEEK -> if(generation == state.generation && state.active) setSeeking(true)
+            MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
+                state.ready(generation); setSeeking(false)
+                if(generation == state.generation && state.active) { main.removeCallbacks(introSeekTimeout); introDecision { introSkip.restarted(loadedPosition()) } }
             }
+            MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> if(generation == state.generation && state.active) {
+                loadedGeneration = generation
+                if(startMs > 0) MPVLib.command(arrayOf("seek",(startMs/1000).toString(),"absolute+exact")); setTrack("aid",audio); setTrack("sid",subtitle)
+                val held = hold
+                if(held != null && held.generation == generation && externalSubtitles.pending(generation)) {
+                    // As the desktop's on_preloaded hold: the page hears of the start when it ends.
+                    DiagnosticsLog.app.record("info","Player waits up to 10 s for its external subtitle")
+                    state.hold(generation,true); state.update(generation,positionSeconds(),!held.play,MPVLib.getPropertyDouble("speed") ?: 1.0)
+                    main.removeCallbacks(holdTimeout); main.postDelayed(holdTimeout,HOLD_MS)
+                } else if(held != null) releaseHold() else announceStart(generation)
+            }
+            MPVLib.MpvEvent.MPV_EVENT_END_FILE -> { setSeeking(false); if(generation == state.generation && state.active) {
+                val eof = MPVLib.getPropertyBoolean("eof-reached") == true
+                if(eof) finish(generation,"end of file (end-file event)") else { recordEnd("error","end-file without EOF; media load or network failure"); endTemporarySpeed(); resetItem(); state.end(generation); visible(false); audioManager.abandonAudioFocusRequest(focus); mediaSession.isActive = false; emit("windowVisible",false); emit("error","mpv 无法播放此媒体，请检查地址、格式和网络"); emit("stopped"); updateMediaSession() }
+            } }
         }
     } }
     override fun eventProperty(property: String, value: Double) { val generation = eventGeneration; main.post {
         if(destroyed || !state.active || generation != state.generation) return@post
         when(property) {
-            "time-pos" -> { state.update(state.generation,value,MPVLib.getPropertyBoolean("pause") == true,MPVLib.getPropertyDouble("speed") ?: 1.0); emit("positionUpdate",state.positionMs); updateMediaSession(); if(video && !rangeReported) reportDynamicRange() }
+            "time-pos" -> {
+                state.update(state.generation,value,isPaused(),MPVLib.getPropertyDouble("speed") ?: 1.0)
+                // A video waiting for its subtitle has not started for the page (see releaseHold).
+                if(hold == null) emit("positionUpdate",state.positionMs)
+                updateMediaSession(); if(video && !rangeReported) reportDynamicRange()
+                if(loadedGeneration == generation) introDecision { introSkip.decide(value) }
+            }
             "duration" -> { durationMs = (value*1000).toLong(); emit("updateDuration",durationMs) }
             "cache-buffering-state" -> emit("buffering",value.toInt())
             "speed" -> { state.update(state.generation,positionSeconds(),isPaused(),value); emit("playbackRateChanged",value) }
@@ -301,7 +462,8 @@ class PlaybackController(private val context: Context, private val settings: Set
     override fun eventProperty(property: String, value: Boolean) { val generation = eventGeneration; main.post {
         if(destroyed || !state.active || generation != state.generation) return@post
         if(property == "eof-reached" && value) { finish(generation,"end of file (eof-reached)"); return@post }
-        if(property == "pause") { state.update(state.generation,positionSeconds(),value,state.speed); emit(if(value) "paused" else "playing"); emit("videoPlaybackActive",!value); updateMediaSession() }
+        // The hold's own pause is not the viewer's.
+        if(property == "pause" && hold?.generation != generation) { state.update(state.generation,positionSeconds(),value,state.speed); emit(if(value) "paused" else "playing"); emit("videoPlaybackActive",!value); updateMediaSession() }
         if(property == "paused-for-cache") { state.buffering(generation,value); emit("buffering",if(value) 0 else 100) }
     } }
     override fun eventProperty(property: String, value: Long) {}
@@ -341,5 +503,17 @@ class PlaybackController(private val context: Context, private val settings: Set
     }
     // Watch-together reads this before the pause so it reports away instead of pausing the room.
     fun background() { endTemporarySpeed(); if(state.active && !state.paused) { emit("backgrounded"); dispatch("pause",JSONArray()) } }
-    fun destroy() { if(destroyed) return; endTemporarySpeed(); surfaceGate.cancel(); state.end(state.generation); destroyed = true; main.removeCallbacks(resizeOutput); context.unregisterReceiver(noisyReceiver); MPVLib.removeObserver(this); MPVLib.removeLogObserver(this); MPVLib.destroy(); mediaSession.release(); audioManager.abandonAudioFocusRequest(focus) }
+    fun destroy() {
+        if(destroyed) return
+        endTemporarySpeed(); resetItem(); surfaceGate.cancel(); state.end(state.generation)
+        // A subtitle fetch blocks its thread inside mpv: end it (sub-add ends with the item) before mpv goes away.
+        val fetches = fetchLock.withLock { destroyed = true; fetching }
+        if(fetches > 0) {
+            MPVLib.command(arrayOf("stop"))
+            fetchLock.withLock { var left = TimeUnit.SECONDS.toNanos(2); while(fetching > 0 && left > 0) left = fetchDone.awaitNanos(left) }
+        }
+        main.removeCallbacks(resizeOutput); main.removeCallbacks(holdTimeout); main.removeCallbacks(introSeekTimeout)
+        context.unregisterReceiver(noisyReceiver); MPVLib.removeObserver(this); MPVLib.removeLogObserver(this); MPVLib.destroy(); mediaSession.release(); audioManager.abandonAudioFocusRequest(focus)
+    }
+    private companion object { const val HOLD_MS = 10000L }
 }

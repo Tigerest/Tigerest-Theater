@@ -13,7 +13,7 @@ import android.view.View
 /**
  * Text subtitles for HDR output: MediaCodec renders straight to the surface,
  * where mpv draws nothing, so mpv's plain subtitle text is drawn here with the
- * user's subtitle size, colours and placement. ASS positioning is not kept.
+ * user's subtitle size, colours, weight and placement. ASS positioning is not kept.
  */
 class SubtitleOverlay(context: Context, private val settings: SettingsStore): View(context) {
     private val fill = TextPaint(Paint.ANTI_ALIAS_FLAG)
@@ -35,7 +35,8 @@ class SubtitleOverlay(context: Context, private val settings: SettingsStore): Vi
         val style = PlaybackContract.SubtitleStyle(video.height,
             setting("size", "55").toDoubleOrNull() ?: 55.0, setting("border_size", "3").toDoubleOrNull() ?: 3.0)
         val font = setting("font", "")
-        val typeface = if (font.isEmpty()) Typeface.DEFAULT else Typeface.create(font, Typeface.NORMAL)
+        val bold = settings.bool("subtitles", "bold")
+        val typeface = if (font.isEmpty()) (if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT) else Typeface.create(font, if (bold) Typeface.BOLD else Typeface.NORMAL)
         for (paint in listOf(fill, stroke)) { paint.textSize = style.textSize; paint.typeface = typeface }
         fill.color = color(setting("color", "#FFFFFF"), Color.WHITE)
         stroke.color = color(setting("border_color", "#000000"), Color.BLACK)
@@ -46,7 +47,10 @@ class SubtitleOverlay(context: Context, private val settings: SettingsStore): Vi
         val lineWidth = (video.width - style.sideMargin * 2).toInt().coerceAtLeast(1)
         val layout = { paint: TextPaint -> StaticLayout.Builder.obtain(text, 0, text.length, paint, lineWidth).setAlignment(alignment).build() }
         val front = layout(fill); val outline = layout(stroke)
-        val top = videoTop + when (placement.getOrNull(1)) {
+        // The subtitle's own vertical position (as mpv's sub-pos) goes before the placement.
+        val position = settings.number("subtitles", "vertical_position")
+        val top = videoTop + if (position >= 0) PlaybackContract.subtitleTop(video.height.toFloat(), front.height.toFloat(), style.verticalMargin, position)
+        else when (placement.getOrNull(1)) {
             "top" -> style.verticalMargin
             "center" -> (video.height - front.height) / 2f
             else -> video.height - style.verticalMargin - front.height

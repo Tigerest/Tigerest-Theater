@@ -1,11 +1,48 @@
 package top.tigerest.theater
 
+import org.json.JSONArray
+
 /** The shared Emby player uses music, #1 and an empty subtitle selection. */
 object PlaybackContract {
     fun isVideo(type: String) = type.lowercase() !in setOf("audio","music")
     fun track(value: String): String {
         val normalized = value.removePrefix("#")
         return if(normalized.isBlank() || normalized.toIntOrNull()?.let { it < 0 } == true) "no" else normalized
+    }
+    /** The address in a `#,address` selection: a subtitle file the server delivers separately. */
+    fun externalSubtitle(value: Any?): String? = value?.toString()?.takeIf { it.startsWith("#,") }?.substring(2)?.takeIf { it.isNotBlank() }
+    /** The newest subtitle track mpv added from [url], from its `track-list`. */
+    fun externalSubtitleTrack(tracks: JSONArray, url: String): Int? {
+        var id: Int? = null
+        for(index in 0 until tracks.length()) {
+            val track = tracks.optJSONObject(index) ?: continue
+            if(track.optString("type") == "sub" && track.optBoolean("external") && track.optString("external-filename") == url && track.has("id"))
+                id = maxOf(id ?: 0,track.optInt("id"))
+        }
+        return id
+    }
+    /** How long a page message stays: the page's milliseconds within 0.5–30 s; a page that gives none gets 3 s. */
+    fun noticeMillis(value: Any?): Long {
+        val ms = (value as? Number)?.toDouble() ?: value?.toString()?.toDoubleOrNull()
+        return if(ms == null || !ms.isFinite()) 3000 else ms.toLong().coerceIn(500,30000)
+    }
+    /** mpv's vertical subtitle placement: `sub-align-y` and `sub-pos`. */
+    data class SubtitleVertical(val align: String, val position: Int)
+    /**
+     * The subtitle's own vertical position (0–150, 100 at the bottom edge) goes
+     * before the placement's top or bottom, as on the desktop; -1 follows the placement.
+     */
+    fun subtitleVertical(placement: String?, position: Double): SubtitleVertical =
+        if(position >= 0) SubtitleVertical("bottom",minOf(position,150.0).toInt())
+        else SubtitleVertical(placement?.ifEmpty { null } ?: "bottom",100)
+    /**
+     * Where the HDR overlay puts a subtitle of [textHeight] for `sub-pos` [position]:
+     * its bottom [position]% of the way down to the bottom margin, as libass places
+     * it, and inside the video.
+     */
+    fun subtitleTop(videoHeight: Float, textHeight: Float, margin: Float, position: Double): Float {
+        val bottom = (videoHeight - margin) * position.coerceIn(0.0,150.0).toFloat() / 100f
+        return (bottom - textHeight).coerceIn(0f,(videoHeight - textHeight).coerceAtLeast(0f))
     }
     fun subtitleBackground(color: String, alpha: String) = "#" + alpha + color.removePrefix("#")
     /** Bitmap subtitles have no text for the HDR output's native subtitle layer. */

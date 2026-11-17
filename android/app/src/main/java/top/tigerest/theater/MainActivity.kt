@@ -109,6 +109,8 @@ class MainActivity: ComponentActivity(),DisplayManager.DisplayListener {
             setFullscreen(false)
             model.player.signal = { name,args -> bridge.emit("player",name,args) }
             model.player.message = { text -> notify(text) }
+            model.player.notice = { text,ms -> controls.showNotice(text,ms) }
+            model.player.introSkipChanged = { controls.refreshIntroSkip() }
             model.player.visible = { shown ->
                 video.visibility = if(shown) View.VISIBLE else View.GONE
                 setPlaybackScreenAwake(shown); setFullscreen(shown)
@@ -122,7 +124,7 @@ class MainActivity: ComponentActivity(),DisplayManager.DisplayListener {
                 controls.showControls(); danmaku.autoMatch(item)
                 controls.playbackStarted()
             }
-            model.settings.changed = { section,values -> bridge.emit("settings","sectionValueUpdate",JSONArray().put(section).put(values)); runOnUiThread { model.player.applySettings(); overlay.rebuild(); if(section == "main") webHost.applySettings() } }
+            model.settings.changed = { section,values -> bridge.emit("settings","sectionValueUpdate",JSONArray().put(section).put(values)); runOnUiThread { model.player.applySettings(); overlay.rebuild(); subtitles.invalidate(); if(section == "main") webHost.applySettings() } }
             danmaku.changed = { runOnUiThread { overlay.rebuild(); bridge.emit("danmaku","sourcesChanged",JSONArray().put(danmaku.sourceSnapshot())) } }
             danmaku.status = { text -> runOnUiThread { if(!controls.showDanmakuStatus(text)) notify(text); bridge.emit("danmaku","status",JSONArray().put(text)) } }
             root.setOnApplyWindowInsetsListener { _,insets -> currentInsets = insets; updateWindowMetrics(); insets }

@@ -19,14 +19,14 @@
    return promise;
   };}
   const operations={
-   player:'load queueMedia clearQueue seekTo stop streamSwitch pause play showMessage setVolume volume setMuted muted getAudioDeviceList setAudioDevice setAudioStream setSubtitleStream getSubtitleStreams setAudioDelay setSubtitleDelay setVideoOnlyMode setVideoRectangle setPlaybackRate getPosition getDuration mpvDiagnostics getWebPlaylist getCurrentWebPlaylistItemId setWebPlaylist notifyShuffleChange notifyRepeatChange notifyFullscreenChange notifyRateChange notifyQueueChange notifyPlaybackStop notifyDurationChange notifyPlaybackState notifyPosition notifySeek notifyMetadata notifyVolumeChange notifyStreamingBitrateResult',
+   player:'load queueMedia clearQueue seekTo stop streamSwitch pause play showMessage setVolume volume setMuted muted getAudioDeviceList setAudioDevice setAudioStream setSubtitleStream getSubtitleStreams setAudioDelay setSubtitleDelay setVideoOnlyMode setVideoRectangle setPlaybackRate getPosition getDuration setIntroSkip mpvDiagnostics getWebPlaylist getCurrentWebPlaylistItemId setWebPlaylist notifyShuffleChange notifyRepeatChange notifyFullscreenChange notifyRateChange notifyQueueChange notifyPlaybackStop notifyDurationChange notifyPlaybackState notifyPosition notifySeek notifyMetadata notifyVolumeChange notifyStreamingBitrateResult',
    settings:'setValue resetToDefault value',
    system:'communityRequest communitySourceAvatar communityCancel communityCredential communitySetEmbySession exit restart hello isAddressOnLocalSubnet checkServerConnectivity cancelServerConnectivity finishServerSelection takeServerSelectionError openExternalUrl systemInformation getUserAgent debugInformation setReportDiagnosticsScope collectReportDiagnostics checkForUpdates appUpdateState downloadAppUpdate installAppUpdate cancelAppUpdate skipAppUpdate deferAppUpdate openAppUpdateMirror',
    window:'setFullScreen isFullScreen beginPlaybackSession endPlaybackSession requestPlaybackFullScreen setCursorVisibility',
    danmaku:'search episodes match load loadUrl importFile setSource sources setEnabled',
   };
   const notifications={
-   player:'backgrounded playing paused finished canceled stopped error stateChanged videoPlaybackActive windowVisible updateDuration playbackRateChanged positionUpdate onVideoRecangleChanged onMetaData bufferedRangesUpdated buffering streamingBitrateRequested subtitleStreamRequested webPlaylistChanged',
+   player:'backgrounded playing paused finished canceled stopped error stateChanged videoPlaybackActive windowVisible updateDuration playbackRateChanged positionUpdate onVideoRecangleChanged onMetaData bufferedRangesUpdated buffering seekingChanged streamingBitrateRequested subtitleStreamRequested webPlaylistChanged',
    settings:'sectionValueUpdate groupUpdate',system:'serverConnectivityResult appUpdateChanged communityResponse',window:'fullScreenSwitched',input:'hostInput playlistItemRequested volumeChanged rateChanged positionSeek',danmaku:'status sourcesChanged',
   };
   const api={};

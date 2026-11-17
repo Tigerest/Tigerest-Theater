@@ -40,6 +40,21 @@ class PlaybackLoadingTest {
         assertFalse(state.loading)
     }
 
+    @Test fun aVideoWaitingForItsSubtitleShowsLoadingUntilTheHoldEnds() {
+        val state = PlaybackState()
+        val generation = state.begin("video")
+        state.ready(generation); state.hold(generation, true)
+        assertTrue(state.held); assertTrue(state.loading)
+        state.update(generation, 0.0, true, 1.0)
+        assertTrue("paused by the hold, not by the viewer", state.loading)
+        state.hold(generation - 1, false); assertTrue("another item's hold ends nothing", state.held)
+        state.hold(generation, false); assertFalse(state.loading)
+        state.hold(generation, true)
+        val next = state.begin("next"); assertFalse("a new item starts without a hold", state.held)
+        state.ready(next); assertFalse(state.loading)
+        state.hold(next, true); assertTrue(state.end(next)); assertFalse(state.held)
+    }
+
     @Test fun replacingVideoRejectsOldReadinessAndCacheEvents() {
         val state = PlaybackState()
         val old = state.begin("old")
