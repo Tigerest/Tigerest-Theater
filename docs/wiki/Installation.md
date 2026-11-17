@@ -2,20 +2,20 @@
 
 ## 选择正确的包
 
-从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以当前正式包的文件名示例说明（Windows 为 2.9.5.8，Mac 为 2.9.5.9，其他平台为 2.9.5）；安装步骤也适用于后续同类正式包。只给部分平台发的修复版（如 2.9.5.9 只有 Mac，2.9.5.8、2.9.5.7、2.9.5.6、2.9.5.5 和 2.9.5.4 只有 Windows，2.9.5.3 和 2.9.5.2 只有 Windows 与 Mac）发行页里只有这些平台的包，其他平台的包在它们各自最新版本的发行页（Windows 是 2.9.5.8，Mac 是 2.9.5.9，其他平台是 2.9.5）。
+从[正式发行页](https://github.com/Tigerest/Tigerest-Theater/releases/latest)下载，基础包已经包含 MPV 与运行库。下面以当前正式包的文件名示例说明（Windows 与 Android 为 3.0.0，Mac 为 2.9.5.9，iPhone／iPad 与 Apple TV 为 2.9.5）；安装步骤也适用于后续同类正式包。只给部分平台发的版本（如 3.0.0 只有 Windows 与 Android，2.9.5.9 只有 Mac，2.9.5.8、2.9.5.7、2.9.5.6、2.9.5.5 和 2.9.5.4 只有 Windows，2.9.5.3 和 2.9.5.2 只有 Windows 与 Mac）发行页里只有这些平台的包，其他平台的包在它们各自最新版本的发行页（Windows 与 Android 是 3.0.0，Mac 是 2.9.5.9，iPhone／iPad 与 Apple TV 是 2.9.5）。
 
 | 设备 | 包名 | 最低要求 |
 | --- | --- | --- |
-| Windows 安装版 | TigerestTheater-2.9.5.8-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
-| Windows 便携版 | TigerestTheater-2.9.5.8-x64.zip | 同上 |
-| Android | TigerestTheater-2.9.5-android.apk | Android 15+，arm64-v8a / x86_64 |
+| Windows 安装版 | TigerestTheater-3.0.0-x64.exe | Windows 10 1903+ 或 Windows 11，x64 |
+| Windows 便携版 | TigerestTheater-3.0.0-x64.zip | 同上 |
+| Android | TigerestTheater-3.0.0-android.apk | Android 15+，arm64-v8a / x86_64 |
 | Apple Silicon Mac | TigerestTheater-2.9.5.9-arm64.dmg | macOS 26+，M 系列 |
 | iPad / iPhone | TigerestTheater-2.9.5-universal.ipa（2.9.3 及以前为 ipad.ipa） | iPadOS / iOS 26+，需要自行签名 |
 | Apple TV | TigerestTheater-2.9.5-tvos.ipa | tvOS 26+，需要自行签名 |
 
 Windows 安装版适合日常使用，由安装器管理程序目录；便携版适合把程序与配置放在同一个文件夹。Mac 正式附件目前仅提供 Apple Silicon 版本。Android 的系统版本和处理器架构必须同时满足要求。iPad / iPhone 通用包和 Apple TV 的 IPA 是两个不同的设备包，不能互换。
 
-无法访问 GitHub 时，可从固定的[夸克网盘](https://pan.quark.cn/s/88e6f7a795b4)或[百度网盘](https://pan.baidu.com/s/58azzOU4piiB3miyZqA1dig)分享文件夹下载 Windows／Android 安装包（Mac、iPad 与 Apple TV 的安装包目前只在 GitHub 发行页提供）。按版本号分子文件夹，文件与发行页的附件相同，请用其中对应版本的 `SHA256SUMS.txt` 校验。小版本（如 2.9.5.8）放在前三位版本号的文件夹（`2.9.5`）里，并替换上一个小版本；被替换的版本在 GitHub 发行页。
+无法访问 GitHub 时，可从固定的[夸克网盘](https://pan.quark.cn/s/88e6f7a795b4)或[百度网盘](https://pan.baidu.com/s/58azzOU4piiB3miyZqA1dig)分享文件夹下载 Windows／Android 安装包（Mac、iPad 与 Apple TV 的安装包目前只在 GitHub 发行页提供）。按版本号分子文件夹（3.0.0 在 `3.0.0` 文件夹），文件与发行页的附件相同，请用其中对应版本的 `SHA256SUMS.txt` 校验。小版本（如 2.9.5.8）放在前三位版本号的文件夹（`2.9.5`）里，并替换上一个小版本；被替换的版本在 GitHub 发行页。
 
 ## Windows 安装版
 
@@ -23,6 +23,8 @@ Windows 安装版适合日常使用，由安装器管理程序目录；便携版
 2. 运行安装器并按向导完成安装，升级时使用原来的安装位置。
 3. 启动客户端，连接 Emby 服务器。首次安装不需要另外下载 MPV、Python 或 CUDA Toolkit。
 4. NVIDIA RIFE 扩展按需要另行安装，见 [RIFE 教程](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE)。
+
+3.0.0 起，安装版和便携版都带有 NVIDIA VFG 帧生成用的 NVIDIA 运行库，放在程序目录的 `vfg\nvidia`（约 200 MB），只在使用 VFG 时加载。它按 NVIDIA 的许可原样分发，许可文件在程序目录的 `licenses\nvidia-vfx`。VFG 还需要上面的 NVIDIA RIFE 扩展，见 [NVIDIA VFG 帧生成](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE#nvidia-vfg-帧生成windows-300-起)。
 
 安装包目前没有 Authenticode 签名。遇到系统来源提示时，先核对下载来自本项目发行页以及校验值，再决定是否继续。
 
@@ -97,12 +99,12 @@ Windows、Mac 和 Android 有新版本时，每次打开软件弹出一次更新
 
 ## 核对 SHA-256
 
-2.9.5 起每个发行页只有一份校验清单，覆盖这一页的全部文件：`TigerestTheater-2.9.5-SHA256SUMS.txt` 覆盖 Windows、Android、Mac、iPhone／iPad 与 Apple TV；修复版的清单只含它那一页上的文件，例如 `TigerestTheater-2.9.5.8-SHA256SUMS.txt` 只含 2.9.5.8 的 Windows 文件（2.9.4 及以前，Mac、iPad 和 Apple TV 的文件另列在 `APPLE-SHA256SUMS.txt`）。先找到文件名对应的摘要，再与本机结果对照。
+2.9.5 起每个发行页只有一份校验清单，覆盖这一页的全部文件：`TigerestTheater-2.9.5-SHA256SUMS.txt` 覆盖 Windows、Android、Mac、iPhone／iPad 与 Apple TV；只发部分平台的版本，清单只含它那一页上的文件，例如 `TigerestTheater-3.0.0-SHA256SUMS.txt` 含 3.0.0 的 Windows 与 Android 文件，`TigerestTheater-2.9.5.8-SHA256SUMS.txt` 只含 2.9.5.8 的 Windows 文件（2.9.4 及以前，Mac、iPad 和 Apple TV 的文件另列在 `APPLE-SHA256SUMS.txt`）。先找到文件名对应的摘要，再与本机结果对照。
 
 Windows PowerShell 示例：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-2.9.5.8-x64.exe'
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\TigerestTheater-3.0.0-x64.exe'
 ```
 
 macOS 终端示例：

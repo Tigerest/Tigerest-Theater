@@ -1,11 +1,11 @@
 # Tigerest Theater 使用教程
 
-这里是 EMBY 大河版的中文使用说明，对应 Windows 2.9.5.8、Mac 2.9.5.9，以及 Android、iPhone／iPad 与 Apple TV 2.9.5。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
+这里是 EMBY 大河版的中文使用说明，对应 Windows 与 Android 3.0.0、Mac 2.9.5.9，以及 iPhone／iPad 与 Apple TV 2.9.5。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
 
 ## 第一次使用
 
 1. 按设备选择并安装[正式版本](https://github.com/Tigerest/Tigerest-Theater/releases/latest)：见[安装与更新](https://github.com/Tigerest/Tigerest-Theater/wiki/Installation)。
-2. 选择大河专属入口或填写自己的 Emby／Jellyfin 地址：见[服务器与登录](https://github.com/Tigerest/Tigerest-Theater/wiki/Server)。
+2. 选择大河专属入口或填写自己的 Emby／Jellyfin 地址：见[服务器与登录](https://github.com/Tigerest/Tigerest-Theater/wiki/Server)。Windows 3.0.0 第一次打开时先选使用方式：要连服务器点「连接媒体服务器」，只播本机文件点「本地播放」。
 3. 登录服务器，打开一部作品并播放：见[播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback)。Apple TV 的操作方式不同，见 [Apple TV](https://github.com/Tigerest/Tigerest-Theater/wiki/Apple-TV)。
 4. 根据需要选择字幕、检查弹幕。先用默认设置播放，再调整画质或启用补帧。
 5. 自建 Emby 用户想看公共评论时，打开详情页的「评论账号」完成独立注册或登录。
@@ -20,15 +20,24 @@
 | [公共评论与头像](https://github.com/Tigerest/Tigerest-Theater/wiki/Community) | 注册、修改昵称和密码、发言与回复、头像同步 |
 | [消息与私人报错](https://github.com/Tigerest/Tigerest-Theater/wiki/Messages-and-Reports) | 回复、我的发言、报错、日志附件、修复通知与已读状态 |
 | [弹幕匹配与纠正](https://github.com/Tigerest/Tigerest-Theater/wiki/Danmaku) | 自动匹配、手动选集、共享校准、来源屏蔽与偏移 |
-| [播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback) | 设置入口、首页媒体夹、声音、画质、快捷键、Android 与 iPad／iPhone 手势 |
+| [播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback) | 设置入口、首页媒体夹、声音、画质、专业模式、快捷键、Android 与 iPad／iPhone 手势 |
 | [字幕](https://github.com/Tigerest/Tigerest-Theater/wiki/Subtitles) | 选轨、外置字幕、时间偏移、样式与 ASS 特效 |
-| [RIFE 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE) | Windows 扩展、Mac 与 iPad 内置补帧、目标帧率、性能检查 |
+| [RIFE 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE) | Windows 扩展、NVIDIA VFG、Mac 与 iPad 内置补帧、目标帧率、性能检查 |
 | [下载与离线媒体](https://github.com/Tigerest/Tigerest-Theater/wiki/Downloads) | 下载任务、离线播放、数据保留与权限 |
 | [Apple TV](https://github.com/Tigerest/Tigerest-Theater/wiki/Apple-TV) | 电视端登录、遥控器操作、字幕、弹幕、评论与画质 |
 | [故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting) | 按现象定位问题、日志目录、提交有效反馈 |
 | [常见问题](https://github.com/Tigerest/Tigerest-Theater/wiki/FAQ) | 平台区别、账号范围、补帧与共享功能的常见疑问 |
 | [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture) | 各客户端的实现与架构、播放链路、一起看同步、评论和弹幕的数据流 |
 | [引用来源与鸣谢](https://github.com/Tigerest/Tigerest-Theater/wiki/Credits) | 用到的开源项目、用途和许可证，源码与许可文件在哪里 |
+
+## 3.0.0 更新了什么（Windows、Android）
+
+- **专业模式（Windows）：** 播放时按 `F2`，画面缩到左边继续播放，右边分「画质」「补帧」「色彩」「声音」「字幕」「弹幕」「画面」七页列出能调的选项，改动立即作用到画面。可以按住对比改动前或原始画面，下方实时显示各阶段的渲染耗时、视频与屏幕的帧率、CPU／GPU 占用和丢帧。调好后保存回当前画质档位，或另存为新档位。见[专业模式](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#专业模式windows-300-起)。
+- **NVIDIA VFG 帧生成（Windows）：** RIFE 之外的另一种补帧，按 0.5 倍一档提高帧率（1.5×–5×，或按 RIFE 目标帧率自动选），分低、中、高三档质量。需要 RTX 40／50 系显卡和已安装的 RIFE 扩展；NVIDIA 的运行库随安装包提供。见 [RIFE 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE#nvidia-vfg-帧生成windows-300-起)。
+- **RTX 视频超分辨率与 RTX Video HDR（Windows）：** 由显卡驱动把视频放大到屏幕的分辨率、把 SDR 视频转换成 HDR 输出。默认关闭，在「设置 → 视频」或专业模式里打开，立即生效；需要 RTX 20 系或更新的显卡，并在 NVIDIA App 里打开对应的开关。见[播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#nvidia-rtx-视频增强windows-300-起)。
+- **设置与首页（Windows）：** 新增「显示器 ICC 色彩配置」（系统已经在为屏幕管理色彩时，「自动」不再让 mpv 读取 ICC，免得校正两次）和「字幕垂直位置」。没有选定服务器时，打开后先选「本地播放」或「连接媒体服务器」，右上角固定有「设置」按钮。播放时 `Ctrl+V` 能粘贴进 uosc 的输入框。见[播放本地视频](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#播放本地视频windows-与-mac)。
+- **一起看（Windows、Android）：** 拖动进度条或按住方向键连续跳转时，房间只收到最后一次跳转（Windows 上停在它之前最近的关键帧），都解出画面后一起开始；房间里换上一集、下一集或在播放列表里选集时，整个房间一起换过去；同步在做什么会在画面上提示。Mac 2.9.5.9 的一起看修复这一版起也在 Windows 和 Android 上。见[一起看](https://github.com/Tigerest/Tigerest-Theater/wiki/Watch-Together)。
+- **Android：** 上一个安装包是 2.9.5。新增跳过片头按钮和自动跳过（按 Emby 的「片头跳过模式」）、「字幕粗体」和「字幕垂直位置」；外挂字幕改到后台加载，服务器准备字幕时最多等 10 秒就先开始播放；一起看的提示按各自的时长显示，HDR 直出时也看得到。Windows 2.9.5.3–2.9.5.8 里 Android 也用得上的改动（启动超时 75 秒、不再运行 Emby 4.8–4.10 服务器写进网页的美化脚本、评论自动重发、首页海报快速划过不重影、弹幕额度用完的提示）也一并带上。见[播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#android-操作)。
 
 ## 2.9.5.9 更新了什么（Mac）
 
@@ -38,7 +47,7 @@
 
 ## 2.9.5.8 更新了什么（Windows）
 
-- **跳过片头：** 内置播放器按 Emby 的「片头跳过模式」处理服务器检测到的片头：显示「跳过片头」按钮，或者自动跳过。见[日常使用](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#跳过片头windows-2958mac-2959-起)。
+- **跳过片头：** 内置播放器按 Emby 的「片头跳过模式」处理服务器检测到的片头：显示「跳过片头」按钮，或者自动跳过。见[日常使用](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#跳过片头windows-2958mac-2959android-300-起)。
 
 ## 2.9.5.7 更新了什么（Windows）
 
@@ -137,7 +146,7 @@
 
 2.6.1 起 Windows 网页界面按屏幕刷新率运行，并新增 iPad 客户端；2.7.0 起首页「继续观看」按观看记录排序，兼容 Emby 4.8–4.10 和 .strm 媒体库，并补充了 Apple TV 首版。完整记录见[更新记录](https://github.com/Tigerest/Tigerest-Theater/blob/main/CHANGELOG.md)。
 
-**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.5.8 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
+**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。3.0.0 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
 
 ## 各平台功能范围
 

@@ -1,6 +1,6 @@
 # 技术原理
 
-这一页介绍 Tigerest Theater 的实现方式：五个客户端各用什么技术、哪些代码是共用的，以及播放、一起看、评论、弹幕和更新的数据怎样流动。内容对应 2.9.5。日常使用不需要读这一页，操作说明见[教程首页](https://github.com/Tigerest/Tigerest-Theater/wiki/Home)。
+这一页介绍 Tigerest Theater 的实现方式：五个客户端各用什么技术、哪些代码是共用的，以及播放、一起看、评论、弹幕和更新的数据怎样流动。内容对应 2.9.5；Windows 的 VFG、RTX 视频增强和专业模式，以及一起看的跳转、换集和关键帧对齐对应 3.0.0。日常使用不需要读这一页，操作说明见[教程首页](https://github.com/Tigerest/Tigerest-Theater/wiki/Home)。
 
 ## 总览
 
@@ -131,8 +131,10 @@ flowchart TB
   web <-->|"WebChannel"| comps["C++ 组件<br/>player · settings · system · window · input"]
   comps --> mpv["libmpv"]
   mpv -->|"GPU-Next 渲染"| video
-  mpv --> lua["Lua 插件<br/>uosc 控制栏 · uosc_danmaku 弹幕 · 画质菜单 · 统计"]
+  mpv --> lua["Lua 插件<br/>uosc 控制栏 · uosc_danmaku 弹幕 · 画质菜单 · 统计 · 专业模式数据"]
   mpv -.->|"开启 RIFE 时"| vs["VapourSynth 滤镜<br/>vs-mlrt + TensorRT"]
+  mpv -.->|"开启 VFG 时"| vfg["VapourSynth 滤镜 tigerest-vfg-vs<br/>RIFE 扩展的 VapourSynth + NVIDIA 运行库"]
+  mpv -.->|"开启 RTX 视频增强时"| rtx["d3d11vpp 滤镜，排在最后<br/>显卡驱动做 VSR / RTX Video HDR"]
   comps --> upd["更新器<br/>GitHub Releases"]
   comps --> store["Windows 凭据管理器<br/>保存评论登录"]
 ```
@@ -142,6 +144,9 @@ flowchart TB
 - **播放控件和弹幕**由 MPV 里的 Lua 插件绘制，不是网页元素：uosc 提供控制栏和菜单，uosc_danmaku 用 MPV 的 ASS 叠加层显示弹幕。
 - **配置档：** 每个配置档有独立的设置、网页数据和日志。安装版放在 `%LOCALAPPDATA%\Tigerest Theater`，便携版放在程序目录的 `data`。
 - **RIFE：** 可选的 NVIDIA 扩展包含 Python、VapourSynth、vs-mlrt（TensorRT）和三个模型。开启后 MPV 通过 VapourSynth 滤镜把视频交给推理链；第一次使用某个模型和尺寸时构建 TensorRT 引擎并缓存。客户端负责下载、校验扩展和判断片源是否符合条件。
+- **VFG（3.0.0 起）：** 同样是 MPV 的 VapourSynth 滤镜。`tigerest-vfg-vs` 插件和脚本随包放在程序目录的 `vfg`，借用 RIFE 扩展里的 Python 和 VapourSynth 运行，从 `vfg\nvidia` 加载 NVIDIA 的 Video Effects 运行库（原样随包分发，打包时逐个文件核对锁定的哈希）。加滤镜前客户端检查这些文件、RIFE 扩展是否已加载、显卡的 CUDA 算力（至少 8.9，即 RTX 40 系起）和解码方式（滤镜从内存取帧，要软解或回读）；这一集的 RIFE 随之让出。滤镜把画面转成 RGB 交给 NVIDIA 的帧生成，再转回原来的格式；HDR、隔行和变帧率的输入只重复原帧。
+- **RTX 视频增强（3.0.0 起）：** VSR 和 RTX Video HDR 由显卡驱动在 D3D11 视频处理器里完成。客户端在滤镜链里加 MPV 的 `d3d11vpp` 滤镜：VSR 用 `scaling-mode=nvidia` 和按屏幕分辨率算出的放大倍数（最多 4 倍），RTX Video HDR 用 `nvidia-true-hdr`。RIFE、VFG 和 SVP 的滤镜从内存取帧，而 d3d11vpp 把画面留在显存里交下去，所以客户端始终把它挪回滤镜链最后。每个视频开始后按它的尺寸和当前屏幕重新计算；驱动没有接受时，客户端从 MPV 日志里读出原因，显示在专业模式里。
+- **专业模式（3.0.0 起）：** 面板是扩展脚本 `native/proMode.js` 画的，原生层把视频子窗口缩到面板报告的区域里。MPV 里的数据脚本 `tigerest_pro.lua` 只在模式开着时工作：每 0.5 秒把渲染统计（各渲染步骤的耗时、帧率、丢帧、缓存、音频参数和滤镜链）写进 MPV 的 `user-data`，面板显示的选项一有变化也写一次，客户端观察这两个属性转给页面。CPU 与 GPU 占用由客户端每秒采样：GPU 读 Windows 性能计数器「GPU Engine」的利用率，CPU 按系统的处理器时间计算。面板里的改动通过原生桥直接写给正在播放的 MPV；「保存」时画质参数和着色器链经 mpv.conf 编辑器的同一套接口写进画质档位，其他写进客户端设置。
 - **打包：** CMake + MSVC 构建，Inno Setup 制作安装器；便携 ZIP 与安装版内容相同，都自带运行库。
 
 ### Mac
@@ -230,7 +235,7 @@ flowchart TB
 
 - `watchTogetherClient.js`：REST 请求、WebSocket 连接、校时和断线重连；
 - `watchTogetherSync.js`：同步引擎，让本机播放器跟上房间时间线；
-- `watchTogether.js`：房间页、选片页、播放器里的提示。
+- `watchTogether.js`：房间页、选片页、播放器里的提示。Android 3.0.0 起，提示由原生层按各自的时长画在画面上，HDR 直出时也看得到。
 
 Apple TV 没有网页层，线上房间服务也还不接受 tvOS 客户端，暂不提供。
 
@@ -303,8 +308,16 @@ flowchart TD
 - 开启 RIFE 时，任何非 1 倍速都会让补帧暂停，所以 Windows、Mac、iPad 开启 RIFE 后不调速，偏差超过 300 ms 时用暂停或跳转对齐。「显示器重采样」在 120 Hz 屏幕上把 23.976 帧的视频按 24 帧播放，比房间快 0.1%，这种对齐大约每 5 分钟一次。
 - 本机超前不多（不开 RIFE 时也一样，上限 2.5 秒）时不跳转：停在当前画面，房间走到这里时继续，不用重新解码。
 - 大偏差不直接跳到房间位置：先跳到稍前的位置暂停，等这一帧准备好，再在房间走到那里时开始播放，跳转本身耗时多久都不会影响结果。
-- 「这一帧准备好」不能只看播放位置：mpv 一跳转就报告新位置，然后才从前一个关键帧解码过来，开着 RIFE 时要几秒。Windows 和 Mac 的播放器会在 mpv 发出 `MPV_EVENT_SEEK` 到 `MPV_EVENT_PLAYBACK_RESTART` 之间告诉同步引擎「还在跳转」，在那之前不开始播放，也不向房间上报 ready。Android、iPhone／iPad 的播放器不报告，仍按位置判断。
+- 「这一帧准备好」不能只看播放位置：mpv 一跳转就报告新位置，然后才从前一个关键帧解码过来，开着 RIFE 时要几秒。Windows 和 Mac 的播放器会在 mpv 发出 `MPV_EVENT_SEEK` 到 `MPV_EVENT_PLAYBACK_RESTART` 之间告诉同步引擎「还在跳转」，在那之前不开始播放，也不向房间上报 ready；Android 3.0.0 起也这样报告。iPhone／iPad 的播放器不报告，仍按位置判断。
 - 房间先走过了目标位置时，下一次跳转多留 50% 的时间（最多 8 秒），成功一次减 10%。连着 4 次都没赶上时，先从跳到的位置继续播放，30 秒后再对齐。
+- **对齐到关键帧（Windows 3.0.0 起，开着 RIFE 时）：** 跳到关键帧约 0.25 秒就能解出画面，跳到任意位置要从前一个关键帧解码过来（TensorRT RIFE 实测 1.6–7 秒）。桌面播放器提供「跳到关键帧并回报落点」（`seekToKeyframe` / `keyframeSeekLanded`），落后的成员跳到房间前方 0.6 秒之后的第一个关键帧，停在那里等房间播到；房间又先走过了这个关键帧时，下一次的提前量加倍（最多 8 秒）。Mac 的同一份实现要等下一个 Mac 安装包。
+- **跟不上实时的成员（3.0.0 起）：** 有的播放器跑不到 1 倍速（例如显卡忙时补帧只有 0.5–0.75 倍速），每次对齐后几秒又落后。45 秒内第 4 次落后时，引擎让它在后面接着播 60 秒，并提示原因。
+- **片尾（3.0.0 起）：** 房间的时钟在片子播完后还在走；房间的应处位置到了片长前 1 秒以内时，引擎认为这部片子在房间里已经播完，不再对齐，避免反复跳到文件末尾之后。
+
+### 跳转和换集（3.0.0 起）
+
+- **连续跳转合成一次：** 点击或拖动进度条、按住方向键时，播放器会连着发出多次跳转。间隔不到 0.25 秒的跳转算同一次，本机先暂停，房间只收到最后一次。桌面播放器再把它对到之前最近的关键帧（最多等 3 秒），房间位置取关键帧后 0.15 秒，这样开着补帧的成员只需解几帧；Android 没有关键帧跳转，房间位置就是跳到的位置。之后房间进入等待，所有人解出画面后一起开始。
+- **换集跟着房间走：** Emby 为「下一集」「上一集」、自动播放下一集或播放列表选集停止当前影片时，会在停止事件里带上接下来的媒体类型。客户端据此把 8 秒内在同一个播放器里开始的电影或单集当作房间换片，发出换片命令；关掉播放器之后再开始的播放仍是私人的。
 
 ### 操作与冲突
 

@@ -7,6 +7,7 @@ RIFE 在原视频帧之间生成中间帧，提高运动画面的输出帧率。
 | 平台 | 组件 | 支持输入 |
 | --- | --- | --- |
 | Windows x64，受支持的 NVIDIA GPU | NVIDIA 1.0.0 可选扩展，TensorRT | 最高逐行 SDR 4K / 60 fps |
+| Windows x64，RTX 40／50 系（NVIDIA VFG，3.0.0 起） | 安装包自带的 NVIDIA 运行库，另需上面的 RIFE 扩展 | 逐行、恒定帧率的 SDR，见[下文](#nvidia-vfg-帧生成windows-300-起) |
 | Apple Silicon Mac | 包内模型与插件，Core ML / Metal | 最高逐行 SDR 1080p / 30 fps、恒定帧率 |
 | iPad | 包内原生滤镜，Core ML / Metal | 1920×1080、BT.709 SDR（8 位或 10 位）、23–30 fps，固定两倍 |
 | Android、Apple TV | 当前不提供 | 使用正常播放 |
@@ -87,6 +88,38 @@ Windows 提供 4.25 lite、4.25、4.25 heavy：
 - 暂停 5 秒以上再继续时，客户端先在当前位置重新准备画面再继续，期间显示缓冲，约 1–3 秒；实测恢复后不再落后、掉帧。
 
 2.9.5 在全屏和窗口都用音频时钟，翻页也不对齐屏幕刷新。
+
+## NVIDIA VFG 帧生成（Windows 3.0.0 起）
+
+NVIDIA Video Frame Generation（VFG）是 RIFE 之外的另一种补帧：用 NVIDIA 的帧生成模型（Video Effects SDK）在原帧之间生成新帧，按 0.5 倍一档提高帧率。它和 RIFE 不同时运行：开启后由它处理当前这一集，RIFE 让出。
+
+需要：
+
+- RTX 40 或 RTX 50 系显卡，驱动 570.65 或更新。
+- 已安装的 Windows RIFE 扩展（见上文[在线安装](#windows-在线安装)），装好后完全退出并重启客户端。VFG 借用扩展里的 VapourSynth 运行库，不需要开启「AI 补帧（RIFE）」。
+- 软件解码，或「复制」方式的硬件解码：「设置 → 视频 → 硬件解码方式」保持默认的「硬解后复制回显」，或选「关闭硬件解码」。
+- NVIDIA 的运行库随 Windows 安装包提供，在程序目录的 `vfg\nvidia`（约 200 MB），按 NVIDIA 的许可原样分发，许可文件在 `licenses\nvidia-vfx`，不用另外下载。
+
+「设置 → 视频」里有两项：
+
+| 设置 | 选项 |
+| --- | --- |
+| NVIDIA 帧生成（VFG） | 关闭（默认）、低、中、高。档位越高画质越好，显卡开销也越大 |
+| VFG 倍数 | 「自动」（默认）按「RIFE 目标帧率」选最接近的一档，选法和 RIFE 相同，但最多 5×，例如 23.976 fps、目标 60 时是 2.5×；也可以固定为 1.5×–5×，0.5 倍一档 |
+
+设置页的改动从下一个视频起生效。播放中可以在专业模式（`F2`）「补帧」页的「NVIDIA VFG 补帧」里切换档位和倍数，立即生效，画面停顿约 0.2 秒；点「保存」后写回「设置 → 视频」，以后每次播放自动开启。在专业模式里开启 VFG 后，这一集的 RIFE 让出，要回到 RIFE 请重新打开视频。
+
+和 RIFE 一样，VFG 只给逐行、恒定帧率、色彩信息完整的 SDR 视频生成新帧；HDR、隔行和变帧率的视频不生成，只重复原帧。倍数选「自动」时，片源帧率已经接近目标帧率（例如 60 帧的视频、目标 60）的这一集不启动 VFG。
+
+不能用时，客户端会写明原因：
+
+- 设置页「NVIDIA 帧生成（VFG）」下方显示「当前不可用：」和原因，例如没有安装 RIFE 扩展、显卡不是 RTX 40／50 系。程序目录里缺 VFG 的文件时，设置页不显示这两项。
+- 开着 VFG 播放却没能启动时（例如硬件解码方式不对），画面上提示「NVIDIA 帧生成没有启动：」和原因。
+- 专业模式「补帧」页同样写出原因；运行时显示源帧率 → 输出帧率、每帧推理耗时和每秒生成的帧数。
+
+排查步骤见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting#设置里没有-vfgvfg-不能开)。
+
+RTX 视频超分辨率（VSR）和 RTX Video HDR 排在补帧之后：开着 RIFE 或 VFG 时，放大和转换的是补帧后的画面，见[播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#nvidia-rtx-视频增强windows-300-起)。
 
 ## Mac 开启步骤
 

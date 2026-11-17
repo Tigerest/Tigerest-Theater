@@ -6,6 +6,7 @@ Tigerest Theater 建立在许多开源项目之上。这一页列出客户端直
 - Android：[licenses 目录](https://github.com/Tigerest/Tigerest-Theater/tree/main/android/app/src/main/assets/licenses)（[NOTICE.txt](https://github.com/Tigerest/Tigerest-Theater/blob/main/android/app/src/main/assets/licenses/NOTICE.txt) 说明原生库的来源）
 - iPhone、iPad 与 Apple TV：[依赖锁定文件](https://github.com/Tigerest/Tigerest-Theater/blob/main/apple/dependencies.lock.json)和[字幕字体说明](https://github.com/Tigerest/Tigerest-Theater/blob/main/apple/Resources/SubtitleFonts/README.md)
 - Windows NVIDIA 补帧扩展：[extension-NOTICE.txt](https://github.com/Tigerest/Tigerest-Theater/blob/main/dev/windows/rife/extension-NOTICE.txt)
+- Windows 的 NVIDIA VFG 运行库：程序目录里的 `licenses\nvidia-vfx`（NVIDIA 的许可文件、`NOTICE.txt`，以及记录每个文件哈希的 `runtime-lock.json`）
 
 ## 客户端基础
 
@@ -55,7 +56,7 @@ Tigerest Theater 建立在许多开源项目之上。这一页列出客户端直
 
 着色器的整理版本和参数说明参考 [mpv_PlayKit](https://github.com/hooke007/mpv_PlayKit)（hooke007）。
 
-## AI 补帧（RIFE）
+## AI 补帧（RIFE 与 VFG）
 
 | 项目 | 用在哪里 | 许可证 |
 | --- | --- | --- |
@@ -63,6 +64,7 @@ Tigerest Theater 建立在许多开源项目之上。这一页列出客户端直
 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) | Windows 与 Mac 补帧的视频处理框架 | LGPL 2.1 或更高版本 |
 | [vs-mlrt](https://github.com/AmusementClub/vs-mlrt)（AmusementClub） | Windows NVIDIA 补帧扩展的 TensorRT 推理和 ONNX 模型 | GPL v3 |
 | NVIDIA TensorRT 与 CUDA | Windows NVIDIA 补帧扩展，原样分发 | NVIDIA 软件许可 |
+| [NVIDIA Video Effects SDK 运行库](https://pypi.nvidia.com/nvidia-vfx/)（nvidia-vfx 0.2.0.0） | Windows 的 NVIDIA VFG 帧生成，随安装包原样分发，放在 `vfg\nvidia` | NVIDIA 软件许可 |
 | [Python](https://www.python.org/) | Windows 补帧扩展与 Mac 补帧运行 VapourSynth 脚本 | PSF |
 | [miniz](https://github.com/richgel999/miniz) | Windows 解压补帧扩展包 | MIT |
 
@@ -83,7 +85,7 @@ Tigerest Theater 建立在许多开源项目之上。这一页列出客户端直
 
 ## 许可证与源码
 
-主项目使用 [GNU GPL v2](https://github.com/Tigerest/Tigerest-Theater/blob/main/LICENSE)，第三方组件按各自的许可证分发。每个正式版的发行页都附带客户端完整源码（`client-Sources.zip`）、Android 源码（`android-Sources.zip`）和 `RELEASE-MANIFEST.json`；Android 原生库的哈希记录在 [native-runtime.lock.json](https://github.com/Tigerest/Tigerest-Theater/blob/main/android/native-runtime.lock.json)，Windows 补帧扩展附带 VapourSynth 和 vs-mlrt 的原始源码。
+主项目使用 [GNU GPL v2](https://github.com/Tigerest/Tigerest-Theater/blob/main/LICENSE)，第三方组件按各自的许可证分发。每个正式版的发行页都附带客户端完整源码（`client-Sources.zip`）、Android 源码（`android-Sources.zip`）和 `RELEASE-MANIFEST.json`；Android 原生库的哈希记录在 [native-runtime.lock.json](https://github.com/Tigerest/Tigerest-Theater/blob/main/android/native-runtime.lock.json)，Windows 补帧扩展附带 VapourSynth 和 vs-mlrt 的原始源码。Windows 安装包里的 NVIDIA VFG 运行库（`vfg\nvidia`）是 NVIDIA 的软件，按 NVIDIA 的许可原样分发，不适用本项目的许可证；许可文件在程序目录的 `licenses\nvidia-vfx`。
 
 上述名称和商标归各自所有者所有，本项目是非官方客户端，与它们没有隶属关系。
 

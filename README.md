@@ -1,5 +1,9 @@
 # Tigerest Theater
 
+<p align="center"><img src="screenshots/pro-mode.webp" alt="Windows 专业模式：左边是正在播放的画面和弹幕，右边是画质面板，列出处理顺序、画质档位、着色器链和缩放参数，下方是信号、GPU 渲染耗时、帧率与节奏和各环节负载"></p>
+
+**3.0.0 新增 · Windows 专业模式：** 播放时按 `F2`，画面缩到左边，右边列出能调的画质、补帧、色彩、字幕和弹幕选项，改动立即作用到画面。按住按钮可以对比改动前的画面，或去掉所有着色器和调整后的原始画面。下方实时显示解码到输出的每一步、各阶段的渲染耗时、视频帧率与屏幕实际呈现的帧率、CPU／GPU 占用和丢帧。调好后保存回当前画质档位或另存为新档位，以后每次播放都生效。同一版还加入 NVIDIA VFG 帧生成补帧（RTX 40／50 系）、RTX 视频超分辨率（VSR）和 RTX Video HDR。[详细介绍](#专业模式windows)
+
 https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
 
 <p align="center"><img src="screenshots/poster.webp" alt="大河影院 · Tigerest Theater 宣传海报：电脑、平板、折叠屏与手机上的沉浸式首页"></p>
@@ -8,9 +12,9 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
 
 [下载正式版](https://github.com/Tigerest/Tigerest-Theater/releases/latest) · [使用教程](https://github.com/Tigerest/Tigerest-Theater/wiki) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/Tigerest/Tigerest-Theater/issues) · [作者 B站](https://space.bilibili.com/12562485)
 
-**当前版本：Windows 2.9.5.8；Mac 2.9.5.9；Android、iPhone／iPad 与 Apple TV 2.9.5。** 2.9.5 起大河专属服务器的公网连接改用加密连接，升级后需要重新登录一次 Emby（Apple TV 不用）；2.9.4 及更早的版本在旧地址关闭后无法从公网连接，请尽快升级。Wiki 由 [docs/wiki](docs/wiki/Home.md) 自动同步，修改请提交到这里。
+**当前版本：Windows 与 Android 3.0.0；Mac 2.9.5.9；iPhone／iPad 与 Apple TV 2.9.5。** 2.9.5 起大河专属服务器的公网连接改用加密连接，升级后需要重新登录一次 Emby（Apple TV 不用）；2.9.4 及更早的版本在旧地址关闭后无法从公网连接，请尽快升级。Wiki 由 [docs/wiki](docs/wiki/Home.md) 自动同步，修改请提交到这里。
 
-**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。2.9.5.8 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
+**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。3.0.0 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
 
 客户端不包含影视资源。你需要已有的 Emby 或 Jellyfin 服务器地址和账号；媒体库、播放与下载权限由所连接的服务器提供。本项目是非官方客户端，与 Emby LLC 及 Jellyfin 项目无隶属关系。
 
@@ -101,20 +105,20 @@ https://github.com/user-attachments/assets/00231384-980f-45f0-b61b-c0989a566bca
 
 | 平台 | 安装包 | 系统要求 |
 | --- | --- | --- |
-| Windows 安装版 | [2.9.5.8 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.8/TigerestTheater-2.9.5.8-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
-| Windows 便携版 | [2.9.5.8 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.8/TigerestTheater-2.9.5.8-x64.zip) | 同上；完整解压后运行 |
-| Android | [2.9.5 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Windows 安装版 | [3.0.0 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [3.0.0 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-x64.zip) | 同上；完整解压后运行 |
+| Android | [3.0.0 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-android.apk) | Android 15+，arm64-v8a / x86_64 |
 | Apple Silicon Mac | [2.9.5.9 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.9/TigerestTheater-2.9.5.9-arm64.dmg) | macOS 26+，M 系列芯片 |
 | iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
 | Apple TV | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
 
-包内已包含 MPV 和基础运行库，无需另装播放器。Windows RIFE 大型组件是可选扩展；已有 NVIDIA 1.0.0 扩展可以继续使用。正式 Mac 下载仅提供 Apple Silicon 版本。
+包内已包含 MPV 和基础运行库，无需另装播放器。Windows RIFE 大型组件是可选扩展；已有 NVIDIA 1.0.0 扩展可以继续使用。Windows 包里还带有 NVIDIA VFG 帧生成用的 NVIDIA 运行库（约 200 MB，按 NVIDIA 的许可原样分发，许可文件在安装目录的 `licenses\nvidia-vfx`）。正式 Mac 下载仅提供 Apple Silicon 版本。
 
 iPad／iPhone 与 Apple TV 的 IPA 均未签名，需使用自己的 Apple 身份签名安装；两种设备包不能互换，也不提供 App Store／TestFlight 分发。见 [iPad / iPhone 安装说明](docs/apple/INSTALL.md)与 [Apple TV 安装与构建](apple/TV/README.md)。
 
 无法访问 GitHub 时，可从[夸克网盘](https://pan.quark.cn/s/88e6f7a795b4)或[百度网盘](https://pan.baidu.com/s/58azzOU4piiB3miyZqA1dig)下载 Windows／Android 安装包，按版本号分文件夹，文件与发行页的附件相同。小版本（如 2.9.5.8）放在前三位版本号的文件夹（`2.9.5`）里，并替换上一个小版本；被替换的版本和 Mac、iPad 与 Apple TV 的安装包在 GitHub 发行页。
 
-Windows 使用 [2.9.5.8 SHA-256 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.8/TigerestTheater-2.9.5.8-SHA256SUMS.txt)，Mac 使用 [2.9.5.9 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.9/TigerestTheater-2.9.5.9-SHA256SUMS.txt)，其他平台使用 [2.9.5 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-SHA256SUMS.txt)。来源与验证记录见各发行页的 `RELEASE-MANIFEST.json` 附件。
+Windows 与 Android 使用 [3.0.0 SHA-256 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-SHA256SUMS.txt)，Mac 使用 [2.9.5.9 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.9/TigerestTheater-2.9.5.9-SHA256SUMS.txt)，iPhone／iPad 与 Apple TV 使用 [2.9.5 校验清单](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-SHA256SUMS.txt)。来源与验证记录见各发行页的 `RELEASE-MANIFEST.json` 附件。
 
 ### 第一次使用
 
@@ -178,9 +182,25 @@ Apple TV 使用原生详情页评论区，支持作品／单集切换、分页�
 
 iPad 与 Apple TV 复用作品搜索和匹配规则，提供原生弹幕渲染，以及搜索、来源和时间偏移调整。
 
+### 专业模式（Windows）
+
+播放时按 `F2`，或点 uosc 控制栏里的仪表盘按钮，进入专业模式；再按 `F2` 或点右上角「退出专业模式」回到普通播放。画面缩到左边继续播放，右边按分页列出能调的选项，下方是实时统计。
+
+- **右侧面板：** 「画质」页列出处理顺序（从输入、解码、滤镜、着色器、缩放到输出的每一步）、画质档位、着色器链（可以临时卸下某一个、调整顺序或挂载新的）、缩放、NVIDIA RTX 视频增强、去色带与抖动；「补帧」页是 RIFE、NVIDIA VFG 和 mpv 时间插帧；「色彩」页是亮度、对比度等画面调整和 HDR 与色彩管理；「声音」「字幕」「弹幕」「画面」页分别是音量与延迟、字幕字体和位置、弹幕样式、同步模式与缩放平移。改动立即作用到画面。
+- **对比：** 按住「按住对比改动前」看改动之前的画面；按住「按住看原始画面」看关掉所有着色器、去色带和画面调整，只用双线性缩放的画面（色彩管理保持不变）。松开恢复，暂停时也能对比。
+- **统计：** 信号一栏列出输入、解码、画面、色彩、显示、同步、缓存和音频；GPU 渲染耗时按输入、滤镜、缩放、去色带、色彩、补帧分阶段列出，并和每帧的时间预算比较；视频帧率和屏幕实际呈现的帧率各有一条曲线；补帧、渲染、呈现、GPU 与 CPU 占用和丢帧画成负载环，用来找丢帧出在哪一步。
+- **保存：** 「保存」把画质参数和着色器链写回当前档位；「保存为新档位…」另存一个继承当前档位的新档位，自己建的档位可以删除。同步模式、字幕字体、显示器 ICC、VFG 和 RTX 这类客户端设置写回「设置」里对应的项。「复制为 mpv.conf」导出改动的配置行，「重置改动」回到改动之前。没保存的改动只对这次播放有效。
+
 ### 画质与 AI 补帧
 
 桌面内置默认 Anime AA、真人影视、激进测试 Anime4K 三档画质；可以从菜单切换，也可以使用 `Alt+1`～`Alt+3`。日常先使用默认档，再按片源和设备调整。
+
+Windows 3.0.0 起还可以用显卡驱动处理画面，两项默认关闭，在「设置 → 视频」或专业模式的「画质」页打开，切换立即生效：
+
+- **NVIDIA RTX 视频超分辨率（VSR）：** 由驱动把视频放大到屏幕的分辨率（最多 4 倍），代替 mpv 的放大算法；视频不比屏幕小时不处理。需要 RTX 20 系或更新的显卡，并在 NVIDIA App「系统 → 视频 → RTX 视频增强」里打开「超分辨率」。
+- **NVIDIA RTX Video HDR：** 由驱动把 SDR 视频转换成 HDR 输出，HDR 片源不受影响。需要屏幕开着 Windows HDR，并在 NVIDIA App 里打开「HDR」；打开「播放 HDR 时自动开启系统 HDR」后，客户端会为 SDR 视频也开启系统 HDR。
+
+两项都排在所有滤镜和补帧之后，作用于补帧后的画面。
 
 RIFE 默认关闭：
 
@@ -193,6 +213,8 @@ RIFE 默认关闭：
 | Apple TV | 暂不提供 RIFE | 可选原生、轻量增强及桌面画质预设 |
 
 Apple TV 的轻量增强会在高帧率视频或持续渲染掉帧时暂时降低当前视频的处理负载，并保留所选设置。完整桌面滤镜在较早电视设备上仍可能掉帧。
+
+**NVIDIA VFG 帧生成（Windows 3.0.0 起）：** NVIDIA Video Frame Generation 是 RIFE 之外的另一种补帧，用显卡里的帧生成模型按 0.5 倍一档把帧率提高到源帧率的 1.5–5 倍，分低、中、高三档质量。需要 RTX 40 或 RTX 50 系显卡（驱动 570.65 或更新），并已安装 Windows RIFE 扩展（VFG 借用扩展里的 VapourSynth 运行库），硬件解码要用回读（copy）或软解。在「设置 → 视频」选档位和倍数，从下一个视频起生效；播放中在专业模式的「补帧」页切换，立即生效。开启后这一集的 RIFE 会让出。NVIDIA 的运行库随安装包提供，按 NVIDIA 的许可原样分发。
 
 首次 Windows 引擎准备可能需要数分钟。高目标帧率、4K 和重型模型会增加负载；屏幕刷新率不代表补帧推理能力。详细安装、目标帧率计算和排查见 [RIFE 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE)。
 
@@ -380,7 +402,7 @@ vf-append=@user-1:cas=strength=0.4
 - [iPad / iPhone 安装与构建](docs/apple/INSTALL.md)
 - [Apple TV 安装与构建](apple/TV/README.md)
 - [Windows 测试环境要求](dev/windows/TESTING.md)
-- [版本变化](CHANGELOG.md)与本次发布说明（[2.9.5.9](docs/releases/2026-11-15-v2.9.5.9.md)、[2.9.5.8](docs/releases/2026-11-14-v2.9.5.8.md)、[2.9.5.7](docs/releases/2026-11-12-v2.9.5.7.md)、[2.9.5.6](docs/releases/2026-11-10-v2.9.5.6.md)、[2.9.5.5](docs/releases/2026-11-09-v2.9.5.5.md)、[2.9.5.4](docs/releases/2026-11-09-v2.9.5.4.md)、[2.9.5.3](docs/releases/2026-11-04-v2.9.5.3.md)、[2.9.5.2](docs/releases/2026-11-03-v2.9.5.2.md)、[2.9.5.1](docs/releases/2026-10-30-v2.9.5.1.md)、[2.9.5](docs/releases/2026-10-27-v2.9.5.md)、[2.9.4](docs/releases/2026-10-23-v2.9.4.md)、[2.9.3](docs/releases/2026-10-21-v2.9.3.md)、[2.9.1](docs/releases/2026-10-20-v2.9.1.md)、[2.9.0](docs/releases/2026-10-19-v2.9.0.md)、[2.8.0](docs/releases/2026-10-16-v2.8.0.md)）
+- [版本变化](CHANGELOG.md)与本次发布说明（[3.0.0](docs/releases/2026-11-18-v3.0.0.md)、[2.9.5.9](docs/releases/2026-11-15-v2.9.5.9.md)、[2.9.5.8](docs/releases/2026-11-14-v2.9.5.8.md)、[2.9.5.7](docs/releases/2026-11-12-v2.9.5.7.md)、[2.9.5.6](docs/releases/2026-11-10-v2.9.5.6.md)、[2.9.5.5](docs/releases/2026-11-09-v2.9.5.5.md)、[2.9.5.4](docs/releases/2026-11-09-v2.9.5.4.md)、[2.9.5.3](docs/releases/2026-11-04-v2.9.5.3.md)、[2.9.5.2](docs/releases/2026-11-03-v2.9.5.2.md)、[2.9.5.1](docs/releases/2026-10-30-v2.9.5.1.md)、[2.9.5](docs/releases/2026-10-27-v2.9.5.md)、[2.9.4](docs/releases/2026-10-23-v2.9.4.md)、[2.9.3](docs/releases/2026-10-21-v2.9.3.md)、[2.9.1](docs/releases/2026-10-20-v2.9.1.md)、[2.9.0](docs/releases/2026-10-19-v2.9.0.md)、[2.8.0](docs/releases/2026-10-16-v2.8.0.md)）
 
 Windows 每次运行原生测试前，都必须在同一个 PowerShell 调用中加载测试环境脚本并完成运行库预检。测试、包启动检查、生产 API 联调和真实媒体播放的覆盖范围分别记录，不能互相替代。
 
@@ -423,6 +445,7 @@ Tigerest Theater 建立在许多开源项目之上。下面按用途列出直接
 - [Practical-RIFE](https://github.com/hzwer/Practical-RIFE)（hzwer）：RIFE 补帧模型；Mac 与 iPad 上转换为 Core ML 运行。
 - [VapourSynth](https://github.com/vapoursynth/vapoursynth)：Windows 与 Mac 补帧的视频处理框架。
 - [vs-mlrt](https://github.com/AmusementClub/vs-mlrt)（AmusementClub）：Windows NVIDIA 补帧扩展的 TensorRT 推理和 ONNX 模型；NVIDIA TensorRT 与 CUDA 运行库按 NVIDIA 许可原样分发。
+- NVIDIA Video Effects SDK（[nvidia-vfx](https://pypi.nvidia.com/nvidia-vfx/)）：Windows 的 VFG 帧生成运行库，取自 NVIDIA 发布的 nvidia-vfx 0.2.0.0，按 NVIDIA 许可原样分发。
 
 **字体与其他**
 
