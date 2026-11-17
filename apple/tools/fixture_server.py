@@ -5,9 +5,18 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=18768);parser.add_argument('--host',default='127.0.0.1');parser.add_argument('--media',type=Path,required=True);args=parser.parse_args()
 lifecycle_started=threading.Event()
+# Prefixes that accept connections and never answer: an address that does not
+# respond, like the home network's address away from home (issue #42).
+silent=set()
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == '/selection-hold.png':
+        if self.path.startswith(('/silence/','/unsilence/')):
+            name=self.path.split('/')[2]
+            (silent.add if self.path.startswith('/silence/') else silent.discard)(name)
+            data=b'{}';mime='application/json'
+        elif self.path.split('/')[1] in silent:
+            time.sleep(30);return
+        elif self.path == '/selection-hold.png':
             time.sleep(8);data=b'';mime='image/png'
         elif self.path.startswith('/selection-') and self.path.endswith('/System/Info/Public'):
             data=json.dumps({'Id':self.path.split('/')[1],'Version':'10.11.11'}).encode();mime='application/json'

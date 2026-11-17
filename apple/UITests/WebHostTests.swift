@@ -69,6 +69,56 @@ final class WebHostTests: XCTestCase {
         app.webViews.buttons["检查新页历史"].tap()
         XCTAssertTrue(app.staticTexts["新页历史与保存地址通过"].waitForExistence(timeout: 5))
     }
+    /// Issue #42: a saved server that does not answer shows the connecting card
+    /// with a way out at once; stopping leaves the retry page, an address that
+    /// never answers ends within seconds, and one tap switches to the other
+    /// remembered server.
+    @MainActor func testConnectingCardSwitchesServerAndEndsUnansweredAttempt() {
+        continueAfterFailure = false
+        let base = URL(string: fixtureURL)!.deletingLastPathComponent().absoluteString
+        func fixture(_ path: String) {
+            let done = expectation(description: path)
+            URLSession.shared.dataTask(with: URL(string: base + path)!) { _, _, _ in done.fulfill() }.resume()
+            wait(for: [done], timeout: 5)
+        }
+        fixture("unsilence/selection-away")
+        let app = makeApplication(); app.launchArguments = ["--ui-testing", "-TigerestPlaybackGesturesSeen", "YES"]; app.launch()
+        func enter(_ url: String) {
+            let field = app.textFields["服务器地址"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+            field.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            let current = field.value as? String ?? ""
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current == "服务器地址" ? 0 : current.count) + url)
+        }
+        app.buttons["连接自建 Emby / Jellyfin 服务器"].tap(); enter(base + "selection-home"); app.buttons["连接服务器"].tap()
+        XCTAssertTrue(app.staticTexts["事务页面 selection-home 就绪"].waitForExistence(timeout: 15))
+        app.webViews.buttons["切换服务器"].tap()
+        XCTAssertTrue(app.buttons["取消"].waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 0.8)
+        app.buttons["连接自建 Emby / Jellyfin 服务器"].tap(); enter(base + "selection-away"); app.buttons["连接服务器"].tap()
+        XCTAssertTrue(app.staticTexts["事务页面 selection-away 就绪"].waitForExistence(timeout: 15))
+
+        fixture("silence/selection-away")
+        app.terminate(); app.launchArguments.append("--ui-testing-keep-profile"); app.launch()
+        let other = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '改用 '")).firstMatch
+        let switchServer = app.buttons["connecting-switch-server"]
+        XCTAssertTrue(switchServer.waitForExistence(timeout: 5), "The connecting card must offer 切换服务器")
+        XCTAssertTrue(other.exists, "The other remembered server must be one tap away")
+        switchServer.tap()
+        XCTAssertTrue(app.buttons["取消"].waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 0.8)
+        app.buttons["取消"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '已停止连接'")).firstMatch.waitForExistence(timeout: 5))
+
+        let started = Date()
+        app.buttons["重试"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '暂时无法连接'")).firstMatch.waitForExistence(timeout: 20))
+        XCTAssertLessThan(Date().timeIntervalSince(started), 20, "An address that never answers must end well before the page's own minute")
+
+        other.tap()
+        XCTAssertTrue(app.staticTexts["事务页面 selection-home 就绪"].waitForExistence(timeout: 15))
+        fixture("unsilence/selection-away")
+    }
     @MainActor func testRememberedServersConnectEditRemoveAndReturn() {
         continueAfterFailure = false
         let base = URL(string: fixtureURL)!.deletingLastPathComponent().absoluteString

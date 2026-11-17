@@ -15,6 +15,8 @@ import AppleCore
     @Published var error: String?
     @Published var loading = false
     @Published var connectionFailure: String?
+    /// The server the connecting card names while `loading`.
+    @Published var connectingTo: String?
     private var connectionTask: Task<Void, Never>?
     private var selectionID = UUID()
     private var pendingWeb: WebHost?
@@ -128,12 +130,12 @@ import AppleCore
             throw error
         }
     }
-    func checkServer(_ input: String) async throws -> ServerAddress {
+    func checkServer(_ input: String, timeout: TimeInterval = 5) async throws -> ServerAddress {
         let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let canonical = ServerHistory.canonicalAddress(value.contains("://") ? value : "http://" + value) else { throw CoreError.invalidAddress }
         let address = try ServerAddress(canonical)
         var request = URLRequest(url: address.endpoint("System/Info/Public"))
-        request.timeoutInterval = 5
+        request.timeoutInterval = timeout
         let (body, response) = try await community.data(request, limit: 65536)
         let info = try JSONDecoder().decode(JSONValue.self, from: body)
         guard response.statusCode == 200, info["Id"].string != nil || info["Version"].string != nil else { throw URLError(.badServerResponse) }
@@ -157,12 +159,62 @@ import AppleCore
         guard let server else { return }
         let mode = settings.get("main", "serverConnectionMode").string ?? ""
         if mode == "tigerest" || (mode.isEmpty && ServerPresets.bundled.contains(server)) {
-            loading = true
+            loading = true; connectingTo = "大河李斯特专属服务器"
             connectionTask = Task {
                 do { try await connectDedicated() }
                 catch { if !Task.isCancelled { loading = false; connectionFailure = "专属服务器暂时无法连接，请检查网络后重试，也可以先打开离线媒体。" } }
             }
-        } else { web.open(server) }
+        } else {
+            loading = true; connectingTo = Self.title(server)
+            web.open(server)
+            connectionTask = Task { await probe(server) }
+        }
+    }
+    private static func title(_ server: ServerAddress) -> String {
+        guard let host = server.baseURL.host() else { return server.baseURL.absoluteString }
+        return server.baseURL.port.map { "\(host):\($0)" } ?? host
+    }
+    /// The page waits up to a minute for an address that does not answer, such
+    /// as the home network's address away from home (issue #42). The server's
+    /// public info answers within seconds when it is reachable, so a probe
+    /// that cannot reach it ends the attempt early. Only network failures
+    /// count; any other answer leaves the decision to the page.
+    private func probe(_ server: ServerAddress) async {
+        do { _ = try await checkServer(server.baseURL.absoluteString, timeout: 8) }
+        catch {
+            let unreachable: [URLError.Code] = [.timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed, .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff]
+            guard !Task.isCancelled, let code = (error as? URLError)?.code, unreachable.contains(code),
+                  loading, connectionFailure == nil, self.server?.origin == server.origin else { return }
+            web.view.stopLoading(); loading = false
+            connectionFailure = "\(Self.title(server)) 暂时无法连接。在家和在外使用不同地址时，可以直接改用其他服务器。"
+        }
+    }
+    /// Remembered servers other than the current one, newest first: one tap
+    /// on the connecting card or the failure page switches to them.
+    var otherServers: [ServerHistory.Record] {
+        let current = currentServerKey
+        return Array(rememberedServers.filter { $0.key != current }.prefix(3))
+    }
+    /// Ends the attempt in progress, whichever it is: the dedicated
+    /// candidates, a server being selected, or the saved server's page.
+    private func interruptConnection() {
+        connectionTask?.cancel(); connectionTask = nil; cancelServerSelection()
+        if loading { web.view.stopLoading() }
+        loading = false
+    }
+    func switchServer(to record: ServerHistory.Record) {
+        interruptConnection()
+        loading = true; connectingTo = record.title; connectionFailure = nil
+        connectionTask = Task {
+            do {
+                if record.mode == "tigerest" { try await connectDedicated() }
+                else { try await connect(record.address, mode: record.mode) }
+            } catch {
+                // The page's own selection flow must not see this failure later.
+                serverSelectionError = false
+                if !Task.isCancelled { loading = false; connectionFailure = "\(record.title) 也暂时无法连接，请检查网络后重试，或选择其他服务器。" }
+            }
+        }
     }
     var currentHistoryServer: ServerHistory.Current? {
         guard let server else { return nil }
@@ -177,5 +229,12 @@ import AppleCore
         try settings.set("main", "knownServers", .string(ServerHistory.forget(settings.get("main", "knownServers").string ?? "", key: key)))
         objectWillChange.send()
     }
-    func openServerSettings() { connectionTask?.cancel(); cancelServerSelection(); loading = false; showConnection = true }
+    /// Also the way out of a connection in progress (issue #42): the attempt
+    /// stops, and closing the server list without a choice leaves the retry page.
+    func openServerSettings() {
+        let interrupted = loading
+        interruptConnection()
+        if interrupted { connectionFailure = "已停止连接。可以重试，也可以改用其他服务器或打开离线媒体。" }
+        showConnection = true
+    }
 }
