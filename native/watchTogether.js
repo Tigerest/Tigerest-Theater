@@ -519,9 +519,14 @@
             if (!sync) return;
             this.launching = null;
             // Any speed other than 1x bypasses RIFE frame interpolation for the
-            // whole item; iPad temporarily bypasses and warms again. With RIFE on,
-            // offsets are fixed by held seeks only on these platforms.
-            sync.rateCorrection = !(window.jmpInfo?.settings?.video?.aiRife === true && ['Windows', 'macOS', 'iPadOS', 'iOS'].includes(platform()));
+            // whole item; iPad temporarily bypasses and warms again. The Apple-
+            // native filter keeps the video's own frames at any other speed.
+            // With either on, offsets are fixed by held seeks only on these
+            // platforms.
+            const video = window.jmpInfo?.settings?.video;
+            const interpolating = video?.aiRife === true ||
+                ['quality', 'efficient'].includes(video?.nativeInterpolation);
+            sync.rateCorrection = !(interpolating && ['Windows', 'macOS', 'iPadOS', 'iOS'].includes(platform()));
             sync.attach(itemId);
             this.roomTimed(true);
             this.readPosition();

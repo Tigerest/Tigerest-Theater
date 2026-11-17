@@ -285,6 +285,13 @@ withBrowser(routes, async ({evaluate}) => {
     assert.equal(await evaluate(`plugin.sync.rateCorrection`), false, 'iPad RIFE uses the same held-seek correction as desktop');
     await evaluate(`window.jmpInfo.settings.video.aiRife = false; plugin.attach(current.Id)`);
     assert.equal(await evaluate(`plugin.sync.rateCorrection`), true, 'normal iPad playback retains fine speed correction');
+    // The Apple-native filter keeps the original frames at any other speed too.
+    for (const mode of ['quality', 'efficient']) {
+        await evaluate(`window.jmpInfo.settings.video.nativeInterpolation = '${mode}'; plugin.attach(current.Id)`);
+        assert.equal(await evaluate(`plugin.sync.rateCorrection`), false, 'native interpolation (' + mode + ') uses held seeks');
+    }
+    await evaluate(`window.jmpInfo.settings.video.nativeInterpolation = 'off'; plugin.attach(current.Id)`);
+    assert.equal(await evaluate(`plugin.sync.rateCorrection`), true, 'native interpolation off retains fine speed correction');
     await evaluate(`delete api.player.userCommand; api.player.showMessage = text => log.player.push('showMessage:' + text); plugin.notify('朋友 跳转了')`);
     assert.equal(await evaluate(`log.player.at(-1)`), 'showMessage:朋友 跳转了', 'native iPad overlay receives room actions');
 
