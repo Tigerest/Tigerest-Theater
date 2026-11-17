@@ -78,6 +78,19 @@ set(MPV_RUNTIME_DIR "@TIGEREST_MPV_RUNTIME_DIR@")
 set(MPV_LOCK_FILE "@PROJECT_SOURCE_DIR@/dev/windows/rife/mpv-runtime-lock.json")
 set(MPV_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}")
 include("@PROJECT_SOURCE_DIR@/CMakeModules/DeployWindowsMpv.cmake")
+
+# NVIDIA frame generation's runtime, unmodified and hash-checked, when the
+# build was configured with it.
+set(TIGEREST_NVIDIA_VFX_RUNTIME_DIR "@TIGEREST_NVIDIA_VFX_RUNTIME_DIR@")
+if(TIGEREST_NVIDIA_VFX_RUNTIME_DIR)
+  include("@PROJECT_SOURCE_DIR@/CMakeModules/DeployWindowsNvidiaVfx.cmake")
+  tigerest_deploy_nvidia_vfx("${TIGEREST_NVIDIA_VFX_RUNTIME_DIR}"
+                             "@PROJECT_SOURCE_DIR@/dev/windows/nvidia-vfx/runtime-lock.json"
+                             "@PROJECT_SOURCE_DIR@/dev/windows/nvidia-vfx/NOTICE.txt"
+                             "${CMAKE_INSTALL_PREFIX}")
+else()
+  message(STATUS "Not deploying NVIDIA frame generation's runtime (TIGEREST_NVIDIA_VFX_RUNTIME_DIR is not set)")
+endif()
 file(INSTALL "@PROJECT_SOURCE_DIR@/external/miniz/LICENSE"
              "@PROJECT_SOURCE_DIR@/external/miniz/README.tigerest.md"
      DESTINATION "${CMAKE_INSTALL_PREFIX}/licenses/miniz")
@@ -112,6 +125,8 @@ endif()
 
 if(@DO_SIGN@)
   file(GLOB_RECURSE EXES ${CMAKE_INSTALL_PREFIX}/*.exe ${CMAKE_INSTALL_PREFIX}/*.dll)
+  # NVIDIA's runtime ships unmodified and stays signed by NVIDIA.
+  list(FILTER EXES EXCLUDE REGEX "/vfg/nvidia/")
   set(ENV{errorlevel} 1)
   foreach(e ${EXES})
     message("-- Signing: ${PROJECT_SOURCE_DIR}/scripts/WindowsSign.cmd ${e}")

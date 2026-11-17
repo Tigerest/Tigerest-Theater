@@ -8,8 +8,11 @@ for (const [n, [address, name, kind]] of [['http://[fe80::2]:8096/', '', ''], ['
     ['https://other.example/emby/', '<img src=x onerror="window.injected=1">', 'emby']].entries())
     known = history.annotate(history.remember(known, {mode: 'custom', address, at: 1_700_000_000_000 + n}), {mode: 'custom', address, name, kind});
 const bootstrap = `<script>
-window.injected = 0; window.commits = []; window.checks = [];
-const fixtureInfo = {settings: {main: {userWebClient: 'https://media.example.org:8920/jellyfin/', serverConnectionMode: 'custom', knownServers: ${JSON.stringify(known)}}}};
+window.injected = 0; window.commits = []; window.checks = []; window.opened = [];
+// "?first" is a profile that has no server yet.
+const fixtureFirst = location.search === '?first';
+const fixtureInfo = {settings: {main: fixtureFirst ? {userWebClient: '', serverConnectionMode: '', knownServers: ''}
+  : {userWebClient: 'https://media.example.org:8920/jellyfin/', serverConnectionMode: 'custom', knownServers: ${JSON.stringify(known)}}}};
 const fixtureApi = {system: {isAddressOnLocalSubnet: async () => false, cancelServerConnectivity() {},
   finishServerSelection: async (...args) => { commits.push(args); return true; }}};
 // In the client, nativeshell binds window.api and jmpInfo.settings to the real
@@ -19,15 +22,30 @@ window.apiPromise = Promise.resolve(window.initCompleted).catch(() => {}).then((
   window.jmpInfo = fixtureInfo; window.api = fixtureApi; return fixtureApi; });
 window.jmpCheckServerConnectivity = async url => { checks.push(url); if (url.includes('other.example')) throw new Error('HTTP 502'); return url + 'web/index.html'; };
 window.jmpCheckServerConnectivity.abort = () => {};
-window.tigerestOpenOfflineLibrary = () => {};
-history.replaceState(null, '', '/find-webclient.html?choose=1');
+// A desktop client that plays local files; what the page opens is recorded.
+window.tigerestLocalPlayerAvailable = () => true;
+window.tigerestOpenLocalFiles = () => opened.push('files');
+window.tigerestOpenOfflineLibrary = () => opened.push('offline');
+window.tigerestOpenMpvSettings = section => opened.push('settings:' + section);
+if (!fixtureFirst) history.replaceState(null, '', '/find-webclient.html?choose=1');
 </script>`;
+// The settings button of every screen: labelled, in the top right corner, clear
+// of the logo and of the update button the client mounts beside it.
+const settingsButton = `(() => { const box = selector => document.querySelector(selector)?.getBoundingClientRect(), s = box('#settings-button'),
+    hit = other => !!other && s.left < other.right - 1 && other.left < s.right - 1 && s.top < other.bottom - 1 && other.top < s.bottom - 1;
+  return {label: document.querySelector('#settings-button').textContent.trim(), icon: !!document.querySelector('#settings-button svg'),
+    corner: s.width > 0 && s.top >= 0 && s.bottom < 70 && s.left > innerWidth / 2 && s.right <= innerWidth,
+    clear: !hit(box('.logo')) && !hit(box('#tigerest-update-button'))}; })()`;
 const html = require('node:fs').readFileSync(native('find-webclient.html'), 'utf8').replace('<link rel="stylesheet"', bootstrap + '<link rel="stylesheet"');
 const routes = {'/': {type: 'text/html', body: html}, '/find-webclient.html': {type: 'text/html', body: html}, '/find-webclient.css': {type: 'text/css', path: native('find-webclient.css')},
     '/serverHistory.js': {path: native('serverHistory.js')}, '/find-webclient.lang.js': {path: native('find-webclient.lang.js')},
     '/find-webclient.js': {path: native('find-webclient.js')}, '/logo.png': {type: 'image/png', path: native('logo.png')}};
 withBrowser(routes, async ({evaluate, call}) => {
     const settle = () => evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
+    const shot = async name => {
+        if (process.env.TIGEREST_PICKER_SCREENSHOTS) require('node:fs').writeFileSync(path.join(process.env.TIGEREST_PICKER_SCREENSHOTS, name + '.png'),
+            Buffer.from((await call('Page.captureScreenshot', {format: 'png', captureBeyondViewport: true})).data, 'base64'));
+    };
     for (const [width, height] of [[390, 844], [600, 900], [847, 948], [948, 847], [1280, 800]]) {
         await call('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: 1, mobile: width < 900});
         await evaluate('document.documentElement.dataset.stale = 1, location.reload()');
@@ -40,7 +58,8 @@ withBrowser(routes, async ({evaluate, call}) => {
               overlap: [...card.querySelectorAll('.saved-server-name,.saved-server-meta,.saved-server-tag')].some((a, i, all) => all.slice(i + 1).some(b => {
                 const x = rect(a), y = rect(b); return x.left < y.right - 1 && y.left < x.right - 1 && x.top < y.bottom - 1 && y.top < x.bottom - 1; }))})),
             scroll: document.documentElement.scrollWidth <= innerWidth, injected: window.injected, images: document.querySelectorAll('#saved-server-list img').length,
-            options: rect(document.querySelector('.server-options')).top >= rect(document.querySelector('#saved-servers')).bottom};
+            options: rect(document.querySelector('#server-choice .server-options')).top >= rect(document.querySelector('#saved-servers')).bottom,
+            settings: ${settingsButton}, back: document.querySelector('#server-back-button').getClientRects().length > 0};
         })()`);
         assert.deepEqual(layout.cards.map(card => [card.name, card.current]), [['<img src=x onerror="window.injected=1">', false],
             ['Living room media server with a very long name', true], ['[fe80::2]:8096', false]], width + ': cards in recent order');
@@ -48,8 +67,9 @@ withBrowser(routes, async ({evaluate, call}) => {
         assert.equal(layout.scroll, true, width + ': no sideways scroll');
         assert.equal(layout.injected + layout.images, 0, 'server names are text');
         assert.equal(layout.options, true, width + ': add/dedicated choices stay below the list');
-        if (process.env.TIGEREST_PICKER_SCREENSHOTS) require('node:fs').writeFileSync(path.join(process.env.TIGEREST_PICKER_SCREENSHOTS, 'picker-' + width + '.png'),
-            Buffer.from((await call('Page.captureScreenshot', {format: 'png', captureBeyondViewport: true})).data, 'base64'));
+        assert.deepEqual(layout.settings, {label: '设置', icon: true, corner: true, clear: true}, width + ': settings is a labelled button in the top right corner');
+        assert.equal(layout.back, true, width + ': the servers offer the way back to the first screen');
+        await shot('picker-' + width);
     }
     // Pointer: anywhere on a saved server's card highlights and opens it, like the
     // server options, including the empty space beside its buttons; hovering its
@@ -100,5 +120,32 @@ withBrowser(routes, async ({evaluate, call}) => {
     const commit = await evaluate('commits[0]');
     assert.deepEqual(commit.slice(0, 3), ['http://[fe80::2]:8096/', 'custom', 'http://[fe80::2]:8096/web/index.html']);
     assert.equal(history.parse(commit[3])[0].address, 'http://[fe80::2]:8096/');
+    // A profile without a server opens on the first screen: local playback or
+    // a media server. Nothing is probed, and local playback needs no server.
+    const shown = `['usage-choice', 'local-choice', 'server-choice', 'connect-form'].filter(id => !document.getElementById(id).hidden).join()`;
+    const fits = selector => `[...document.querySelectorAll(${JSON.stringify(selector)})].every(node => { const r = node.getBoundingClientRect();
+      return r.width > 0 && r.left >= 0 && r.right <= innerWidth + 0.5; })`;
+    for (const [width, height] of [[390, 844], [1280, 800]]) {
+        await call('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: 1, mobile: width < 900});
+        await evaluate(`document.documentElement.dataset.stale = 1, location.assign('/find-webclient.html?first')`);
+        const ready = () => evaluate(`!document.documentElement.dataset.stale && document.querySelector('#usage-choice')?.hidden === false`).catch(() => false);
+        for (let i = 0; i < 100 && !await ready(); i++) await new Promise(resolve => setTimeout(resolve, 30));
+        assert.deepEqual(await evaluate(`({screen: ${shown}, cards: [...document.querySelectorAll('#usage-choice .option-title')].map(node => node.textContent),
+          fit: ${fits('#usage-choice .server-option')}, settings: ${settingsButton}, scroll: document.documentElement.scrollWidth <= innerWidth})`),
+            {screen: 'usage-choice', cards: ['本地播放', '连接媒体服务器'], fit: true, settings: {label: '设置', icon: true, corner: true, clear: true}, scroll: true},
+            width + ': the first screen asks how the client will be used');
+        await shot('first-' + width);
+        assert.deepEqual(await evaluate(`(document.querySelector('#choose-local').click(), {screen: ${shown}, fit: ${fits('#local-choice button, .local-help')},
+          settings: ${settingsButton}.corner, scroll: document.documentElement.scrollWidth <= innerWidth})`),
+            {screen: 'local-choice', fit: true, settings: true, scroll: true}, width + ': local playback has its own screen');
+        await shot('local-' + width);
+        assert.deepEqual(await evaluate(`(() => {
+          for (const id of ['open-local-files', 'open-offline-media', 'settings-button', 'local-back-button']) document.getElementById(id).click();
+          const back = ${shown};
+          document.querySelector('#choose-server').click();
+          return {back, servers: ${shown}, way: document.querySelector('#server-back-button').getClientRects().length > 0, opened, checks: checks.length};
+        })()`), {back: 'usage-choice', servers: 'server-choice', way: true, opened: ['files', 'offline', 'settings:main'], checks: 0},
+            width + ': local actions, settings and the way to the servers');
+    }
     console.log(JSON.stringify({passed: true, widths: 5, cards: 3}));
 }).catch(error => { console.error(error); process.exitCode = 1; });

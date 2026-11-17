@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QEnterEvent>
 #include <QEvent>
+#include <QGuiApplication>
 #include <QHoverEvent>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -312,7 +313,10 @@ void MpvVideoItem::updateNativeHostWindow()
     if (shouldShow) {
         m_nativeHostWindow->show();
         m_nativeHostWindow->raise();
-        m_nativeHostWindow->requestActivate();
+        // In professional mode the page beside the video may hold the
+        // keyboard; resizing the video must not take it away.
+        if (!(m_player && m_player->proModeActive()))
+            m_nativeHostWindow->requestActivate();
 #if defined(Q_OS_WIN)
         if (!m_nativeCursorTrackingTimer.isActive())
             m_nativeCursorTrackingTimer.start();
@@ -350,8 +354,23 @@ void MpvVideoItem::trackNativeHostCursor()
         return;
     }
     noteNativeHostPointerActivity(m_nativeHostWindow->mapFromGlobal(globalPosition));
+    // Professional mode: a click on the page beside the video gives the page
+    // the keyboard. mpv's window takes clicks on its own thread, so Qt never
+    // sees one on the video; the pointer resting over the video hands the
+    // keyboard back instead. Not during a drag that began on the page.
+    if (m_player && m_player->proModeActive() && window() &&
+        QGuiApplication::focusWindow() == window() &&
+        !(GetAsyncKeyState(VK_LBUTTON) & 0x8000))
+        focusNativeHost();
 }
 #endif
+
+void MpvVideoItem::focusNativeHost()
+{
+    forceActiveFocus();
+    if (m_nativeHostWindow && m_nativeHostWindow->isVisible())
+        m_nativeHostWindow->requestActivate();
+}
 
 void MpvVideoItem::restoreNativeHostCursor()
 {

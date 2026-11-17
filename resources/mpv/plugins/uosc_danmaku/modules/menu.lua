@@ -774,6 +774,21 @@ local menu_items_config = {
 -- 创建一个包含键顺序的表，这是样式菜单的排布顺序
 local ordered_keys = {"bold", "fontsize", "outline", "shadow", "scrolltime", "opacity", "displayarea"}
 
+-- Tigerest：把当前样式发布成属性，客户端专业模式的弹幕分页据此显示。
+-- 样式菜单和下面的 tigerest-style 消息每次改动后都会更新它。
+local function publish_style()
+    local style = {}
+    for _, key in ipairs(ordered_keys) do
+        if key == "bold" then
+            style.bold = options.bold and true or false
+        else
+            style[key] = tonumber(options[key])
+        end
+    end
+    mp.set_property_native(string.format("user-data/%s/style", mp.get_script_name()), style)
+end
+publish_style()
+
 -- 设置弹幕样式菜单
 function open_style_menu_get(query, indicator)
     mp.commandv('script-message-to', 'console', 'disable')
@@ -1482,6 +1497,7 @@ mp.register_script_message("setup-danmaku-style", function(query, text)
                 if ordered_keys[event.index] == "bold" then
                     options.bold = not options.bold
                     menu_items_config.bold.hint = options.bold and "true" or "false"
+                    publish_style()
                 end
                 -- "updata" 模式会保留输入框文字
                 open_style_menu(ordered_keys[event.index], "updata")
@@ -1490,6 +1506,7 @@ mp.register_script_message("setup-danmaku-style", function(query, text)
                 -- msg.info("event.action：" .. event.action)
                 options[event.action] = menu_items_config[event.action]["original"]
                 menu_items_config[event.action]["hint"] = options[event.action]
+                publish_style()
                 open_style_menu(event.action, "updata")
                 if event.action == "fontsize" or event.action == "scrolltime" then
                     load_danmaku(true)
@@ -1513,6 +1530,7 @@ mp.register_script_message("setup-danmaku-style", function(query, text)
                 end
                 options[query] = tostring(num)
                 menu_items_config[query]["hint"] = options[query]
+                publish_style()
                 -- "refresh" 模式会清除输入框文字
                 open_style_menu(query, "refresh")
                 if query == "fontsize" or query == "scrolltime" then
@@ -1522,6 +1540,33 @@ mp.register_script_message("setup-danmaku-style", function(query, text)
             end
         end
         open_style_menu(query, "error")
+    end
+end)
+
+-- Tigerest：专业模式直接设置一项样式，不打开 uosc 菜单。取值范围与样式菜单相同，
+-- 超出范围的值不处理。字号和滚动时间要重新生成弹幕，其余各项下一次绘制时生效。
+mp.register_script_message("tigerest-style", function(key, value)
+    local config = menu_items_config[key]
+    if not config then return end
+    if key == "bold" then
+        options.bold = value == "yes"
+        config.hint = options.bold and "true" or "false"
+    else
+        local num = tonumber(value)
+        if not num or num < config.scope.min or num > config.scope.max then return end
+        if string.match(config.footnote, "整数") then
+            num = math.floor(num)
+        end
+        options[key] = tostring(num)
+        config.hint = options[key]
+    end
+    publish_style()
+    if COMMENTS == nil then return end
+    if key == "fontsize" or key == "scrolltime" then
+        load_danmaku(true, true)
+    elseif mp.get_property_bool(HAS_DANMAKU) then
+        -- 暂停时没有新的绘制，这里补一次。
+        render()
     end
 end)
 

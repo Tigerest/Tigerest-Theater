@@ -2,6 +2,7 @@
 
 #include "Paths.h"
 #include "core/ProfileManager.h"
+#include "player/MpvConfEditor.h"
 #include "player/MpvConfigManager.h"
 #include "settings/SettingsComponent.h"
 #include "settings/SettingsSection.h"
@@ -27,6 +28,8 @@ private slots:
   void shaderLibraryKeepsUserFiles();
   void reportsMissingShaders();
   void subtitleFontCoversChinese();
+  void editorReplacesAProfilesShaderChain();
+  void editorDeletesOnlyProfilesMadeHere();
 
 private:
   QTemporaryDir m_root;
@@ -250,6 +253,109 @@ void TestMpvConfManager::subtitleFontCoversChinese()
   QCOMPARE(settings.value(SETTINGS_SECTION_SUBTITLES, "font").toString(), QStringLiteral("LXGW WenKai"));
   settings.setValue(SETTINGS_SECTION_SUBTITLES, "font", cjk);
 #endif
+}
+
+void TestMpvConfManager::editorReplacesAProfilesShaderChain()
+{
+  const QString user = QStringLiteral(
+      "deband=yes\n"
+      "\n"
+      "[tigerest-default]\n"
+      "scale=ewa_lanczos\n"
+      "glsl-shaders=\n"
+      "# first\n"
+      "glsl-shader=~~/shaders/a.glsl\n"
+      "glsl-shader=~~/shaders/b.glsl\n"
+      "\n"
+      "# 自定义档位：mine\n"
+      "[tigerest-user-mine]\n"
+      "profile=tigerest-default\n"
+      "glsl-shaders-append=~~/shaders/c.glsl\n");
+  QVariantMap result = MpvConfEditor::edit(user, {{"type", "replaceShaders"}, {"section", "tigerest-default"},
+      {"paths", QStringList{"x/one.glsl", "two.glsl"}}, {"titles", QStringList{"One", QString()}}});
+  QVERIFY2(!result.contains("error"), qPrintable(result.value("error").toString()));
+  QCOMPARE(result.value("user").toString(), QStringLiteral(
+      "deband=yes\n"
+      "\n"
+      "[tigerest-default]\n"
+      "scale=ewa_lanczos\n"
+      "# 清空继承来的着色器，下面按顺序重新挂载。\n"
+      "glsl-shaders=\n"
+      "# One\n"
+      "glsl-shader=~~/shaders/x/one.glsl\n"
+      "glsl-shader=~~/shaders/two.glsl\n"
+      "\n"
+      "# 自定义档位：mine\n"
+      "[tigerest-user-mine]\n"
+      "profile=tigerest-default\n"
+      "glsl-shaders-append=~~/shaders/c.glsl\n"));
+
+  // An empty chain still drops what the profile inherits, and saving twice leaves one chain.
+  result = MpvConfEditor::edit(result.value("user").toString(), {{"type", "replaceShaders"},
+      {"section", "tigerest-user-mine"}, {"paths", QStringList{}}});
+  const QString twice = MpvConfEditor::edit(result.value("user").toString(), {{"type", "replaceShaders"},
+      {"section", "tigerest-user-mine"}, {"paths", QStringList{}}}).value("user").toString();
+  QCOMPARE(twice, result.value("user").toString());
+  QVERIFY(twice.endsWith(QStringLiteral("profile=tigerest-default\n# 清空继承来的着色器，下面按顺序重新挂载。\nglsl-shaders=\n")));
+  QVERIFY(twice.contains(QStringLiteral("glsl-shader=~~/shaders/two.glsl\n")));
+
+  QVERIFY(MpvConfEditor::edit(user, {{"type", "replaceShaders"}, {"section", "default"}, {"paths", QStringList{}}}).contains("error"));
+  QVERIFY(MpvConfEditor::edit(user, {{"type", "replaceShaders"}, {"section", "no-such"}, {"paths", QStringList{}}}).contains("error"));
+  QVERIFY(MpvConfEditor::edit(user, {{"type", "replaceShaders"}, {"section", "tigerest-default"},
+      {"paths", QStringList{"../outside.glsl"}}}).contains("error"));
+}
+
+void TestMpvConfManager::editorDeletesOnlyProfilesMadeHere()
+{
+  const QString user = QStringLiteral(
+      "deband=yes\n"
+      "\n"
+      "# 默认档位\n"
+      "[tigerest-default]\n"
+      "scale=ewa_lanczos\n"
+      "\n"
+      "# 自定义档位：first\n"
+      "[tigerest-user-first]\n"
+      "profile-desc=first\n"
+      "profile=tigerest-default\n"
+      "saturation=9\n"
+      "\n"
+      "# 自定义档位：second\n"
+      "[tigerest-user-second]\n"
+      "profile-desc=second\n"
+      "profile=tigerest-user-first\n");
+  QVERIFY(MpvConfEditor::edit(user, {{"type", "deleteProfile"}, {"name", "tigerest-default"}}).contains("error"));
+  QVERIFY(MpvConfEditor::edit(user, {{"type", "deleteProfile"}, {"name", "tigerest-user-none"}}).contains("error"));
+  const QVariantMap needed = MpvConfEditor::edit(user, {{"type", "deleteProfile"}, {"name", "tigerest-user-first"}});
+  QVERIFY2(needed.value("error").toString().contains(QStringLiteral("tigerest-user-second")), "a profile another builds on stays");
+
+  const QString withoutSecond = MpvConfEditor::edit(user, {{"type", "deleteProfile"}, {"name", "tigerest-user-second"}}).value("user").toString();
+  QCOMPARE(withoutSecond, QStringLiteral(
+      "deband=yes\n"
+      "\n"
+      "# 默认档位\n"
+      "[tigerest-default]\n"
+      "scale=ewa_lanczos\n"
+      "\n"
+      "# 自定义档位：first\n"
+      "[tigerest-user-first]\n"
+      "profile-desc=first\n"
+      "profile=tigerest-default\n"
+      "saturation=9\n"));
+  // In the middle of the file: the next profile keeps the comment that introduces it.
+  const QString independent = QString(user).replace(QStringLiteral("profile=tigerest-user-first"), QStringLiteral("profile=tigerest-default"));
+  QCOMPARE(MpvConfEditor::edit(independent, {{"type", "deleteProfile"}, {"name", "tigerest-user-first"}}).value("user").toString(),
+      QStringLiteral(
+      "deband=yes\n"
+      "\n"
+      "# 默认档位\n"
+      "[tigerest-default]\n"
+      "scale=ewa_lanczos\n"
+      "\n"
+      "# 自定义档位：second\n"
+      "[tigerest-user-second]\n"
+      "profile-desc=second\n"
+      "profile=tigerest-default\n"));
 }
 
 QTEST_GUILESS_MAIN(TestMpvConfManager)

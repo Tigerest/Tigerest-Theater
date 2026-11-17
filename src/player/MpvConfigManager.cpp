@@ -212,6 +212,8 @@ QString renderTail(const QString& user, const QString& endpoint)
                  QStringLiteral("script"), QStringLiteral("~~/plugins/emby_quality.lua"));
     appendOption(lines, QStringLiteral("加载画质档位菜单（uosc「滤镜」按钮），切档由软件按用户区中的档位执行。"),
                  QStringLiteral("script"), QStringLiteral("~~/plugins/profile_menu.lua"));
+    appendOption(lines, QStringLiteral("加载专业模式的数据脚本（uosc「专业模式」按钮、F2）：只在模式开启时采集渲染统计。"),
+                 QStringLiteral("script"), QStringLiteral("~~/plugins/tigerest_pro.lua"));
   }
   if (settings.value(SETTINGS_SECTION_MPV, "enableDanmaku").toBool())
     appendOption(lines, QStringLiteral("加载弹幕搜索、匹配、显示和开关状态记忆插件（MPV 画质与插件 → 启用弹幕）。"),
@@ -607,12 +609,17 @@ QList<MpvConfigManager::ManagedOption> MpvConfigManager::subtitleOptions()
                              QStringLiteral("字幕背景色与透明度（字幕 → 背景）。")};
   }
   const auto placement = settings.value(SETTINGS_SECTION_SUBTITLES, "placement").toString().split(',');
+  // A vertical position of its own goes before the one the placement implies.
+  const int vertical = settings.value(SETTINGS_SECTION_SUBTITLES, "vertical_position").toInt();
   if (placement.length() == 2)
   {
     options << ManagedOption{QStringLiteral("sub-align-x"), placement[0], QStringLiteral("字幕水平位置（字幕 → 位置）。")};
-    options << ManagedOption{QStringLiteral("sub-pos"), placement[1] == QStringLiteral("bottom") ? 100 : 10,
-                             QStringLiteral("字幕垂直位置（字幕 → 位置）。")};
+    if (vertical < 0)
+      options << ManagedOption{QStringLiteral("sub-pos"), placement[1] == QStringLiteral("bottom") ? 100 : 10,
+                               QStringLiteral("字幕垂直位置（字幕 → 位置）。")};
   }
+  if (vertical >= 0)
+    options << ManagedOption{QStringLiteral("sub-pos"), qMin(vertical, 150), QStringLiteral("字幕垂直位置（字幕 → 垂直位置）。")};
   return options;
 }
 

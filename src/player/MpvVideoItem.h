@@ -33,6 +33,9 @@ public:
     static bool shouldUseNativeGpuNext(const QString& requestedBackend);
 
     MpvController* controller() { return mpvController(); }
+    // Keyboard input for mpv and uosc: this item in the scene and, with the
+    // embedded gpu-next window, its native host.
+    Q_INVOKABLE void focusNativeHost();
 
 Q_SIGNALS:
     void fullscreenRequested(bool fullscreen);

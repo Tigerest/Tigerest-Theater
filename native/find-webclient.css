@@ -3,9 +3,11 @@
 body { margin: 0; min-height: 100vh; background: radial-gradient(ellipse at 50% 0, #342717 0, #151515 48%, #101010 100%); color: #eee9df; font-family: "Segoe UI", "Microsoft YaHei", -apple-system, sans-serif; }
 #container { width: min(820px, 100%); margin: auto; padding: 48px 28px 28px; }
 .logo { display: block; width: min(350px, 75%); height: auto; margin: 0 auto 34px; }
-#server-choice { text-align: center; }
+#usage-choice, #server-choice { text-align: center; }
 .eyebrow { color: #e4b258; font-size: 13px; letter-spacing: .2em; margin: 0 0 12px; }
 h1 { font-size: clamp(24px, 3vw, 34px); font-weight: 600; line-height: 1.35; margin: 0 0 12px; }
+/* A screen's heading takes the focus when the screen opens; it is not a control. */
+h1:focus { outline: none; }
 .intro, .address-help { color: #aaa59d; font-size: 14px; line-height: 1.8; }
 .intro { margin: 0 0 30px; }
 .server-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
@@ -14,19 +16,34 @@ button { cursor: pointer; }
 .server-option { display: flex; flex-direction: column; align-items: flex-start; position: relative; min-height: 186px; padding: 24px; gap: 24px; text-align: left; border: 1px solid #4b4335; border-radius: 16px; background: #22201de6; color: inherit; font-size: 19px; line-height: 1.65; transition: background .16s, border-color .16s, transform .16s; }
 .option-number { color: #bda982; font-size: 13px; letter-spacing: .15em; }
 .option-arrow { position: absolute; top: 18px; right: 24px; font-size: 26px; color: #cba362; }
+.option-text { display: flex; flex-direction: column; gap: 6px; }
+.option-title { font-size: 22px; font-weight: 600; line-height: 1.4; }
+.option-detail { color: #aaa59d; font-size: 14px; line-height: 1.7; }
 .server-option:hover, .server-option:focus-visible { border-color: #e3b35c; background: #3b2e1c; transform: translateY(-3px); }
 button:focus-visible, input:focus-visible { outline: 2px solid #f3c46f; outline-offset: 4px; }
 button:disabled { opacity: .55; cursor: default; }
 #choice-description { color: #c8bdab; font-size: 14px; line-height: 1.8; min-height: 76px; margin: 22px 0 0; }
-#connect-form { max-width: 560px; margin: auto; }
-#title { margin-top: 22px; }
+#connect-form, #local-choice { max-width: 560px; margin: auto; }
+#title, #local-title { margin-top: 22px; }
 #address { display: block; width: 100%; margin: 20px 0 8px; padding: 14px 16px; background: #242424; color: #fff; border: 1px solid #514a3d; border-radius: 9px; }
 #address::placeholder { color: #888; }
-#connect-button { width: 100%; margin-top: 18px; padding: 14px; border: 0; border-radius: 9px; color: #20170b; font-weight: 600; background: #e4b258; }
-#connect-button:hover:not(:disabled) { background: #f0c675; }
+#connect-button, .primary-action { width: 100%; margin-top: 18px; padding: 14px; border: 0; border-radius: 9px; color: #20170b; font-weight: 600; background: #e4b258; }
+#connect-button:hover:not(:disabled), .primary-action:hover { background: #f0c675; }
+.secondary-action { width: 100%; margin-top: 12px; padding: 13px; border: 1px solid #5a4b32; border-radius: 9px; background: #2c2822; color: #e9dcc3; }
+.secondary-action:hover { border-color: #e3b35c; }
+#local-notice { margin: 0; padding: 12px; border-radius: 8px; background: #33291a; color: #e7c9a0; font-size: 14px; line-height: 1.7; }
+.local-help { margin: 22px 0 0; color: #aaa59d; font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+.local-help p { margin: 0; }
+.local-help code { color: #e9dcc3; font-family: Consolas, "SF Mono", Menlo, monospace; }
 .text-button { display: block; padding: 8px 0; background: none; border: 0; color: #b8afa2; font-size: 14px; }
 .text-button:hover { color: #f0c675; }
 #client-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 28px; margin-top: 16px; }
+/* Settings stays in the top right corner of every screen. The client's update
+   button (updatePlugin.js) is fixed in that corner; settings sits left of it. */
+#settings-button { position: fixed; top: calc(8px + var(--tgs-safe-top, 0px)); right: calc(8px + var(--tgs-safe-right, 0px)); z-index: 9990; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px 0 14px; border: 1px solid #a88a50; border-radius: 22px; background: #2b2417; color: #f0c675; font-size: 15px; font-weight: 600; transition: background .16s, border-color .16s; }
+body:has(#tigerest-update-button.tg-update-fallback) #settings-button { right: calc(56px + var(--tgs-safe-right, 0px)); }
+#settings-button svg { flex-shrink: 0; width: 20px; height: 20px; }
+#settings-button:hover, #settings-button:focus-visible { border-color: #e3b35c; background: #3b2e1c; }
 .connection-progress { display: flex; align-items: center; gap: 10px; min-height: 30px; color: #c6b99f; font-size: 13px; overflow-wrap: anywhere; }
 #spinner { display: inline-block; flex-shrink: 0; width: 18px; height: 18px; border: 2px solid #5a4b32; border-top-color: #e4b258; border-radius: 50%; animation: spin .8s linear infinite; }
 #connection-error { color: #f0aaa0; background: #402625; border-radius: 8px; padding: 12px; line-height: 1.7; font-size: 14px; overflow-wrap: anywhere; }
@@ -58,5 +75,7 @@ button:disabled { opacity: .55; cursor: default; }
 .saved-server-action:hover:not(:disabled) { border-color: #e3b35c; }
 .saved-server-action.is-danger { border-color: #7a3d36; color: #f0aaa0; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 580px) { #container { padding: 26px 18px; } .logo { margin-bottom: 26px; } .server-options { grid-template-columns: 1fr; gap: 12px; } .server-option { min-height: 135px; padding: 20px; gap: 12px; font-size: 17px; } }
-@media (prefers-reduced-motion: reduce) { .server-option, .saved-server, .saved-server-name { transition: none; } .saved-server:has(.saved-server-open:hover:not(:disabled)), .saved-server:has(.saved-server-open:focus-visible) { transform: none; } }
+@media (max-width: 580px) { #container { padding: 26px 18px; } .logo { margin-bottom: 26px; } .server-options { grid-template-columns: 1fr; gap: 12px; } .server-option { min-height: 135px; padding: 20px; gap: 12px; font-size: 17px; } .option-title { font-size: 20px; } }
+/* In a narrow window the corner buttons reach the logo: the page starts under them. */
+@media (max-width: 700px) { body:has(#settings-button:not([hidden])) #container { padding-top: 64px; } }
+@media (prefers-reduced-motion: reduce) { .server-option, .saved-server, .saved-server-name, #settings-button { transition: none; } .saved-server:has(.saved-server-open:hover:not(:disabled)), .saved-server:has(.saved-server-open:focus-visible) { transform: none; } }

@@ -257,6 +257,94 @@ QVariantMap edit(const QString& user, const QVariantMap& operation)
     return {{QStringLiteral("user"), MpvConf::insertLines(user, afterLine, block)}};
   }
 
+  // A profile's shader chain, written as a whole: its own shader lines go
+  // (each with the comment right above it), then an empty glsl-shaders drops
+  // what the profile inherits and the chain follows in order.
+  if (type == QStringLiteral("replaceShaders"))
+  {
+    if (section == QStringLiteral("default"))
+      return failure(QStringLiteral("着色器链属于档位，不属于全局部分"));
+    const QStringList paths = operation.value(QStringLiteral("paths")).toStringList();
+    const QStringList titles = operation.value(QStringLiteral("titles")).toStringList();
+    for (const QString& path : paths)
+      if (path.isEmpty() || path.contains(QStringLiteral("..")))
+        return failure(QStringLiteral("请选择着色器"));
+    bool exists = false;
+    QList<int> dropped;
+    for (int i = 0; i < lineCount; ++i)
+    {
+      const MpvConf::Line& line = lines[i];
+      exists = exists || (line.kind == MpvConf::Line::Section && line.section == section);
+      if (line.kind != MpvConf::Line::Option || line.section != section)
+        continue;
+      const QString written = line.key.startsWith(QStringLiteral("--")) ? line.key.mid(2) : line.key;
+      if (written != QStringLiteral("glsl-shader") && !written.startsWith(QStringLiteral("glsl-shaders")))
+        continue;
+      dropped << line.number;
+      if (i > 0 && lines[i - 1].kind == MpvConf::Line::Comment && lines[i - 1].section == section)
+        dropped << lines[i - 1].number;
+    }
+    if (!exists)
+      return failure(QStringLiteral("没有名为 %1 的档位").arg(section));
+    QStringList block{QStringLiteral("# 清空继承来的着色器，下面按顺序重新挂载。"),
+                      MpvConf::formatOption(QStringLiteral("glsl-shaders"), QString())};
+    for (int i = 0; i < paths.size(); ++i)
+    {
+      if (!titles.value(i).isEmpty())
+        block << QStringLiteral("# ") + titles.value(i);
+      block << MpvConf::formatOption(QStringLiteral("glsl-shader"), QStringLiteral("~~/shaders/") + paths[i]);
+    }
+    return {{QStringLiteral("user"), MpvConf::appendLines(MpvConf::removeLines(user, dropped), section, block)}};
+  }
+
+  // Only profiles made here go: the bundled ones come back with every
+  // default update, and another profile may not lose the one it builds on.
+  if (type == QStringLiteral("deleteProfile"))
+  {
+    const QString name = operation.value(QStringLiteral("name")).toString();
+    if (!name.startsWith(QStringLiteral("tigerest-user-")))
+      return failure(QStringLiteral("只能删除自己新建的档位"));
+    QStringList dependants;
+    QList<int> blocks;      // indexes of this profile's section headers
+    for (int i = 0; i < lineCount; ++i)
+    {
+      const MpvConf::Line& line = lines[i];
+      if (line.kind == MpvConf::Line::Section && line.section == name)
+        blocks << i;
+      if (line.kind == MpvConf::Line::Option && line.key == QStringLiteral("profile") && line.value == name &&
+          line.section != name && !dependants.contains(line.section))
+        dependants << line.section;
+    }
+    if (blocks.isEmpty())
+      return failure(QStringLiteral("没有名为 %1 的档位").arg(name));
+    if (!dependants.isEmpty())
+      return failure(QStringLiteral("档位 %1 以它为基础，请先删除或改写那个档位").arg(dependants.join(QStringLiteral("、"))));
+    QList<int> dropped;
+    for (const int header : blocks)
+    {
+      int next = header + 1;
+      while (next < lineCount && lines[next].kind != MpvConf::Line::Section)
+        ++next;
+      int end = next;
+      if (next < lineCount)
+      {
+        // The comments right above the next profile introduce that one.
+        while (end > header + 1 && lines[end - 1].kind == MpvConf::Line::Comment)
+          --end;
+        while (end > header + 1 && lines[end - 1].kind == MpvConf::Line::Blank)
+          --end;
+      }
+      int start = header;
+      while (start > 0 && lines[start - 1].kind == MpvConf::Line::Comment)
+        --start;
+      if (start > 0 && lines[start - 1].kind == MpvConf::Line::Blank)
+        --start;
+      for (int i = start; i < end; ++i)
+        dropped << lines[i].number;
+    }
+    return {{QStringLiteral("user"), MpvConf::removeLines(user, dropped)}};
+  }
+
   if (type == QStringLiteral("insert"))
   {
     if (afterLine < 0)

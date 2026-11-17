@@ -2,8 +2,10 @@
 #include <QString>
 #include <Qt>
 #include <QDir>
+#include <QFontDatabase>
 #include <QCoreApplication>
 #include <QGuiApplication>
+#include <QScreen>
 #include <QDebug>
 #include <QFile>
 #include <QJsonArray>
@@ -38,6 +40,7 @@
 #include <QFileDialog>
 #include "Version.h"
 #include "display/win/WindowsHdr.h"
+#include "utils/win/SystemLoad.h"
 #include "shared/Paths.h"
 #endif
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
@@ -50,6 +53,7 @@
 
 #include <math.h>
 #include <cmath>
+#include <algorithm>
 #include <string.h>
 #include <shared/Paths.h>
 #include <QRegularExpression>
@@ -86,6 +90,14 @@ static constexpr int HdrSwitchDelayMs = 1000;
 // a 24-bit serial.
 static constexpr uint64_t StreamAddReply = 0x55000000;
 static constexpr uint64_t ProfileReply = 0x56000000;
+// Reply of the seek sent by seekToKeyframe.
+static constexpr uint64_t KeyframeSeekReply = 0x57000000;
+// Replies of professional-mode requests: the tag plus a 24-bit serial.
+static constexpr uint64_t ProReply = 0x58000000;
+// Reads of an option's default value for a profile switch, by key.
+static constexpr uint64_t ProfileResetReply = 0x59000000;
+// Commands that add, remove or move the RTX video filter (updateRtx).
+static constexpr uint64_t RtxReply = 0x5a000000;
 static bool isStreamAddReply(uint64_t reply)
 {
   return (reply & ~uint64_t(0xffffff)) == StreamAddReply;
@@ -464,6 +476,11 @@ void PlayerComponent::initializeMpv()
   mpv_observe_property(m_mpv->mpv(), 0, "current-ao", MPV_FORMAT_STRING);
   mpv_observe_property(m_mpv->mpv(), 0, "video-dec-params", MPV_FORMAT_NODE);
   mpv_observe_property(m_mpv->mpv(), 0, "demuxer-cache-state", MPV_FORMAT_NODE);
+  // Published by plugins/tigerest_pro.lua while professional mode is on.
+  mpv_observe_property(m_mpv->mpv(), 0, "user-data/tigerest/pro/stats", MPV_FORMAT_NODE);
+  mpv_observe_property(m_mpv->mpv(), 0, "user-data/tigerest/pro/options", MPV_FORMAT_NODE);
+  // uosc shows the mode's button only where the mode exists.
+  m_mpv->setPropertyAsync("user-data/tigerest/pro/available", proModeAvailable());
   mpv_observe_property(m_mpv->mpv(), 0, "fullscreen", MPV_FORMAT_FLAG);
   mpv_observe_property(m_mpv->mpv(), 0, "vo", MPV_FORMAT_STRING);
   mpv_observe_property(m_mpv->mpv(), 0, "gpu-api", MPV_FORMAT_STRING);
@@ -510,13 +527,24 @@ void PlayerComponent::initializeMpv()
     [this](const QString& key){return m_mpv->getProperty(key);},
     [this](const QString& key,const QVariant& value){return m_mpv->setProperty(key,value)>=0;},
     [this](const QStringList& arguments){
-      QList<QByteArray> storage;QList<const char*> command;
-      for(const auto& argument:arguments)storage.append(argument.toUtf8());
-      for(const auto& argument:storage)command.append(argument.constData());
-      command.append(nullptr);return mpv_command(m_mpv->mpv(),command.data())>=0;
+      const auto run=[&]{
+        QList<QByteArray> storage;QList<const char*> command;
+        for(const auto& argument:arguments)storage.append(argument.toUtf8());
+        for(const auto& argument:storage)command.append(argument.constData());
+        command.append(nullptr);return mpv_command(m_mpv->mpv(),command.data())>=0;
+      };
+#ifdef Q_OS_WIN
+      if(addsInterpolation(arguments))return addBeforeRtx(run);
+#endif
+      return run();
     },
     [this](const QString& key,const QVariant& value){return m_mpv->setPropertyAsync(key,value)>=0;},
-    [this](const QStringList& arguments){return m_mpv->commandAsync(arguments)>=0;},
+    [this](const QStringList& arguments){
+#ifdef Q_OS_WIN
+      if(addsInterpolation(arguments))return addBeforeRtx([&]{return m_mpv->commandAsync(arguments)>=0;});
+#endif
+      return m_mpv->commandAsync(arguments)>=0;
+    },
     [this](const QString& key,const QVariant& value,int id){return m_mpv->setPropertyAsync(key,value,id)>=0;},
     [this](const QString& key,int id){return mpv_get_property_async(m_mpv->mpv(),uint64_t(id),key.toUtf8().constData(),MPV_FORMAT_NODE)>=0;},
     true
@@ -817,8 +845,8 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
     // got an SDR P3 swapchain without highlights; there macOS ColorSync maps
     // the hinted layer colorspace itself. SDR displays keep libplacebo's
     // ICC-managed tone mapping. Explicit advanced overrides are respected.
-    if (!SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "advancedProfileOverrides").toBool())
-      m_mpv->setProperty("icc-profile-auto", !OSXUtils::ScreenSupportsEDR(m_window ? m_window->screen() : nullptr));
+    m_systemColor = OSXUtils::ScreenSupportsEDR(m_window ? m_window->screen() : nullptr) ? QStringLiteral("edr") : QString();
+    applyIccSetting(true);
   }
 #endif
 
@@ -1071,15 +1099,16 @@ bool PlayerComponent::switchDisplayDynamicRange()
   // The libmpv Render API draws into Qt's SDR OpenGL scene, which cannot carry HDR.
   const bool allowed = m_nativeVideoOutput &&
       SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, "hdr.auto_switch").toBool();
-  const auto result = m_hdrSwitch->prepare(m_window ? m_window->winId() : 0, m_mediaHdr, allowed);
+  // RTX Video HDR (updateRtx) turns SDR into HDR, which shows only in HDR mode.
+  const auto result = m_hdrSwitch->prepare(m_window ? m_window->winId() : 0, m_mediaHdr || m_rtxHdr, allowed);
   // In HDR mode Windows reports the HDR calibration (MHC2) profile, which the
   // compositor already applies. As mpv's ICC target it turned HDR into a
   // 416-nit SDR image on an SDR swapchain; without it mpv hints HDR10 and
   // tone maps to the display's own peak. With Auto Color Management the
   // compositor applies the display's profile to the SDR desktop as well, so an
   // ICC transform in mpv would be a second one. Explicit advanced overrides win.
-  if (!SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "advancedProfileOverrides").toBool())
-    m_mpv->setProperty("icc-profile-auto", !result.hdrActive && !result.autoColorManaged);
+  m_systemColor = result.hdrActive ? QStringLiteral("hdr") : result.autoColorManaged ? QStringLiteral("acm") : QString();
+  applyIccSetting(true);
   // The D3D11 context reads the output's colour space once, when it opens. A
   // replacement keeps the previous item's video output, so reopen it.
   const QString vo = m_mpv->getProperty("current-vo").toString();
@@ -1237,6 +1266,77 @@ void PlayerComponent::updatePlaybackState()
   }
 }
 
+#ifdef Q_OS_WIN
+///////////////////////////////////////////////////////////////////////////////////////////////////
+namespace {
+// NVIDIA Video Frame Generation's files: the VapourSynth plugin, its script
+// and NVIDIA's runtime, installed in vfg/ next to the program. For
+// development, "vfg-test.json" in the data directory names other ones
+// ({plugin, script, runtime}, any of them) and optionally debug_log, a file
+// the script appends its decisions and counters to.
+struct VfgFiles {
+  QString plugin, script, runtime;
+  QString debugLog;
+  // The first piece that is not there, empty when all are.
+  QString missing() const
+  {
+    if (!QFileInfo(plugin).isFile())
+      return plugin;
+    if (!QFileInfo(script).isFile())
+      return script;
+    for (const char* name : {"NVVideoEffects.dll", "NVCVImage.dll", "nvVFXVideoFrameGeneration.dll", "cudart64_12.dll"})
+      if (!QFileInfo(QDir(runtime).filePath(QLatin1String(name))).isFile())
+        return QDir(runtime).filePath(QLatin1String(name));
+    return {};
+  }
+  bool complete() const { return missing().isEmpty(); }
+};
+
+VfgFiles vfgFiles()
+{
+  const QDir installed(QCoreApplication::applicationDirPath() + QStringLiteral("/vfg"));
+  VfgFiles files{installed.filePath(QStringLiteral("tigerest-vfg-vs.dll")), installed.filePath(QStringLiteral("interpolate_vfg.vpy")),
+                 installed.filePath(QStringLiteral("nvidia")), {}};
+  QFile file(Paths::globalDataDir(QStringLiteral("vfg-test.json")));
+  if (file.open(QIODevice::ReadOnly))
+  {
+    const QJsonObject paths = QJsonDocument::fromJson(file.readAll()).object();
+    const auto take = [&](const char* key, QString& target) {
+      const QString value = paths.value(QLatin1String(key)).toString();
+      if (!value.isEmpty())
+        target = value;
+    };
+    take("plugin", files.plugin);
+    take("script", files.script);
+    take("runtime", files.runtime);
+    take("debug_log", files.debugLog);
+  }
+  return files;
+}
+
+// mpv's quoting for a filter argument of any content: %<bytes>%<text>.
+QString mpvQuoted(const QString& text)
+{
+  return QLatin1Char('%') + QString::number(text.toUtf8().size()) + QLatin1Char('%') + text;
+}
+
+// 设置 → 视频 → NVIDIA 帧生成: -1 where it is off, otherwise the model's mode.
+int vfgSettingMode()
+{
+  static const QStringList modes{QStringLiteral("low"), QStringLiteral("medium"), QStringLiteral("high")};
+  return modes.indexOf(SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, "vfg").toString());
+}
+
+// 设置 → 视频 → VFG 倍数: 0 where it follows the RIFE target frame rate.
+double vfgSettingFactor()
+{
+  bool number = false;
+  const double factor = SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, "vfgFactor").toString().toDouble(&number);
+  return number && factor >= 1.5 && factor <= 5 ? std::round(factor * 2) / 2 : 0;
+}
+}
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::handleMpvEvent(mpv_event *event)
 {
@@ -1286,11 +1386,53 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
     handleProfileReply(event);
     return;
   }
+  if (event->event_id == MPV_EVENT_GET_PROPERTY_REPLY && (event->reply_userdata & ~uint64_t(0xffffff)) == ProfileResetReply)
+  {
+    const QString key = m_profileResets.take(event->reply_userdata);
+    const auto* property = static_cast<mpv_event_property*>(event->data);
+    if (!key.isEmpty() && event->error >= 0 && property && property->format == MPV_FORMAT_NODE && property->data)
+      m_mpv->setPropertyAsync(key, mpv::qt::node_to_variant(static_cast<mpv_node*>(property->data)));
+    return;
+  }
+  if ((event->event_id == MPV_EVENT_COMMAND_REPLY || event->event_id == MPV_EVENT_SET_PROPERTY_REPLY) &&
+      (event->reply_userdata & ~uint64_t(0xffffff)) == ProReply)
+  {
+    const QString key = m_proRequests.take(event->reply_userdata);
+#ifdef Q_OS_WIN
+    if (event->error < 0 && key == QStringLiteral("vfg"))
+      m_proVfgMode = -1;
+#endif
+    if (event->error < 0 && !key.isEmpty())
+      emit proSetFailed(key, QString::fromUtf8(mpv_error_string(event->error)));
+    return;
+  }
+#ifdef Q_OS_WIN
+  if (event->event_id == MPV_EVENT_COMMAND_REPLY && (event->reply_userdata & ~uint64_t(0xffffff)) == RtxReply)
+  {
+    if (m_rtxCommands > 0)
+      --m_rtxCommands;
+    // An add mpv refused (no D3D11 video output, say) must not be retried by
+    // the order check of every later chain change.
+    if (event->error < 0 && event->reply_userdata == m_rtxAddReply)
+    {
+      qWarning() << "RTX video filter was not accepted:" << m_rtxFilter << mpv_error_string(event->error);
+      m_rtxRefused = m_rtxFilter;
+      m_rtxFilter.clear();
+      updateRtx(); // records why, adds nothing
+    }
+    // Chain changes reported while these commands ran were not checked.
+    else if (m_rtxCommands == 0)
+      keepRtxLast(m_mpv->getProperty(QStringLiteral("vf")).toList());
+    return;
+  }
+#endif
   switch (event->event_id)
   {
     case MPV_EVENT_COMMAND_REPLY:
       if (isStreamAddReply(event->reply_userdata))
         completeStreamAdd(event->reply_userdata, event->error);
+      else if (event->reply_userdata == KeyframeSeekReply)
+        m_keyframeSeek = event->error >= 0 ? KeyframeSeek::Sent : KeyframeSeek::None;
       break;
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
     case MPV_EVENT_SET_PROPERTY_REPLY:
@@ -1319,7 +1461,34 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
 #endif
     case MPV_EVENT_START_FILE:
     {
+      m_keyframeSeek = KeyframeSeek::None;
       setSeeking(false);
+#ifdef Q_OS_WIN
+      // Frame generation is set up for one item's frame rate; left in the
+      // chain it would also keep RIFE away from the next item.
+      if (m_proVfgMode >= 0)
+      {
+        m_proVfgMode = -1;
+        m_mpv->commandAsync(QStringList{QStringLiteral("vf"), QStringLiteral("remove"), QStringLiteral("@tigerest-vfg")});
+      }
+      // The next item starts it again where the setting asks for it.
+      m_vfgStartPending = vfgSettingMode() >= 0;
+      // RTX video is sized for one item's picture: it comes back once the next
+      // one's video parameters are known, with the saved choices.
+      readRtxSettings(true);
+      m_rtxRefused.clear();
+      m_rtxDriverVsr.clear();
+      m_rtxDriverHdr.clear();
+      m_rtxMoves = 0;
+      m_rtxRetries = 0;
+      if (!m_rtxFilter.isEmpty())
+      {
+        m_rtxFilter.clear();
+        ++m_rtxCommands;
+        m_mpv->commandAsync(QStringList{QStringLiteral("vf"), QStringLiteral("remove"), QStringLiteral("@tigerest-rtx")},
+                            int(RtxReply | (++m_rtxSerial & 0xffffff)));
+      }
+#endif
       m_rangeReported = false; m_rangeSource.clear(); m_rangeTarget.clear(); m_rangeDolbyVisionProfile = 0;
 #ifdef Q_OS_WIN
       ++m_windowsPlaybackGeneration;
@@ -1363,6 +1532,9 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
     case MPV_EVENT_END_FILE:
     {
       m_nativeVideoReady = false;
+#ifdef Q_OS_WIN
+      m_vfgStartPending = false;
+#endif
       // A seek cut short by the end of the item never restarts.
       setSeeking(false);
       // mpv aborts an add still fetching when its item ends; the reply must
@@ -1401,6 +1573,8 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       m_audioOutputWarningShown = false;
       m_windowVisible = false;
       emit windowVisible(false);
+      // The panels belong to the item that was playing.
+      setProMode(false);
       m_playbackCanceled = false;
       m_playbackError = "";
 
@@ -1439,6 +1613,30 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
     case MPV_EVENT_PROPERTY_CHANGE:
     {
       auto *prop = static_cast<mpv_event_property*>(event->data);
+      if (strncmp(prop->name, "user-data/tigerest/pro/", 23) == 0)
+      {
+        if (m_proMode && prop->format == MPV_FORMAT_NODE)
+        {
+          const QVariantMap data = mpv::qt::node_to_variant(static_cast<mpv_node*>(prop->data)).toMap();
+          if (strcmp(prop->name + 23, "stats") == 0)
+          {
+            emit proStats(data);
+            if (m_proStatsSeen++ % 10 == 0)
+            {
+              const QVariantMap video = data.value(QStringLiteral("video")).toMap(), frames = data.value(QStringLiteral("frames")).toMap(),
+                  display = data.value(QStringLiteral("display")).toMap(), passes = data.value(QStringLiteral("passes")).toMap();
+              qInfo().noquote() << QStringLiteral("Professional mode: %1 fps out, display %2 of %3 Hz, video-sync %4, dropped %5, delayed %6, mistimed %7, render %8 ms")
+                  .arg(video.value(QStringLiteral("output_fps")).toDouble(), 0, 'f', 2).arg(display.value(QStringLiteral("measured")).toDouble(), 0, 'f', 1)
+                  .arg(display.value(QStringLiteral("fps")).toDouble(), 0, 'f', 1).arg(display.value(QStringLiteral("sync")).toString())
+                  .arg(frames.value(QStringLiteral("dropped")).toLongLong()).arg(frames.value(QStringLiteral("delayed")).toLongLong())
+                  .arg(frames.value(QStringLiteral("mistimed")).toLongLong()).arg(passes.value(QStringLiteral("fresh_total")).toDouble() / 1e6, 0, 'f', 2);
+            }
+          }
+          else if (strcmp(prop->name + 23, "options") == 0)
+            emit proOptions(data);
+        }
+        break;
+      }
       {
         const bool source = strcmp(prop->name, "video-params") == 0, target = strcmp(prop->name, "video-target-params") == 0;
         if (source || target)
@@ -1446,7 +1644,16 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
           (source ? m_rangeSource : m_rangeTarget) = prop->format == MPV_FORMAT_NODE
             ? mpv::qt::node_to_variant(static_cast<mpv_node*>(prop->data)).toMap() : QVariantMap();
           reportDynamicRange();
+#ifdef Q_OS_WIN
+          if (source)
+            updateRtx();
+#endif
         }
+#ifdef Q_OS_WIN
+        else if (strcmp(prop->name, "vf") == 0)
+          keepRtxLast(prop->format == MPV_FORMAT_NODE
+            ? mpv::qt::node_to_variant(static_cast<mpv_node*>(prop->data)).toList() : QVariantList());
+#endif
         else if (strcmp(prop->name, "current-tracks/video/dolby-vision-profile") == 0)
           m_rangeDolbyVisionProfile = prop->format == MPV_FORMAT_INT64 ? *static_cast<int64_t*>(prop->data) : 0;
         else if (strcmp(prop->name, "tone-mapping") == 0 && prop->format == MPV_FORMAT_STRING)
@@ -1646,6 +1853,17 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
             logAudioVideoSync();
         });
       }
+#ifdef Q_OS_WIN
+      // d3d11vpp says so when the driver turns an NVIDIA extension down; the
+      // filter then passes the picture on unchanged.
+      if (msg->log_level <= MPV_LOG_LEVEL_WARN)
+      {
+        if (strstr(msg->text, "Failed to enable NVIDIA RTX Super Resolution"))
+          m_rtxDriverVsr = QStringLiteral("显卡或驱动没有接受 RTX 超分辨率（需要 RTX 20 系或更新的 NVIDIA 显卡）");
+        else if (strstr(msg->text, "Failed to enable NVIDIA RTX Video HDR") || strstr(msg->text, "NVIDIA RTX Video HDR not supported"))
+          m_rtxDriverHdr = QStringLiteral("显卡或驱动不支持 RTX Video HDR（需要 RTX 20 系或更新的 NVIDIA 显卡）");
+      }
+#endif
       // uosc takes screenshots without an OSD message, so a failed write would
       // otherwise show up only in the log.
       if (msg->log_level <= MPV_LOG_LEVEL_ERROR && strcmp(msg->prefix, "cplayer") == 0 &&
@@ -1657,6 +1875,10 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       size_t len = strlen(msg->text);
       if (len > 0 && msg->text[len - 1] == '\n')
         len -= 1;
+      // Professional mode publishes its statistics twice a second; mpv echoes
+      // every one of them, a kilobyte and a half each.
+      if (msg->log_level >= MPV_LOG_LEVEL_V && strncmp(msg->text, "Set property: user-data/tigerest/pro/", 37) == 0)
+        break;
       QString logline = QString::fromUtf8(msg->prefix) + ": " + QString::fromUtf8(msg->text, static_cast<int>(len));
       if (msg->log_level >= MPV_LOG_LEVEL_V)
         qDebug() << qUtf8Printable(logline);
@@ -1680,6 +1902,11 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       if (msg->num_args == 2 && strcmp(msg->args[0], "tigerest-apply-profile") == 0)
       {
         applyQualityProfile(QString::fromUtf8(msg->args[1]), true);
+        break;
+      }
+      if (msg->num_args >= 1 && strcmp(msg->args[0], "tigerest-pro-toggle") == 0)
+      {
+        setProMode(!m_proMode);
         break;
       }
       if (msg->num_args == 2 && strcmp(msg->args[0], "tigerest-playlist-item") == 0)
@@ -1821,6 +2048,13 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
 #ifdef Q_OS_WIN
       releaseInterpolationResumePrime();
 #endif
+      // Only the restart that follows this seek's own SEEK event: one of an
+      // earlier seek can still be in the queue when seekToKeyframe is called.
+      if (m_keyframeSeek == KeyframeSeek::Running)
+      {
+        m_keyframeSeek = KeyframeSeek::None;
+        emit keyframeSeekLanded(getPosition());
+      }
       setSeeking(false);
       break;
 #ifdef Q_OS_MAC
@@ -1849,6 +2083,8 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       if(m_rife)m_rife->onSeek();
 #endif
 #endif
+      if (m_keyframeSeek == KeyframeSeek::Sent)
+        m_keyframeSeek = KeyframeSeek::Running;
       setSeeking(true);
       break;
     default:; /* ignore */
@@ -1961,6 +2197,15 @@ void PlayerComponent::onInterpolationPauseChanged()
   const bool eligible=m_inPlayback&&m_rife&&m_rifeAccess&&m_rife->state()==rife::State::Active&&
       !m_rifeStartup.waiting()&&!m_rifeResumeRequest;
   if(!m_rifeResumePrime.resumed(now,eligible))return;
+  if(m_roomTimeline){
+    // Held for the refill, this member starts 0.6 s to several seconds after
+    // the room, plays out of step and is stopped again for a seek back onto
+    // it (Windows log of 2026-11-16: six room resumes, six times). Its first
+    // frames stall instead, as they did before the prime.
+    m_rifeResumePrime.cancel();
+    qInfo() << "Resuming interpolation after a long pause without a refill: a room times this start";
+    return;
+  }
   qInfo() << "Resuming interpolation after a long pause: refilling the graph first";
   const auto mpv=m_rifeAccess->interface();
   mpv.setAsync("pause",true);
@@ -1973,8 +2218,12 @@ void PlayerComponent::watchDisplaySync()
   const auto state=m_rife->state();
   const QString mode=m_rifeAccess->value("video-sync").toString();
   const QVariant avsync=m_rifeAccess->value("avsync");
+  // Nor is a filter that falls behind what this is for: with frame
+  // generation asked for more than the card can generate,
+  // the video lagged 0.8 s and every later item played on the audio clock
+  // (trial of 2026-11-17). Professional mode shows that as its own load.
   const bool watching=m_inPlayback&&m_nativeVideoReady&&!m_paused&&mode.startsWith(QLatin1String("display-"))&&
-      state!=rife::State::Preparing&&state!=rife::State::Active&&avsync.isValid()&&
+      state!=rife::State::Preparing&&state!=rife::State::Active&&m_proVfgMode<0&&avsync.isValid()&&
       !m_rifeAccess->value("seeking").toBool()&&!m_rifeAccess->value("paused-for-cache").toBool();
   if(!watching){m_displaySyncDrift.reset();return;}
   if(!m_displaySyncDrift.update(m_rifeClock.elapsed(),avsync.toDouble(),
@@ -1998,6 +2247,21 @@ void PlayerComponent::updateInterpolationPresentation()
   // The window is changing state; queue mpv writes instead of waiting on them.
   auto polling=m_rifeAccess->enterPolling();
   m_rife->setFullScreen(WindowManager::Get().isFullScreen());
+}
+void PlayerComponent::startConfiguredVfg()
+{
+  // Waits for the first frame: the frame rate and the decoder are known then.
+  if(!m_vfgStartPending||m_shuttingDown||!m_mpv||!m_inPlayback||!m_nativeVideoReady)return;
+  m_vfgStartPending=false;
+  const int mode=vfgSettingMode();
+  if(mode<0||m_proVfgMode>=0||!(m_mpv->getProperty("container-fps").toDouble()>1))return;
+  const QVariantMap result=proSetVfg(mode,vfgSettingFactor());
+  if(result.value(QStringLiteral("ok")).toBool())return;
+  const QString reason=result.value(QStringLiteral("error")).toString();
+  qInfo()<<"Frame generation not started for this item:"<<reason;
+  // A frame rate already near the target is no fault; the rest needs a word.
+  if(!reason.contains(QStringLiteral("目标帧率")))
+    m_mpv->commandAsync(QStringList{QStringLiteral("show-text"),QStringLiteral("NVIDIA 帧生成没有启动：")+reason,QStringLiteral("6000")});
 }
 void PlayerComponent::releaseInterpolationResumePrime()
 {
@@ -2037,7 +2301,9 @@ void PlayerComponent::beginInterpolationItem()
 #ifdef Q_OS_WIN
   m_windowsRifeRuntime->select(SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO,"aiRifeModel").toString(),
       SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO,"aiRifeTarget").toInt());
-  if(m_windowsRifePlayback)m_windowsRifePlayback->beginItem(enabled,false,
+  // Frame generation takes the item where its setting is on and it can run.
+  const bool generation=vfgSettingMode()>=0&&vfgUnavailable().isEmpty();
+  if(m_windowsRifePlayback)m_windowsRifePlayback->beginItem(enabled&&!generation,false,
       m_mpv->getProperty("speed").toDouble());
   // A window restored as fullscreen at startup emits no switch.
   m_rife->setFullScreen(WindowManager::Get().isFullScreen());
@@ -2068,6 +2334,7 @@ void PlayerComponent::pollInterpolation()
   m_rifeStartup.setEnginePreparing(m_windowsRifePlayback&&m_windowsRifePlayback->preparingEngine(),m_rifeClock.elapsed());
   updateInterpolationPreparationOverlay();
   watchDisplaySync();
+  if(m_vfgStartPending)startConfiguredVfg();
 #endif
   // This path must stay asynchronous even while Cocoa creates the VO. An
   // audio-only/failed load must never be left paused waiting for video metrics.
@@ -2131,12 +2398,19 @@ void PlayerComponent::pollInterpolation()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::setVideoOnlyMode(bool enable)
 {
-  if (m_window)
-  {
-    QQuickItem *web = m_window->findChild<QQuickItem *>("web");
-    if (web)
-      web->setVisible(!enable);
-  }
+  m_videoOnlyMode = enable;
+  updateWebVisibility();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::updateWebVisibility()
+{
+  if (!m_window)
+    return;
+  // Video-only playback (a local file) hides the page; professional mode
+  // draws its panels in that page, so the page shows again while it is on.
+  if (QQuickItem* web = m_window->findChild<QQuickItem*>("web"))
+    web->setVisible(!m_videoOnlyMode || m_proMode);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2501,6 +2775,32 @@ void PlayerComponent::seekTo(qint64 ms)
   double timeSecs = ms / 1000.0;
   QStringList args = (QStringList() << "seek" << QString::number(timeSecs) << "absolute+exact");
   m_mpv->command( args);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::seekToKeyframe(qint64 ms, bool after)
+{
+#ifdef Q_OS_WIN
+  if (m_shuttingDown) return;
+#endif
+  if (!m_mpv) {
+    qWarning() << "PlayerComponent::seekToKeyframe: mpv not initialized yet";
+    return;
+  }
+  // mpv looks for the keyframe after a position only on a relative seek
+  // forwards; an absolute one takes the keyframe before it.
+  const double target = ms / 1000.0, current = getPosition() / 1000.0;
+  QStringList args{QStringLiteral("seek")};
+  if (after && target > current)
+    args << QString::number(target - current, 'f', 3) << QStringLiteral("relative+keyframes");
+  else
+    args << QString::number(target, 'f', 3) << QStringLiteral("absolute+keyframes");
+  // The reply says where this seek stands among the events. A seek sent just
+  // before it can still report its SEEK and its restart, and at that restart
+  // the position already reads as this seek's target.
+  m_keyframeSeek = KeyframeSeek::None;
+  if (m_mpv->commandAsync(args, KeyframeSeekReply) < 0)
+    qWarning() << "PlayerComponent::seekToKeyframe: the seek was not accepted";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3066,6 +3366,10 @@ QVariantMap PlayerComponent::mpvDiagnostics()
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
   if(m_rife)result["rife"]=m_rife->diagnostics();
   result["rifeSetting"]=SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO,"aiRife");
+#ifdef Q_OS_WIN
+  result["vfg"]=proVfgState();
+  result["rtx"]=proRtxState();
+#endif
 #endif
   const QString configDir = MpvConfigManager::activeConfigDir();
   result["configDir"] = configDir;
@@ -3379,6 +3683,13 @@ void PlayerComponent::updateVideoAspectSettings()
 void PlayerComponent::updateVideoConfiguration()
 {
   setVideoConfiguration();
+  applyIccSetting(false);
+#ifdef Q_OS_WIN
+  // A change of the RTX settings applies at once; other video settings leave
+  // a choice made in professional mode alone.
+  readRtxSettings(false);
+  updateRtx();
+#endif
   refreshMpvConf();
 }
 
@@ -3491,11 +3802,51 @@ bool PlayerComponent::applyQualityProfile(const QString& profile, bool announce)
     m_profileRequests.insert(reply, {batch, key, false});
     return reply;
   };
+  // Whether mpv reads the display's ICC profile is the client's decision
+  // (applyIccSetting): a profile applied during playback turned it back on
+  // where Windows HDR had it off, until the next item. Advanced overrides
+  // leave it to mpv.conf.
+  const MpvConf::Rules& rules = MpvConfigManager::rules();
+  const bool ownIcc = !SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "advancedProfileOverrides").toBool();
+  const auto clientOwned = [&](const QString& key) { return ownIcc && rules.baseKey(key) == QStringLiteral("icc-profile-auto"); };
+
+  // Options the profile in use sets and this one does not go back to the
+  // global value of mpv.conf, or to mpv's own default: a saturation saved in
+  // one profile must not follow the viewer into the next.
+  if (!m_appliedProfile.isEmpty() && m_appliedProfile != profile)
+  {
+    QSet<QString> staying;
+    for (const MpvConf::ProfileStep& step : steps)
+      if (!step.builtin)
+        staying.insert(rules.baseKey(step.key));
+    QSet<QString> leaving;
+    for (const MpvConf::ProfileStep& step : MpvConf::resolveProfile(lines, m_appliedProfile))
+      if (!step.builtin)
+        leaving.insert(rules.baseKey(step.key));
+    for (const QString& key : leaving - staying)
+    {
+      if (key == QStringLiteral("glsl-shaders") || key == QStringLiteral("profile-desc") || MpvConf::isFilterKey(key) || clientOwned(key))
+        continue;
+      const MpvConf::ResolvedValue global = MpvConf::resolveValue(lines, QStringLiteral("default"), key);
+      if (global.found)
+      {
+        requestMpvConfOption(key, global.value, 0);
+        continue;
+      }
+      const uint64_t reply = ProfileResetReply | (++m_profileRequestSerial & 0xffffff);
+      m_profileResets.insert(reply, key);
+      if (mpv_get_property_async(m_mpv->mpv(), reply, QStringLiteral("option-info/%1/default-value").arg(key).toUtf8().constData(),
+                                 MPV_FORMAT_NODE) < 0)
+        m_profileResets.remove(reply);
+    }
+  }
   const uint64_t clear = request(QString());
   if (m_mpv->commandAsync(QStringList() << "change-list" << "glsl-shaders" << "clr" << "", int(clear)) < 0)
     m_profileRequests.remove(clear);
   for (const MpvConf::ProfileStep& step : steps)
   {
+    if (!step.builtin && clientOwned(step.key))
+      continue;
     const uint64_t reply = request(step.key);
     if (requestMpvConfOption(step.builtin ? QStringLiteral("profile") : step.key, step.value, reply) < 0)
     {
@@ -4054,6 +4405,20 @@ void PlayerComponent::setWebPlaylist(const QVariantList& playlist, const QString
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::setRoomTimeline(bool active)
+{
+  if (m_roomTimeline == active)
+    return;
+  m_roomTimeline = active;
+  qInfo() << "Watch-together room timeline:" << active;
+  // UOSC's timeline pauses while it is held and plays again on release. In
+  // a room that reached the others as a pause and a play around the seek;
+  // the sync stops the player for a seek itself.
+  if (m_mpv)
+    m_mpv->setPropertyAsync("user-data/tigerest/room-timeline", active);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::setIntroSkip(const QVariantMap& intro)
 {
   if (!m_mpv)
@@ -4071,6 +4436,586 @@ void PlayerComponent::setIntroSkip(const QVariantMap& intro)
   // As for the queue: never wait for a native VO that is tearing down.
   m_mpv->setPropertyAsync("user-data/tigerest/intro-skip", m_introSkip);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////
+bool PlayerComponent::proModeAvailable() const
+{
+#ifdef Q_OS_WIN
+  // The page needs the embedded video window to shrink beside it, and uosc
+  // to keep the playback controls inside that window.
+  return m_mpv && m_nativeVideoOutput &&
+         SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "enableUosc").toBool();
+#else
+  return false;
+#endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::setProMode(bool active)
+{
+#ifdef Q_OS_WIN
+  if (m_shuttingDown) return;
+#endif
+  if (m_proMode == active || (active && (!proModeAvailable() || !m_inPlayback)))
+    return;
+  m_proMode = active;
+  m_proVideoRect = QRect();
+  qInfo() << "Professional mode:" << active;
+  updateWebVisibility();
+#ifdef Q_OS_WIN
+  if (active && !m_proLoadSampler)
+  {
+    m_proLoadSampler = new SystemLoad(this);
+    connect(m_proLoadSampler, &SystemLoad::sampled, this, [this](QVariantMap load) {
+      if (!m_proMode)
+        return;
+      if (m_rife)
+        load.insert(QStringLiteral("rife"), m_rife->diagnostics());
+      // Display sync that drifted earlier keeps later items on the audio clock.
+      load.insert(QStringLiteral("syncFallback"), m_displaySyncUnreliable);
+      // What the frame-generation script counted in its last half second.
+      if (m_proVfgMode >= 0 && !m_vfgStatsPath.isEmpty())
+      {
+        QFile counters(m_vfgStatsPath);
+        if (counters.open(QIODevice::ReadOnly))
+        {
+          const QJsonObject counted = QJsonDocument::fromJson(counters.readAll()).object();
+          if (!counted.isEmpty())
+            load.insert(QStringLiteral("vfg"), counted.toVariantMap());
+        }
+      }
+      emit proLoad(load);
+    });
+  }
+  if (active)
+    m_proLoadSampler->start();
+  else if (m_proLoadSampler)
+    m_proLoadSampler->stop();
+#endif
+  m_mpv->setPropertyAsync("user-data/tigerest/pro/active", active);
+  // The video keeps the whole window until the page reports its video area.
+  emit proLayoutChanged(active, 0, 0, 0, 0);
+  emit proModeChanged(active);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::setProVideoRect(int x, int y, int w, int h)
+{
+  const QRect rect(x, y, w, h);
+  if (!m_proMode || rect == m_proVideoRect)
+    return;
+  m_proVideoRect = rect;
+  emit proLayoutChanged(true, x, y, w, h);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::proFocus(bool video)
+{
+  if (m_proMode)
+    emit proFocusRequested(video);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::proWatch(const QStringList& properties)
+{
+  if (!m_mpv)
+    return;
+  m_mpv->commandAsync(QStringList{
+      QStringLiteral("script-message-to"), QStringLiteral("tigerest_pro"), QStringLiteral("watch"),
+      QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(properties)).toJson(QJsonDocument::Compact))});
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+static QVariantMap proRefusal(const QString& message)
+{
+  return {{QStringLiteral("ok"), false}, {QStringLiteral("error"), message}};
+}
+
+QVariantMap PlayerComponent::proSet(const QString& key, const QString& value)
+{
+#ifdef Q_OS_WIN
+  if (m_shuttingDown) return proRefusal(QStringLiteral("播放器正在退出"));
+#endif
+  if (!m_mpv)
+    return proRefusal(QStringLiteral("播放器还没有准备好"));
+  const MpvConf::Rules& rules = MpvConfigManager::rules();
+  const QString base = rules.baseKey(key);
+  if (base == QStringLiteral("profile") || base == QStringLiteral("glsl-shaders") || MpvConf::isFilterKey(base))
+    return proRefusal(QStringLiteral("档位、着色器和滤镜不通过这个接口设置"));
+  // mpv.conf may not hold these four: the playback interface adjusts them.
+  static const QSet<QString> playbackInterface = {
+    QStringLiteral("volume"), QStringLiteral("mute"), QStringLiteral("audio-delay"), QStringLiteral("sub-delay")};
+  if (!playbackInterface.contains(key))
+  {
+    // Otherwise the same boundary as the user area of mpv.conf.
+    if (!rules.knownOption(key))
+      return proRefusal(QStringLiteral("mpv 没有 %1 这个选项").arg(key));
+    const QVariantMap settings = MpvConfigManager::settingsContext();
+    const MpvConf::Ownership owner = rules.ownership(key, settings);
+    if (owner.kind == MpvConf::Ownership::Locked)
+      return proRefusal(owner.reason);
+    const QStringList reasons = rules.suspendReasons(key, value, settings);
+    if (!reasons.isEmpty())
+      return proRefusal(QStringLiteral("%1 已开启，暂时不能调整这一项").arg(reasons.join(QStringLiteral("、"))));
+  }
+#ifdef Q_OS_WIN
+  if (key == QStringLiteral("video-sync") && m_displaySyncUnreliable)
+  {
+    // A mode chosen here is the viewer's call to try display sync again,
+    // as a change of the setting is: later items follow the setting again.
+    m_displaySyncUnreliable = false;
+    m_displaySyncDrift.reset();
+    m_mpv->setPropertyAsync("user-data/tigerest/display-sync-fallback", false);
+    qInfo() << "Display sync fallback ended by a sync mode chosen in professional mode:" << value;
+  }
+#endif
+  const uint64_t reply = ProReply | (++m_proRequestSerial & 0xffffff);
+  m_proRequests.insert(reply, key);
+  if (requestMpvConfOption(key, value, reply) < 0)
+  {
+    m_proRequests.remove(reply);
+    return proRefusal(QStringLiteral("mpv 没有接受这个值"));
+  }
+  return {{QStringLiteral("ok"), true}};
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+QVariantMap PlayerComponent::proSetShaders(const QStringList& shaders)
+{
+#ifdef Q_OS_WIN
+  if (m_shuttingDown) return proRefusal(QStringLiteral("播放器正在退出"));
+#endif
+  if (!m_mpv)
+    return proRefusal(QStringLiteral("播放器还没有准备好"));
+  for (const QString& shader : shaders)
+    if (!shader.startsWith(QStringLiteral("~~/shaders/")) || shader.contains(QStringLiteral("..")))
+      return proRefusal(QStringLiteral("着色器必须位于客户端的 shaders 目录"));
+  // As a profile switch does: empty the list, then append in order.
+  const auto request = [this](const QStringList& command, const QString& key) {
+    const uint64_t reply = ProReply | (++m_proRequestSerial & 0xffffff);
+    m_proRequests.insert(reply, key);
+    if (m_mpv->commandAsync(command, int(reply)) < 0)
+      m_proRequests.remove(reply);
+  };
+  request(QStringList() << "change-list" << "glsl-shaders" << "clr" << "", QString());
+  for (const QString& shader : shaders)
+    request(QStringList() << "change-list" << "glsl-shaders" << "append" << shader, QStringLiteral("glsl-shader"));
+  return {{QStringLiteral("ok"), true}};
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+bool PlayerComponent::proApplyProfile(const QString& profile)
+{
+#ifdef Q_OS_WIN
+  if (m_shuttingDown) return false;
+#endif
+  return applyQualityProfile(profile, false);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::proTogglePause()
+{
+  togglePause();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// 设置 → 视频 → 显示器 ICC 色彩配置.
+static QString iccSetting()
+{
+  const QString mode = SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, "iccProfile").toString();
+  return mode == QLatin1String("on") || mode == QLatin1String("off") ? mode : QStringLiteral("auto");
+}
+
+bool PlayerComponent::iccWanted(const QString& mode) const
+{
+  // "auto": not where the system manages colour on this display already.
+  // In HDR mode Windows reports the HDR calibration (MHC2) profile, which its
+  // compositor applies; with Auto Color Management it applies the display's
+  // profile to the SDR desktop as well. A transform in mpv would be a second
+  // one (and as an ICC target the HDR calibration profile turned the picture
+  // into a 416-nit SDR image).
+  return mode == QLatin1String("on") || (mode != QLatin1String("off") && m_systemColor.isEmpty());
+}
+
+void PlayerComponent::applyIccSetting(bool wait)
+{
+  if (!m_mpv || SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "advancedProfileOverrides").toBool())
+    return;
+  const bool wanted = iccWanted(iccSetting());
+  if (wait)
+    m_mpv->setProperty("icc-profile-auto", wanted);
+  else
+    m_mpv->setPropertyAsync("icc-profile-auto", wanted);
+}
+
+QVariantMap PlayerComponent::proIccState()
+{
+  return {{QStringLiteral("setting"), iccSetting()}, {QStringLiteral("managed"), m_systemColor},
+          {QStringLiteral("overridden"), SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "advancedProfileOverrides").toBool()}};
+}
+
+QVariantMap PlayerComponent::proSetIcc(const QString& mode)
+{
+#ifdef Q_OS_WIN
+  if (m_shuttingDown) return proRefusal(QStringLiteral("播放器正在退出"));
+#endif
+  if (!m_mpv)
+    return proRefusal(QStringLiteral("播放器还没有准备好"));
+  if (SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "advancedProfileOverrides").toBool())
+    return proRefusal(QStringLiteral("「高级覆盖」已开启，这一项由 mpv.conf 决定"));
+  if (mode != QLatin1String("auto") && mode != QLatin1String("on") && mode != QLatin1String("off"))
+    return proRefusal(QStringLiteral("没有这个选项"));
+  m_mpv->setPropertyAsync("icc-profile-auto", iccWanted(mode));
+  return {{QStringLiteral("ok"), true}, {QStringLiteral("applied"), iccWanted(mode)}};
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+QStringList PlayerComponent::proFontFamilies()
+{
+  QStringList families;
+  // Names that start with "@" are Windows' vertical-writing variants, those
+  // with "." fonts a system keeps for its own interface.
+  for (const QString& family : QFontDatabase::families())
+    if (!family.startsWith(QLatin1Char('@')) && !family.startsWith(QLatin1Char('.')))
+      families << family;
+  return families;
+}
+
+#ifdef Q_OS_WIN
+/////////////////////////////////////////////////////////////////////////////////////////
+// The CUDA compute capability the RIFE extension's probe found ("8.9"),
+// empty before it ran. NVIDIA's frame generation needs Ada (8.9) or newer.
+QString PlayerComponent::vfgComputeCapability() const
+{
+  return m_windowsRifeRuntime ? m_windowsRifeRuntime->diagnostics().value(QStringLiteral("gpu")).toMap()
+                                    .value(QStringLiteral("computeCapability")).toString() : QString();
+}
+
+QString PlayerComponent::vfgUnavailable() const
+{
+  const VfgFiles files = vfgFiles();
+  if (!files.complete())
+    return QStringLiteral("缺少 VFG 的文件：%1").arg(QDir::toNativeSeparators(files.missing()));
+  if (!m_windowsRifeActivated)
+    return QStringLiteral("VFG 借用 RIFE 扩展里的 VapourSynth 运行库：请先安装 RIFE 扩展并重启客户端");
+  const QString capability = vfgComputeCapability();
+  const QStringList parts = capability.split(QLatin1Char('.'));
+  if (parts.size() == 2 && parts[0].toInt() * 10 + parts[1].toInt() < 89)
+    return QStringLiteral("VFG 需要 RTX 40 或 RTX 50 系显卡（这块显卡的 CUDA 算力是 %1）").arg(capability);
+  return {};
+}
+
+QVariantMap PlayerComponent::proVfgState()
+{
+  const bool configured = vfgFiles().complete();
+  QString reason = vfgUnavailable();
+  if (reason.isEmpty() && !m_inPlayback)
+    reason = QStringLiteral("播放视频后可用");
+  const QString capability = vfgComputeCapability();
+  const QStringList parts = capability.split(QLatin1Char('.'));
+  const QVariant gpuSupported = parts.size() == 2 ? QVariant(parts[0].toInt() * 10 + parts[1].toInt() >= 89) : QVariant();
+  return {{QStringLiteral("configured"), configured}, {QStringLiteral("available"), reason.isEmpty()},
+          {QStringLiteral("reason"), reason}, {QStringLiteral("mode"), m_proVfgMode},
+          {QStringLiteral("factor"), m_proVfgMode >= 0 ? m_proVfgFactor : 0.0},
+          {QStringLiteral("effectiveFactor"), m_proVfgMode >= 0 ? m_proVfgEffectiveFactor : 0.0},
+          {QStringLiteral("runtime"), m_windowsRifeActivated}, {QStringLiteral("setting"), vfgSettingMode()},
+          {QStringLiteral("settingFactor"), vfgSettingFactor()},
+          {QStringLiteral("computeCapability"), capability}, {QStringLiteral("gpuSupported"), gpuSupported}};
+}
+
+QVariantMap PlayerComponent::proSetVfg(int mode, double requestedFactor)
+{
+  if (m_shuttingDown || !m_mpv)
+    return proRefusal(QStringLiteral("播放器还没有准备好"));
+  const QStringList remove{QStringLiteral("vf"), QStringLiteral("remove"), QStringLiteral("@tigerest-vfg")};
+  if (mode < 0)
+  {
+    if (m_proVfgMode >= 0)
+      m_mpv->commandAsync(remove);
+    m_proVfgMode = -1;
+    if (!m_vfgStatsPath.isEmpty())
+      QFile::remove(m_vfgStatsPath);
+    return {{QStringLiteral("ok"), true}};
+  }
+  const QVariantMap state = proVfgState();
+  if (!state.value(QStringLiteral("available")).toBool())
+    return proRefusal(state.value(QStringLiteral("reason")).toString());
+  if (mode > 2)
+    return proRefusal(QStringLiteral("没有这个档位"));
+
+  const double fps = m_mpv->getProperty("container-fps").toDouble();
+  if (!(fps > 1))
+    return proRefusal(QStringLiteral("还不知道这个视频的帧率"));
+  // A factor of its own in half steps from 1.5 to 5, or RIFE's choice: the
+  // half step closest to the target rate, the lower of two equally close, at
+  // most 5 like the settings' own choices; a target of 0 doubles.
+  const int target = SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, "aiRifeTarget").toInt();
+  double factor = 2;
+  if (requestedFactor > 0)
+  {
+    requestedFactor = std::clamp(std::round(requestedFactor * 2) / 2, 1.5, 5.0);
+    factor = requestedFactor;
+  }
+  else if (target > 0)
+  {
+    requestedFactor = 0;
+    const double lower = std::floor(target / fps * 2) / 2;
+    factor = std::clamp(target / fps - lower <= lower + 0.5 - target / fps ? lower : lower + 0.5, 1.0, 5.0);
+  }
+  if (factor < 1.5)
+    return proRefusal(QStringLiteral("这个视频的帧率（%1）已经接近目标帧率（%2）").arg(fps, 0, 'f', 3).arg(target));
+  // The filter takes frames from system memory.
+  const QString hwdec = m_mpv->getProperty("hwdec-current").toString();
+  if (!hwdec.isEmpty() && hwdec != QStringLiteral("no") && !hwdec.endsWith(QStringLiteral("-copy")))
+    return proRefusal(QStringLiteral("VFG 需要软件解码或「复制」方式的硬件解码（设置 → 视频 → 硬件解码），当前是 %1").arg(hwdec));
+
+  // 23.976 and its kin are NTSC rates, n × 1000 / 1001.
+  const bool ntsc = std::abs(fps * 1.001 - std::round(fps * 1.001)) < 0.005;
+  const VfgFiles files = vfgFiles();
+  QJsonObject options{
+    {QStringLiteral("runtime_path"), m_windowsRifeRoot},
+    {QStringLiteral("vfg_runtime_path"), files.runtime},
+    {QStringLiteral("vfg_plugin_path"), files.plugin},
+    {QStringLiteral("mode"), mode},
+    {QStringLiteral("fps_num"), ntsc ? std::round(fps * 1.001) * 1000 : std::round(fps * 1000)},
+    {QStringLiteral("fps_den"), ntsc ? 1001 : 1000},
+    {QStringLiteral("factor"), factor},
+    {QStringLiteral("streaming"), true}};
+  if (!files.debugLog.isEmpty())
+    options.insert(QStringLiteral("debug_log"), files.debugLog);
+  if (m_vfgStatsPath.isEmpty())
+    m_vfgStatsPath = QDir::temp().filePath(QStringLiteral("tigerest-vfg-%1.json").arg(QCoreApplication::applicationPid()));
+  QFile::remove(m_vfgStatsPath);
+  options.insert(QStringLiteral("stats_path"), m_vfgStatsPath);
+  // RIFE leaves the item to it, as it does for any other interpolation filter.
+  if (m_rife && m_rife->ownsFilter())
+    m_rife->bypassCurrentItem(QStringLiteral("external-filter"));
+  if (m_proVfgMode >= 0)
+    m_mpv->commandAsync(remove);
+  const QString filter = QStringLiteral("@tigerest-vfg:vapoursynth=file=") + mpvQuoted(files.script) +
+      QStringLiteral(":buffered-frames=4:concurrent-frames=2:eof-aware=yes:user-data=") +
+      mpvQuoted(QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact)));
+  const uint64_t reply = ProReply | (++m_proRequestSerial & 0xffffff);
+  m_proRequests.insert(reply, QStringLiteral("vfg"));
+  if (!addBeforeRtx([&] { return m_mpv->commandAsync(QStringList{QStringLiteral("vf"), QStringLiteral("add"), filter}, int(reply)) >= 0; }))
+  {
+    m_proRequests.remove(reply);
+    return proRefusal(QStringLiteral("mpv 没有接受这个滤镜"));
+  }
+  m_proVfgMode = mode;
+  m_proVfgFactor = requestedFactor;
+  m_proVfgEffectiveFactor = factor;
+  qInfo() << "Frame generation: mode" << mode << "factor" << factor << "source fps" << fps;
+  return {{QStringLiteral("ok"), true}, {QStringLiteral("factor"), factor}};
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// 设置 → 视频 → NVIDIA RTX 视频超分辨率 and NVIDIA RTX Video HDR, as bits 1 and 2.
+static int rtxSettings()
+{
+  return (SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, "rtxVsr").toBool() ? 1 : 0) |
+         (SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, "rtxHdr").toBool() ? 2 : 0);
+}
+
+void PlayerComponent::readRtxSettings(bool force)
+{
+  const int settings = rtxSettings();
+  if (!force && settings == m_rtxSettings)
+    return;
+  m_rtxSettings = settings;
+  m_rtxVsr = settings & 1;
+  m_rtxHdr = settings & 2;
+}
+
+// The d3d11vpp options for the playing item's picture, and why a choice
+// adds nothing to them.
+QString PlayerComponent::rtxFilterText(QString* vsrReason, QString* hdrReason, double* scale) const
+{
+  vsrReason->clear();
+  hdrReason->clear();
+  *scale = 0;
+  if (!m_rtxVsr && !m_rtxHdr)
+    return {};
+  const int width = m_rangeSource.value(QStringLiteral("w")).toInt();
+  const int height = m_rangeSource.value(QStringLiteral("h")).toInt();
+  // The driver works inside the D3D11 video processor of the native output.
+  const QString waiting = !m_nativeVideoOutput ? QStringLiteral("需要客户端的原生视频输出（D3D11）")
+      : width <= 0 || height <= 0 ? QStringLiteral("视频开始播放后生效") : QString();
+  QStringList options;
+  if (m_rtxVsr)
+  {
+    // Up to the screen's resolution, from the size the picture is shown at
+    // (anamorphic video is wider on screen than stored), at most 4×. The VO
+    // scales the result to the window like any picture.
+    const QScreen* screen = m_window ? m_window->screen() : nullptr;
+    const QSize pixels = screen ? screen->size() * screen->devicePixelRatio() : QSize();
+    const int shownWidth = std::max(width, m_rangeSource.value(QStringLiteral("dw")).toInt());
+    const int shownHeight = std::max(height, m_rangeSource.value(QStringLiteral("dh")).toInt());
+    const double fit = waiting.isEmpty() && !pixels.isEmpty()
+        ? std::min(pixels.width() / double(shownWidth), pixels.height() / double(shownHeight)) : 0;
+    if (!waiting.isEmpty())
+      *vsrReason = waiting;
+    else if (fit < 1.05)
+      *vsrReason = QStringLiteral("视频（%1×%2）不比屏幕（%3×%4）小，不需要放大")
+          .arg(shownWidth).arg(shownHeight).arg(pixels.width()).arg(pixels.height());
+    else
+    {
+      *scale = std::min(fit, 4.0);
+      options << QStringLiteral("scaling-mode=nvidia") << QStringLiteral("scale=%1").arg(*scale, 0, 'f', 4);
+    }
+  }
+  if (m_rtxHdr)
+  {
+    const QString gamma = m_rangeSource.value(QStringLiteral("gamma")).toString();
+    if (!waiting.isEmpty())
+      *hdrReason = waiting;
+    else if (m_mediaHdr || gamma == QStringLiteral("pq") || gamma == QStringLiteral("hlg"))
+      *hdrReason = QStringLiteral("片源本身就是 HDR，不需要转换");
+    else if (m_systemColor != QStringLiteral("hdr"))
+      *hdrReason = QStringLiteral("屏幕没有开着 Windows HDR。打开「设置 → 视频 → 播放 HDR 时自动开启系统 HDR」后，"
+                                  "下一个视频起会自动开启（屏幕需要支持 HDR）");
+    else
+      options << QStringLiteral("nvidia-true-hdr=yes");
+  }
+  return options.isEmpty() ? QString() : QStringLiteral("d3d11vpp=") + options.join(QLatin1Char(':'));
+}
+
+uint64_t PlayerComponent::sendRtxCommand(const QStringList& command)
+{
+  ++m_rtxCommands;
+  const uint64_t reply = RtxReply | (++m_rtxSerial & 0xffffff);
+  m_mpv->commandAsync(command, int(reply));
+  return reply;
+}
+
+void PlayerComponent::updateRtx()
+{
+  if (m_shuttingDown || !m_mpv)
+    return;
+  QString filter = rtxFilterText(&m_rtxVsrReason, &m_rtxHdrReason, &m_rtxScale);
+  if (!filter.isEmpty() && filter == m_rtxRefused)
+  {
+    const QString refused = QStringLiteral("mpv 没有接受 d3d11vpp 滤镜，详情见客户端日志");
+    if (m_rtxVsr && m_rtxVsrReason.isEmpty())
+      m_rtxVsrReason = refused;
+    if (m_rtxHdr && m_rtxHdrReason.isEmpty())
+      m_rtxHdrReason = refused;
+    m_rtxScale = 0;
+    filter.clear();
+  }
+  if (filter == m_rtxFilter)
+    return;
+  if (!m_rtxFilter.isEmpty())
+    sendRtxCommand({QStringLiteral("vf"), QStringLiteral("remove"), QStringLiteral("@tigerest-rtx")});
+  m_rtxFilter = filter;
+  if (!filter.isEmpty())
+    m_rtxAddReply = sendRtxCommand({QStringLiteral("vf"), QStringLiteral("add"), QStringLiteral("@tigerest-rtx:") + filter});
+  QStringList notes;
+  if (m_rtxVsr && !m_rtxVsrReason.isEmpty())
+    notes << QStringLiteral("super resolution: ") + m_rtxVsrReason;
+  if (m_rtxHdr && !m_rtxHdrReason.isEmpty())
+    notes << QStringLiteral("HDR: ") + m_rtxHdrReason;
+  qInfo().noquote() << "RTX video:" << (filter.isEmpty() ? QStringLiteral("off") : filter) << notes.join(QStringLiteral("; "));
+}
+
+// An interpolating filter must never see the RTX filter's output. It would
+// keep frames of that size and HDR tagging in its buffer, and an RTX filter
+// moved behind it gets those as its first input: d3d11vpp then finds HDR
+// full-range YCbCr it cannot write and mpv disables it for the item. So RTX
+// leaves the chain before RIFE or VFG goes in, and returns at its end.
+bool PlayerComponent::addsInterpolation(const QStringList& command)
+{
+  return command.size() >= 3 && command[0] == QLatin1String("vf") && command[1] == QLatin1String("add") &&
+      (command[2].startsWith(QLatin1String("@tigerest-rife:")) || command[2].startsWith(QLatin1String("@tigerest-vfg:")));
+}
+
+bool PlayerComponent::addBeforeRtx(const std::function<bool()>& add)
+{
+  if (m_shuttingDown || !m_mpv || m_rtxFilter.isEmpty())
+    return add();
+  // mpv runs a client's commands in the order they were sent.
+  sendRtxCommand({QStringLiteral("vf"), QStringLiteral("remove"), QStringLiteral("@tigerest-rtx")});
+  const bool added = add();
+  m_rtxAddReply = sendRtxCommand({QStringLiteral("vf"), QStringLiteral("add"), QStringLiteral("@tigerest-rtx:") + m_rtxFilter});
+  return added;
+}
+
+// SVP and other filters added from outside append to the chain. They take
+// frames from memory, and d3d11vpp hands its frames on in video memory, so the
+// RTX filter moves back to the end of the chain. If mpv disabled it (it got
+// frames such a filter had made from its earlier output), it is put back.
+void PlayerComponent::keepRtxLast(const QVariantList& chain)
+{
+  if (m_shuttingDown || !m_mpv || m_rtxCommands > 0)
+    return;
+  int index = -1;
+  bool failed = false;
+  for (int i = 0; i < chain.size(); ++i)
+  {
+    const QVariantMap filter = chain.at(i).toMap();
+    if (filter.value(QStringLiteral("label")).toString() == QStringLiteral("tigerest-rtx"))
+    {
+      index = i;
+      failed = filter.contains(QStringLiteral("enabled")) && !filter.value(QStringLiteral("enabled")).toBool();
+    }
+  }
+  if (m_rtxFilter.isEmpty() ? index < 0 : index == chain.size() - 1 && !failed)
+    return;
+  if (failed && !m_rtxFilter.isEmpty())
+  {
+    // Twice per item at most, after the frames made before the move have
+    // passed; a filter that keeps failing stays off (the panel says so).
+    if (m_rtxRetryPending || m_rtxRetries >= 2)
+      return;
+    ++m_rtxRetries;
+    m_rtxRetryPending = true;
+    qWarning() << "RTX video: mpv disabled the filter, adding it again" << m_rtxFilter;
+    QTimer::singleShot(500, this, [this, generation = m_windowsPlaybackGeneration] {
+      m_rtxRetryPending = false;
+      if (m_shuttingDown || !m_mpv || m_rtxFilter.isEmpty() || generation != m_windowsPlaybackGeneration)
+        return;
+      sendRtxCommand({QStringLiteral("vf"), QStringLiteral("remove"), QStringLiteral("@tigerest-rtx")});
+      m_rtxAddReply = sendRtxCommand({QStringLiteral("vf"), QStringLiteral("add"), QStringLiteral("@tigerest-rtx:") + m_rtxFilter});
+    });
+    return;
+  }
+  // Someone else keeps changing the chain: leave it rather than fight.
+  if (++m_rtxMoves > 20)
+  {
+    if (m_rtxMoves == 21)
+      qWarning() << "RTX video: the filter chain keeps changing, no longer moving the RTX filter to its end";
+    return;
+  }
+  if (index >= 0)
+    sendRtxCommand({QStringLiteral("vf"), QStringLiteral("remove"), QStringLiteral("@tigerest-rtx")});
+  if (!m_rtxFilter.isEmpty())
+    m_rtxAddReply = sendRtxCommand({QStringLiteral("vf"), QStringLiteral("add"), QStringLiteral("@tigerest-rtx:") + m_rtxFilter});
+}
+
+QVariantMap PlayerComponent::proRtxState()
+{
+  const int settings = rtxSettings();
+  // Reasons the driver gave (in mpv's log) count once the filter is in place.
+  const QString vsrReason = !m_rtxVsr ? QString() : !m_rtxVsrReason.isEmpty() ? m_rtxVsrReason : m_rtxDriverVsr;
+  const QString hdrReason = !m_rtxHdr ? QString() : !m_rtxHdrReason.isEmpty() ? m_rtxHdrReason : m_rtxDriverHdr;
+  return {{QStringLiteral("vsr"), m_rtxVsr}, {QStringLiteral("hdr"), m_rtxHdr}, {QStringLiteral("filter"), m_rtxFilter},
+          {QStringLiteral("scale"), m_rtxScale}, {QStringLiteral("vsrReason"), vsrReason}, {QStringLiteral("hdrReason"), hdrReason},
+          {QStringLiteral("settingVsr"), bool(settings & 1)}, {QStringLiteral("settingHdr"), bool(settings & 2)},
+          {QStringLiteral("available"), m_nativeVideoOutput}};
+}
+
+QVariantMap PlayerComponent::proSetRtx(bool vsr, bool hdr)
+{
+  if (m_shuttingDown || !m_mpv)
+    return proRefusal(QStringLiteral("播放器还没有准备好"));
+  m_rtxVsr = vsr;
+  m_rtxHdr = hdr;
+  m_rtxMoves = 0;
+  m_rtxRetries = 0;
+  updateRtx();
+  return {{QStringLiteral("ok"), true}, {QStringLiteral("filter"), m_rtxFilter}};
+}
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////
 QVariantList PlayerComponent::getWebPlaylist() const

@@ -55,6 +55,17 @@ Window
   // path still hides WebEngine while the video item is active.
   property bool nativeVideoVisible: false
   property bool useUoscPlaybackUi: components.settings.value("mpv", "enableUosc")
+  // Professional mode: the page draws tuning panels around its video area and
+  // the native video shrinks into that area. Until the page has reported the
+  // area the video keeps the whole window. The rectangle is in the web view's
+  // own coordinates.
+  property bool proModeActive: false
+  property rect proVideoRect: Qt.rect(0, 0, 0, 0)
+  readonly property bool proLayout: proModeActive && nativeVideoVisible && video.nativeGpuNext &&
+                                    useUoscPlaybackUi && proVideoRect.width > 0 && proVideoRect.height > 0
+  // The page's editing keys while it takes input; beside the video in
+  // professional mode, only while the page itself has the keyboard.
+  readonly property bool webShortcuts: web.enabled && (!proLayout || web.activeFocus)
 
   property bool showSystemTrayIcon: webDesktopMode && components.system.isWindows &&
                                     components.settings.windowsTrayIcon
@@ -175,7 +186,7 @@ Window
   // reached uosc's search box and mpv saw the key release alone.
   Action
   {
-    enabled: web.enabled
+    enabled: mainWindow.webShortcuts
     shortcut: StandardKey.Copy
     onTriggered: runWebAction(WebEngineView.Copy)
     id: action_copy
@@ -183,7 +194,7 @@ Window
 
   Action
   {
-    enabled: web.enabled
+    enabled: mainWindow.webShortcuts
     shortcut: StandardKey.Cut
     onTriggered: runWebAction(WebEngineView.Cut)
     id: action_cut
@@ -191,7 +202,7 @@ Window
 
   Action
   {
-    enabled: web.enabled
+    enabled: mainWindow.webShortcuts
     shortcut: StandardKey.Paste
     onTriggered: runWebAction(WebEngineView.Paste)
     id: action_paste
@@ -199,7 +210,7 @@ Window
 
   Action
   {
-    enabled: web.enabled
+    enabled: mainWindow.webShortcuts
     shortcut: StandardKey.SelectAll
     onTriggered: runWebAction(WebEngineView.SelectAll)
     id: action_selectall
@@ -207,7 +218,7 @@ Window
 
   Action
   {
-    enabled: web.enabled
+    enabled: mainWindow.webShortcuts
     shortcut: StandardKey.Undo
     onTriggered: runWebAction(WebEngineView.Undo)
     id: action_undo
@@ -215,7 +226,7 @@ Window
 
   Action
   {
-    enabled: web.enabled
+    enabled: mainWindow.webShortcuts
     shortcut: StandardKey.Redo
     onTriggered: runWebAction(WebEngineView.Redo)
     id: action_redo
@@ -223,7 +234,7 @@ Window
 
   Action
   {
-    enabled: web.enabled
+    enabled: mainWindow.webShortcuts
     shortcut: StandardKey.Back
     onTriggered: runWebAction(WebEngineView.Back)
     id: action_back
@@ -231,7 +242,7 @@ Window
 
   Action
   {
-    enabled: web.enabled
+    enabled: mainWindow.webShortcuts
     shortcut: StandardKey.Forward
     onTriggered: runWebAction(WebEngineView.Forward)
     id: action_forward
@@ -279,6 +290,28 @@ Window
         web.forceActiveFocus()
       }
     }
+    function onProLayoutChanged(active, x, y, w, h)
+    {
+      // The page reports CSS pixels. Its zoom factor has no change signal to
+      // bind to; a zoom change resizes the page's video area, which reports again.
+      const zoom = web.zoomFactor
+      mainWindow.proVideoRect = Qt.rect(x * zoom, y * zoom, w * zoom, h * zoom)
+      mainWindow.proModeActive = active
+      // Leaving the mode while the page had the keyboard: uosc owns input again.
+      if (!active && mainWindow.nativeVideoVisible && mainWindow.useUoscPlaybackUi)
+        video.focusNativeHost()
+    }
+    function onProFocusRequested(toVideo)
+    {
+      if (!mainWindow.proLayout)
+        return
+      if (toVideo) {
+        video.focusNativeHost()
+      } else {
+        mainWindow.requestActivate()
+        web.forceActiveFocus()
+      }
+    }
   }
 
   MpvVideoItem
@@ -297,15 +330,26 @@ Window
         components.window.setFullScreen(fullscreen)
     }
 
+    // The page's video area in scene coordinates (professional mode).
+    readonly property real proLeft: web.x + mainWindow.proVideoRect.x
+    readonly property real proTop: web.y + mainWindow.proVideoRect.y
+    readonly property real proRight: proLeft + mainWindow.proVideoRect.width
+    readonly property real proBottom: proTop + mainWindow.proVideoRect.height
+
     // Keep native GPU-Next's child HWND clear of the QML resize handles.
     width: mainWindow.contentItem.width - windowChrome.resizeInset * 2
-    height: mainWindow.contentItem.height - mainWindow.chromeHeight - windowChrome.resizeInset
+    height: mainWindow.proLayout
+            ? Math.max(1, Math.min(proBottom, mainWindow.contentItem.height - windowChrome.resizeInset) -
+                          Math.max(proTop, mainWindow.chromeHeight))
+            : mainWindow.contentItem.height - mainWindow.chromeHeight - windowChrome.resizeInset
     anchors.left: mainWindow.contentItem.left
     anchors.right: mainWindow.contentItem.right
-    anchors.leftMargin: windowChrome.resizeInset
-    anchors.rightMargin: windowChrome.resizeInset
+    anchors.leftMargin: mainWindow.proLayout ? Math.max(proLeft, windowChrome.resizeInset) : windowChrome.resizeInset
+    anchors.rightMargin: mainWindow.proLayout
+                         ? Math.max(mainWindow.contentItem.width - proRight, windowChrome.resizeInset)
+                         : windowChrome.resizeInset
     anchors.top: mainWindow.contentItem.top
-    anchors.topMargin: mainWindow.chromeHeight
+    anchors.topMargin: mainWindow.proLayout ? Math.max(proTop, mainWindow.chromeHeight) : mainWindow.chromeHeight
 
     Component.onCompleted: {
       console.log("MpvVideoItem size:", width, "x", height, "visible:", visible)
@@ -323,7 +367,7 @@ Window
     height: mainWindow.height - mainWindow.chromeHeight
     z: 100
     visible: video.nativeGpuNext || !mainWindow.nativeVideoVisible || !mainWindow.useUoscPlaybackUi
-    enabled: !mainWindow.nativeVideoVisible || !mainWindow.useUoscPlaybackUi
+    enabled: !mainWindow.nativeVideoVisible || !mainWindow.useUoscPlaybackUi || mainWindow.proLayout
     backgroundColor: "transparent"
 
     webChannel: webChannelObject

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "package": "nvidia-vfx",
+  "version": "0.2.0.0",
+  "binarySource": "NVIDIA Video Effects SDK runtime from NVIDIA's nvidia-vfx wheel, unmodified",
+  "index": "https://pypi.nvidia.com/nvidia-vfx/",
+  "wheel": {
+    "file": "nvidia_vfx-0.2.0.0-cp312-abi3-win_amd64.whl",
+    "url": "https://pypi.nvidia.com/nvidia-vfx/nvidia_vfx-0.2.0.0-cp312-abi3-win_amd64.whl",
+    "size": 435807359,
+    "sha256": "cebaa12411f7e22b39293205c5c4d07b8073d14ca1e0e7727ee4375207a36445"
+  },
+  "hashOrigin": "Wheel SHA-256 published by NVIDIA's package index; member hashes from the wheel's RECORD, checked against these files on 2026-11-18",
+  "license": "LicenseRef-NvidiaProprietary: NVIDIA Software License Agreement and product-specific terms (the license files below)",
+  "requirements": "Frame generation: NVIDIA GeForce RTX 40 or 50 series (CUDA compute capability 8.9 or newer), driver 570.65 or newer",
+  "runtime": {
+    "NVVideoEffects.dll": {
+      "member": "nvvfx/libs/NVVideoEffects.dll",
+      "size": 104560,
+      "sha256": "c6b042fc57bdb6bea88c9c52cb951582377d3f1643acf52a52d197195a1ea8f4"
+    },
+    "NVCVImage.dll": {
+      "member": "nvvfx/libs/NVCVImage.dll",
+      "size": 2694256,
+      "sha256": "689a64586c804468127647b7ed24acc36a9a9780502ffe95ad11aa4fe3286a39"
+    },
+    "nvVFXVideoFrameGeneration.dll": {
+      "member": "nvvfx/libs/nvVFXVideoFrameGeneration.dll",
+      "size": 207321712,
+      "sha256": "270cf4fff9329908f9770d306cb51b910ee04323af5520cd02a98a2e22aba795"
+    },
+    "cudart64_12.dll": {
+      "member": "nvvfx/libs/cudart64_12.dll",
+      "size": 584304,
+      "sha256": "663b5fe65aa6c654b8b085a879f49deb19f2cb033b8f2ff8dffd06cdefe0d1db"
+    },
+    "nvngxruntime.dll": {
+      "member": "nvvfx/libs/nvngxruntime.dll",
+      "size": 83568,
+      "sha256": "d2dbd1993000a2eed2c7ad8cd417ffc738ea180003daacf190e737121869d637"
+    }
+  },
+  "licenses": {
+    "NVIDIA-Software-License-Agreement-2025.05.05.pdf": {
+      "member": "nvidia_vfx-0.2.0.0.dist-info/licenses/packaging/NVIDIA-Software-License-Agreement-2025.05.05.pdf",
+      "size": 186823,
+      "sha256": "887d7381eed7cd2e6d9fbfa9c9bbda4e32df20bf506cff79dc5c8dae20ccc531"
+    },
+    "product-specific-terms-for-nvidia-ai-products-2025.05.05.pdf": {
+      "member": "nvidia_vfx-0.2.0.0.dist-info/licenses/packaging/product-specific-terms-for-nvidia-ai-products-2025.05.05.pdf",
+      "size": 66627,
+      "sha256": "5c755ab1145deb6ce422c2d376f4c3adb55da9f6f2492f35e6d4759e7e3e5499"
+    },
+    "NVIDIA-Open-Model-License-Agreements-24-10-2025.pdf": {
+      "member": "nvidia_vfx-0.2.0.0.dist-info/licenses/packaging/NVIDIA-Open-Model-License-Agreements-24-10-2025.pdf",
+      "size": 79005,
+      "sha256": "4d2fb590aa9b30c47f2058bff17291df7fa2aa0c1bd775a20703da9bb267cfab"
+    },
+    "THIRD_PARTY.md": {
+      "member": "nvidia_vfx-0.2.0.0.dist-info/licenses/packaging/THIRD_PARTY.md",
+      "size": 13449,
+      "sha256": "079c2cec811e34bbe321cd66578c7f1092c68550a5d0bfc5edd96f02e8fe68b8"
+    },
+    "ThirdPartyLicenses_VFX_SDK.txt": {
+      "member": "nvidia_vfx-0.2.0.0.dist-info/licenses/packaging/ThirdPartyLicenses_VFX_SDK.txt",
+      "size": 1383377,
+      "sha256": "207b323c79c8d73a1570378597b77dd6ce15d05d0391d9c4d1aef628490bbe70"
+    }
+  }
+}

@@ -286,6 +286,7 @@ if(WIN32 AND Python3_Interpreter_FOUND)
   set_tests_properties(test_installer_handoff PROPERTIES TIMEOUT 300
     ENVIRONMENT "INSTALLER_HANDOFF_HOST=$<TARGET_FILE:installer_handoff_host>;ISCC=${TIGEREST_TEST_ISCC}")
   add_test(NAME test_openssl_runtime_deployment COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${CMAKE_CURRENT_SOURCE_DIR}/test_openssl_runtime_deployment.py")
+  add_test(NAME test_nvidia_vfx_deployment COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${CMAKE_CURRENT_SOURCE_DIR}/test_nvidia_vfx_deployment.py")
   add_executable(rife_extension_manager_host rife_extension_manager_host.cpp)
   target_link_libraries(rife_extension_manager_host PRIVATE tigerest_rife_control)
   add_test(NAME test_rife_extension_manager COMMAND "${Python3_EXECUTABLE}" -B -X utf8
@@ -673,19 +674,9 @@ if(Node_EXECUTABLE)
              COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_playback_exit.cjs
                      $<TARGET_FILE:${MAIN_TARGET}> --webengine)
     set_tests_properties(test_playback_exit_webengine PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
-    add_test(NAME test_slow_subtitle_start_webengine
-             COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_slow_subtitle_start.cjs
-                     $<TARGET_FILE:${MAIN_TARGET}> --webengine)
-    set_tests_properties(test_slow_subtitle_start_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
-    add_test(NAME test_intro_skip_webengine
-             COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_intro_skip.cjs
-                     $<TARGET_FILE:${MAIN_TARGET}> --webengine)
-    set_tests_properties(test_intro_skip_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
   endif()
-  if(APPLE)
-    # Real playback in a visible window. The first was written and run on the
-    # Mac and has not been run on Windows, so it is not registered there yet;
-    # the other two are the Windows checks above.
+  if(WIN32 OR APPLE)
+    # Real playback in a visible window, on both desktop clients.
     add_test(NAME test_seek_restart_signal_webengine
              COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_seek_restart_signal.cjs
                      $<TARGET_FILE:${MAIN_TARGET}> --webengine)
@@ -698,6 +689,14 @@ if(Node_EXECUTABLE)
              COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_intro_skip.cjs
                      $<TARGET_FILE:${MAIN_TARGET}> --webengine)
     set_tests_properties(test_intro_skip_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+  endif()
+  if(WIN32)
+    # Professional mode needs the embedded gpu-next window: real playback in
+    # a visible window.
+    add_test(NAME test_pro_mode_webengine
+             COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_pro_mode.cjs
+                     $<TARGET_FILE:${MAIN_TARGET}> --webengine)
+    set_tests_properties(test_pro_mode_webengine PROPERTIES TIMEOUT 150 RUN_SERIAL TRUE)
   endif()
   add_test(NAME test_community_client
            COMMAND ${Node_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test_community_client.js

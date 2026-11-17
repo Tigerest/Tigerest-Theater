@@ -1423,7 +1423,7 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
             rifeExtensionPanel?.refreshPreferences();
         }
         showSaved(restartSettings.has(`${section}.${key}`) ? '已保存；此项将在重启后生效。'
-            : section === 'video' && key.startsWith('aiRife') ? '已保存；重新打开视频后生效。' : '已保存并应用。');
+            : section === 'video' && (key.startsWith('aiRife') || key.startsWith('vfg')) ? '已保存；重新打开视频后生效。' : '已保存并应用。');
     };
 
     let rifeCallout = null;
@@ -1485,7 +1485,16 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
                 item.selected = option.value == currentValue;
                 select.appendChild(item);
             });
+            // A value from elsewhere (a font picked in professional mode) is shown as it is.
+            if (currentValue !== undefined && currentValue !== null && !setting.options.some(option => option.value == currentValue)) {
+                const item = element('option', '', `当前：${currentValue}`);
+                item.value = '';
+                item.selected = true;
+                item.disabled = true;
+                select.appendChild(item);
+            }
             select.addEventListener('change', () => {
+                if (select.value === '') return;
                 saveSetting(section, key, setting.options[Number(select.value)].value);
             });
             if (section === 'video') settingControls.set(key, {select, options: setting.options});
@@ -1613,6 +1622,9 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
         const values = jmpInfo.settings[section];
         for (const setting of jmpInfo.settingsDescriptions[section]) {
             if (section === 'mpv' && desktopMpvEditor && editorMpvSettings.has(setting.key)) continue;
+            // Frame generation needs its plugin, script and NVIDIA's runtime next to the
+            // program; a build without them does not offer it.
+            if (section === 'video' && setting.key.startsWith('vfg') && !mpvDiagnostics.vfg?.configured) continue;
             const row = element('div', 'tgs-setting');
             row.dataset.setting = `${section}.${setting.key}`;
             row.dataset.search = `${meta.title} ${setting.displayName || setting.key} ${setting.key} ${setting.help || ''}`.toLowerCase();
@@ -1635,6 +1647,10 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
                 input?.setAttribute('aria-describedby', help.id);
                 row.appendChild(help);
             }
+            if (section === 'video' && setting.key === 'vfg' && mpvDiagnostics.vfg.gpuSupported === false)
+                row.appendChild(element('div', 'tgs-help', `当前不可用：VFG 需要 RTX 40 或 RTX 50 系显卡（这块显卡的 CUDA 算力是 ${mpvDiagnostics.vfg.computeCapability}）。`));
+            else if (section === 'video' && setting.key === 'vfg' && !mpvDiagnostics.vfg.runtime)
+                row.appendChild(element('div', 'tgs-help', '当前不可用：VFG 借用 RIFE 扩展里的运行库，请先安装 RIFE 扩展并重启客户端。'));
             group.appendChild(row);
         }
 

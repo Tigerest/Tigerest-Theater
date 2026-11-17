@@ -8,6 +8,7 @@
 #include <QSet>
 #include <QStandardPaths>
 
+#include <algorithm>
 #include <functional>
 
 namespace MpvConf
@@ -1122,6 +1123,22 @@ QString insertLines(const QString& user, int afterLine, const QStringList& lines
   const int at = qBound(0, afterLine, int(output.size()));
   for (int i = 0; i < lines.size(); ++i)
     output.insert(at + i, lines[i]);
+  return joinLines(output);
+}
+
+QString removeLines(const QString& user, const QList<int>& numbers)
+{
+  QStringList output = splitLines(user);
+  QList<int> sorted = numbers;
+  std::sort(sorted.begin(), sorted.end(), std::greater<int>());
+  int previous = 0;
+  for (const int number : sorted)
+  {
+    if (number == previous || number < 1 || number > output.size())
+      continue;
+    previous = number;
+    output.removeAt(number - 1);
+  }
   return joinLines(output);
 }
 

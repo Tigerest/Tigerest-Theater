@@ -337,6 +337,14 @@
         "platforms": [ "windows" ]
       },
       {
+        "value": "iccProfile",
+        "display_name": "显示器 ICC 色彩配置",
+        "help": "播放时是否让 mpv 读取显示器的 ICC 配置文件来校正颜色。「自动」：读取；但系统已经在为这块屏幕管理色彩时不读——Windows 开着 HDR（合成画面时已经套用屏幕的 HDR 校准配置），或开着「自动管理应用的颜色」。这时再校正一次，颜色反而不对。「始终使用」和「不使用」不看系统状态。专业模式（F2）的「色彩」页里可以边看边切换。",
+        "default": "auto",
+        "platforms": [ "windows", "osx" ],
+        "possible_values": [["auto", "自动（推荐）"], ["on", "始终使用"], ["off", "不使用"]]
+      },
+      {
         "value": "refreshrate.delay",
         "default": 3,
         "hidden": true
@@ -368,6 +376,36 @@
         "default": 60,
         "platforms": "windows",
         "input_type": "number"
+      },
+      {
+        "value": "vfg",
+        "display_name": "NVIDIA 帧生成（VFG）",
+        "help": "用 NVIDIA 的帧生成模型（Video Effects SDK）补帧，开启后由它代替 RIFE 处理视频；输出倍数见下一项。档位越高画质越好、显卡开销越大。需要 RTX 40 或 50 系显卡（驱动 570.65 或更新）、已安装的 RIFE 扩展（借用其中的 VapourSynth 运行库），以及「硬解后复制回显」或软件解码。重新打开视频后生效，也可以在播放时用专业模式（F2）切换。NVIDIA 的运行库随客户端安装，按 NVIDIA 的许可条款使用（安装目录下 licenses\\nvidia-vfx）。",
+        "default": "off",
+        "platforms": "windows",
+        "possible_values": [["off", "关闭"], ["low", "低"], ["medium", "中"], ["high", "高"]]
+      },
+      {
+        "value": "vfgFactor",
+        "display_name": "VFG 倍数",
+        "help": "输出帧率是源帧率的多少倍，0.5 倍一档。「自动」按「RIFE 目标帧率」选最接近的一档，最多 5×（23.976 fps、目标 60 时是 2.5×）。倍数越高，每秒要生成的帧越多。重新打开视频后生效。",
+        "default": "auto",
+        "platforms": "windows",
+        "possible_values": [["auto", "自动（按 RIFE 目标帧率）"], ["1.5", "1.5×"], ["2", "2×"], ["2.5", "2.5×"], ["3", "3×"], ["3.5", "3.5×"], ["4", "4×"], ["4.5", "4.5×"], ["5", "5×"]]
+      },
+      {
+        "value": "rtxVsr",
+        "display_name": "NVIDIA RTX 视频超分辨率（VSR）",
+        "help": "由显卡驱动把画面放大到屏幕分辨率（视频比屏幕小时才起作用，最多 4 倍），代替播放器自己的放大算法，档位里的放大着色器随之不再起作用。和补帧可以同时开，放大在补帧之后进行。需要 RTX 20 系或更新的 NVIDIA 显卡；开了画面却没有变化时，请在 NVIDIA App 的「系统 → 视频 → RTX 视频增强」（或 NVIDIA 控制面板的「调整视频图像设置」）里打开「超分辨率」，质量档位也在那里调。播放中改动立即生效，也可以在专业模式（F2）的「画质」页切换。",
+        "default": false,
+        "platforms": "windows"
+      },
+      {
+        "value": "rtxHdr",
+        "display_name": "NVIDIA RTX Video HDR",
+        "help": "由显卡驱动把 SDR 视频实时转换成 HDR，HDR 片源不受影响。需要屏幕开着 Windows HDR：同时开着「播放 HDR 时自动开启系统 HDR」时，播放 SDR 视频也会自动开启 Windows HDR，播放结束后恢复（从下一个视频起）。需要 RTX 20 系或更新的 NVIDIA 显卡；开了画面却没有变化时，请在 NVIDIA App 的「系统 → 视频 → RTX 视频增强」（或 NVIDIA 控制面板的「调整视频图像设置」）里打开「HDR」。播放中改动立即生效，也可以在专业模式（F2）的「画质」页切换。",
+        "default": false,
+        "platforms": "windows"
       },
       {
         "value": "hardwareDecoding",
@@ -565,6 +603,13 @@
           [ "scale", "仅额外覆盖缩放" ],
           [ "strip", "移除 ASS 样式与标签" ]
         ]
+      },
+      {
+        "value": "vertical_position",
+        "display_name": "字幕垂直位置（%）",
+        "help": "0–150 的整数：100 贴着画面底部，数值越小越靠上；-1 表示按下面的「字幕位置」。专业模式里拖动「字幕垂直位置」并保存，写入的就是这一项。",
+        "default": -1,
+        "input_type": "number"
       },
       {
         "value": "placement",

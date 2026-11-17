@@ -1,0 +1,24 @@
+Tigerest Theater: NVIDIA Video Effects runtime for frame generation
+
+The DLLs in vfg\nvidia are unmodified files from NVIDIA's nvidia-vfx 0.2.0.0
+package for Windows x64 (NVIDIA Video Effects SDK runtime):
+
+  NVVideoEffects.dll, NVCVImage.dll, nvVFXVideoFrameGeneration.dll,
+  cudart64_12.dll, nvngxruntime.dll
+
+They are Copyright NVIDIA Corporation and are distributed under NVIDIA's
+license terms, not under Tigerest Theater's license. The terms that came with
+the package are included in this folder:
+
+  NVIDIA-Software-License-Agreement-2025.05.05.pdf
+  product-specific-terms-for-nvidia-ai-products-2025.05.05.pdf
+  NVIDIA-Open-Model-License-Agreements-24-10-2025.pdf
+  THIRD_PARTY.md, ThirdPartyLicenses_VFX_SDK.txt
+
+Tigerest Theater loads these files only for NVIDIA frame generation (VFG), on
+NVIDIA GeForce RTX 40 or 50 series graphics cards. Deleting the vfg\nvidia
+folder disables that feature and nothing else.
+
+The package's SHA-256, its download address on NVIDIA's package index and the
+hash of every file are recorded in runtime-lock.json.
+https://pypi.nvidia.com/nvidia-vfx/

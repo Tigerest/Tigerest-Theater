@@ -24,6 +24,7 @@ namespace rife {class FrameInterpolationController;class MpvPollAccess;}
 namespace rife {class RifeRuntimeManager;class RifePlaybackCoordinator;class RifeExtensionManager;}
 class QFileDialog;
 class WindowsHdrSwitch;
+class SystemLoad;
 #endif
 
 #include "ComponentManager.h"
@@ -84,6 +85,12 @@ public:
   Q_INVOKABLE void clearQueue();
 
   Q_INVOKABLE virtual void seekTo(qint64 ms);
+  // Seeks to a keyframe: the first one at or after ms, or the one before it.
+  // With frame interpolation its frame is there in a quarter of a second; a
+  // seek to the millisecond decodes the whole run up to it (0.85 s per second
+  // of distance from the keyframe, measured with TensorRT RIFE). The landing
+  // position is reported by keyframeSeekLanded.
+  Q_INVOKABLE void seekToKeyframe(qint64 ms, bool after);
 
   // Stop playback and clear all queued items.
   Q_INVOKABLE virtual void stop();
@@ -198,6 +205,71 @@ public:
   // and auto for skipping without the button. Anything else clears it, as
   // does loading an item.
   Q_INVOKABLE void setIntroSkip(const QVariantMap& intro);
+  // A watch-together room times every start: all members begin at the same
+  // instant. While playback follows one, a resume plays at once and is not
+  // held to refill the interpolation graph (Windows). The page sets it for
+  // the item that follows the room and clears it when that playback stops.
+  Q_INVOKABLE void setRoomTimeline(bool active);
+
+  // Professional mode (Windows, embedded gpu-next with uosc). The video
+  // shrinks to the rectangle the page reports, and the page shows tuning
+  // panels and live statistics in the space around it. Every change goes to
+  // the running player without waiting for it; mpv.conf is written only by
+  // mpvConfSave.
+  Q_INVOKABLE bool proModeAvailable() const;
+  Q_INVOKABLE bool proModeActive() const { return m_proMode; }
+  Q_INVOKABLE void setProMode(bool active);
+  // The page's video area, in the page's CSS pixels.
+  Q_INVOKABLE void setProVideoRect(int x, int y, int w, int h);
+  // Gives the keyboard to the video (mpv and uosc) or to the page.
+  Q_INVOKABLE void proFocus(bool video);
+  // mpv properties whose values the page mirrors while the mode is active.
+  Q_INVOKABLE void proWatch(const QStringList& properties);
+  // Sets one option the user area of mpv.conf may hold, or one of the
+  // values the playback interface adjusts (volume, mute, the two delays).
+  // Returns {ok, error}; a value mpv rejects later arrives as proSetFailed.
+  Q_INVOKABLE QVariantMap proSet(const QString& key, const QString& value);
+  // Replaces the shader chain, in order. Paths are "~~/shaders/...".
+  Q_INVOKABLE QVariantMap proSetShaders(const QStringList& shaders);
+  Q_INVOKABLE bool proApplyProfile(const QString& profile);
+  Q_INVOKABLE void proTogglePause();
+#ifdef Q_OS_WIN
+  // NVIDIA Video Frame Generation: a VapourSynth plugin, its script and
+  // NVIDIA's runtime installed in vfg/ next to the program ("vfg-test.json"
+  // in the data directory can name others for development, see vfgFiles()).
+  // It runs as a vapoursynth filter of its own on the private runtime of the
+  // RIFE extension and takes RIFE's place for the playing item. Returns
+  // {configured, available, reason, mode, factor, effectiveFactor, runtime,
+  // setting, settingFactor, computeCapability, gpuSupported}; mode -1 is off,
+  // a factor of 0 follows the RIFE target frame rate, gpuSupported is null
+  // until the RIFE extension's probe has named the GPU.
+  Q_INVOKABLE QVariantMap proVfgState();
+  // -1 turns it off; 0, 1 and 2 are NVIDIA's low, medium and high modes.
+  // factor is the output rate as a multiple of the source rate in steps of
+  // 0.5 from 1.5 to 5; 0 chooses the one nearest the RIFE target frame rate.
+  Q_INVOKABLE QVariantMap proSetVfg(int mode, double factor);
+  // NVIDIA RTX Video Super Resolution and RTX Video HDR (设置 → 视频), done
+  // by the graphics driver inside mpv's d3d11vpp filter "@tigerest-rtx" at the
+  // end of the filter chain. Super resolution scales the picture up to the
+  // screen's resolution; RTX Video HDR turns an SDR source into HDR while
+  // Windows HDR is on. Returns {vsr, hdr, filter, scale, vsrReason, hdrReason,
+  // settingVsr, settingHdr, available}: the choices for the playing item, the
+  // filter they give, why a choice does nothing for it, and the settings.
+  Q_INVOKABLE QVariantMap proRtxState();
+  // Changes the choices for the playing item without saving them.
+  Q_INVOKABLE QVariantMap proSetRtx(bool vsr, bool hdr);
+#endif
+  // Font families installed on this computer, for the subtitle font picker.
+  Q_INVOKABLE QStringList proFontFamilies();
+  // Whether mpv reads the display's ICC profile (设置 → 视频 → 显示器 ICC 色彩
+  // 配置): {setting, managed, overridden}. "auto" reads it unless the system
+  // already manages colour on the window's display; `managed` says how
+  // ("hdr": Windows HDR, whose compositor applies the HDR calibration
+  // profile; "acm": Windows Auto Color Management; "edr": an EDR display on
+  // macOS), `overridden` that advanced overrides leave the option to mpv.conf.
+  Q_INVOKABLE QVariantMap proIccState();
+  // Applies "auto", "on" or "off" to the playing item without saving it.
+  Q_INVOKABLE QVariantMap proSetIcc(const QString& mode);
 
   QRect videoRectangle() { return m_videoRectangle; }
 
@@ -284,8 +356,25 @@ Q_SIGNALS:
   // reads as the target long before that, so the watch-together sync waits
   // for this before it starts a held player.
   void seekingChanged(bool seeking);
+  // The frame of a seekToKeyframe is shown: where it is, in milliseconds.
+  // Sent before seekingChanged(false) of that seek, and never for the restart
+  // of a seek that was still running when seekToKeyframe was called.
+  void keyframeSeekLanded(qint64 ms);
 
   void onVideoRecangleChanged();
+
+  void proModeChanged(bool active);
+  // For the window: whether the mode is on and the page's video area.
+  void proLayoutChanged(bool active, int x, int y, int w, int h);
+  void proFocusRequested(bool video);
+  // Published by plugins/tigerest_pro.lua twice a second while the mode is on.
+  void proStats(const QVariantMap& stats);
+  // The watched properties, whenever one of them changes.
+  void proOptions(const QVariantMap& options);
+  void proSetFailed(const QString& key, const QString& message);
+  // Once a second while the mode is on: processor and graphics-card load
+  // (see SystemLoad) and, as "rife", the frame interpolation's diagnostics.
+  void proLoad(const QVariantMap& load);
 
   void onMpvEvents();
 #ifdef Q_OS_WIN
@@ -473,6 +562,10 @@ private:
   bool m_nativeVideoReady = false;
   bool m_seeking = false;
   void setSeeking(bool seeking);
+  bool m_roomTimeline = false;
+  // mpv has taken the seek of seekToKeyframe; it has started that seek.
+  enum class KeyframeSeek { None, Sent, Running };
+  KeyframeSeek m_keyframeSeek = KeyframeSeek::None;
   QVariantMap m_decodedVideoParams;
   // Playback-start notice of HDR/SDR output; the same rules and wording as
   // apple/Core/Sources/AppleCore/DynamicRangeSummary.swift.
@@ -538,8 +631,61 @@ private:
   };
   QHash<uint32_t, ProfileApplication> m_profileApplications;
   QHash<uint64_t, ProfileRequest> m_profileRequests;
+  // Options a profile switch puts back to mpv's default, awaiting that default.
+  QHash<uint64_t, QString> m_profileResets;
   uint32_t m_profileBatchSerial = 0;
   uint32_t m_profileRequestSerial = 0;
+  bool m_proMode = false;
+  // Who manages colour on the window's display, as of the last load.
+  QString m_systemColor;
+  bool iccWanted(const QString& mode) const;
+  // The setting's choice for mpv's icc-profile-auto; nothing with advanced overrides.
+  void applyIccSetting(bool wait);
+  uint32_t m_proStatsSeen = 0;
+  QRect m_proVideoRect;
+  bool m_videoOnlyMode = false;
+  void updateWebVisibility();
+#ifdef Q_OS_WIN
+  class SystemLoad* m_proLoadSampler = nullptr;
+  int m_proVfgMode = -1;
+  // The factor asked for (0 follows the target frame rate) and the one in use.
+  double m_proVfgFactor = 0;
+  double m_proVfgEffectiveFactor = 0;
+  // The script writes its counters here twice a second.
+  QString m_vfgStatsPath;
+  void startConfiguredVfg();
+  bool m_vfgStartPending = false;
+  // Why frame generation cannot run (files, RIFE runtime, GPU), empty if it can.
+  QString vfgUnavailable() const;
+  QString vfgComputeCapability() const;
+  // RTX video (proRtxState): the choices for the playing item, the settings
+  // they were read from (bits 1 and 2, -1 before the first read), the filter
+  // text in the chain ("" for none) and why a choice adds nothing.
+  bool m_rtxVsr = false, m_rtxHdr = false;
+  int m_rtxSettings = -1;
+  QString m_rtxFilter, m_rtxVsrReason, m_rtxHdrReason;
+  double m_rtxScale = 0;
+  // A filter text mpv refused for this item, and what the driver turned down.
+  QString m_rtxRefused, m_rtxDriverVsr, m_rtxDriverHdr;
+  // Filter commands in flight, the last add's reply id, moves for this item,
+  // and how often a filter mpv disabled was put back.
+  int m_rtxCommands = 0, m_rtxMoves = 0, m_rtxRetries = 0;
+  bool m_rtxRetryPending = false;
+  uint32_t m_rtxSerial = 0;
+  uint64_t m_rtxAddReply = 0;
+  void readRtxSettings(bool force);
+  QString rtxFilterText(QString* vsrReason, QString* hdrReason, double* scale) const;
+  uint64_t sendRtxCommand(const QStringList& command);
+  void updateRtx();
+  void keepRtxLast(const QVariantList& chain);
+  // Runs add (a "vf add" of RIFE or VFG) with the RTX filter taken off the
+  // chain, then puts that back at the end. Returns what add returned.
+  bool addBeforeRtx(const std::function<bool()>& add);
+  static bool addsInterpolation(const QStringList& command);
+#endif
+  // Requests of proSet and proSetShaders awaiting mpv's answer, by reply id.
+  QHash<uint64_t, QString> m_proRequests;
+  uint32_t m_proRequestSerial = 0;
   QRect m_videoRectangle;
   QStringList m_baseHttpHeaders;
 

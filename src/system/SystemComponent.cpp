@@ -1191,6 +1191,7 @@ QString SystemComponent::getNativeShellScript()
     ":/web-client/extension/serverHistory.js",
     ":/web-client/extension/mpvConfEditor.js",
     ":/web-client/extension/nativeshell.js",
+    ":/web-client/extension/proMode.js",
     ":/web-client/extension/offline.js",
     ":/web-client/extension/localPlayer.js",
     ":/web-client/extension/homeData.js",

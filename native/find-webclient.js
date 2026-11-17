@@ -12,11 +12,23 @@ let mode = '';
 const explicitChoice = /(?:^|[?&])choose=1(?:&|$)/.test(window.location.search || '');
 let editingAddress = false;
 let committingSelection = false;
+// Clients that play local files (Windows and the Mac) open on a screen asking
+// how the client will be used; the others go straight to the servers.
+let usageAvailable = false;
 // Remembered servers (native/serverHistory.js): the card being connected, the
 // card whose address is being edited, and per-card connection errors.
 let listConnecting = null;
 let replacingKey = null;
 const cardErrors = new Map();
+
+// One screen shows at a time; none before the native API tells which is first.
+const screens = {usage: 'usage-choice', local: 'local-choice', servers: 'server-choice', form: 'connect-form'};
+function showScreen(name) {
+    for (const [screen, id] of Object.entries(screens)) el(id).hidden = screen !== name;
+    // The links under the page belong to the server screens; the local screen
+    // has its own buttons.
+    el('client-actions').hidden = !['servers', 'form'].includes(name);
+}
 
 function cancelServerSwitch() {
     if (committingSelection) return;
@@ -86,8 +98,7 @@ function setConnecting(active) {
 }
 
 function showManualConnection(address = '', error = '') {
-    el('server-choice').hidden = true;
-    el('connect-form').hidden = false;
+    showScreen('form');
     el('title').textContent = mode === 'custom' ? '连接自建 Emby / Jellyfin 服务器' : '连接大河专属 EMBY';
     el('address').value = address;
     el('connection-error').textContent = error;
@@ -109,10 +120,18 @@ function showChoices() {
     if (committingSelection) return;
     cancelConnection();
     replacingKey = null;
-    el('server-choice').hidden = false;
-    el('connect-form').hidden = true;
+    showScreen('servers');
     el('choice-description').textContent = '请选择你要连接的服务器。';
     renderSavedServers();
+}
+
+// The first screen. Leaving the servers drops a connection still pending,
+// like any other choice.
+function showUsage() {
+    if (committingSelection) return;
+    cancelConnection();
+    replacingKey = null;
+    showScreen('usage');
 }
 
 function savedMode(address) {
@@ -306,6 +325,13 @@ el('address').addEventListener('input', () => {
     if (!isConnecting) el('connect-button').disabled = !el('address').value.trim();
 });
 el('back-button').addEventListener('click', showChoices);
+// A screen the user opens takes the focus on its heading, so the keyboard
+// continues from that screen instead of from the control that just went away.
+el('choose-local').addEventListener('click', () => { showScreen('local'); el('local-title').focus(); });
+el('choose-server').addEventListener('click', () => { showChoices(); el('choice-title').focus(); });
+for (const id of ['local-back-button', 'server-back-button']) {
+    el(id).addEventListener('click', () => { showUsage(); el('usage-title').focus(); });
+}
 el('cancel-switch-button').addEventListener('click', cancelServerSwitch);
 el('address').addEventListener('click', editServerAddress);
 el('address').addEventListener('keydown', event => {
@@ -313,8 +339,8 @@ el('address').addEventListener('keydown', event => {
         event.preventDefault(); editServerAddress();
     }
 });
-el('offline-button').addEventListener('click', () => window.tigerestOpenOfflineLibrary());
-el('local-files-button').addEventListener('click', () => window.tigerestOpenLocalFiles?.());
+for (const id of ['offline-button', 'open-offline-media']) el(id).addEventListener('click', () => window.tigerestOpenOfflineLibrary());
+for (const id of ['local-files-button', 'open-local-files']) el(id).addEventListener('click', () => window.tigerestOpenLocalFiles?.());
 el('settings-button').addEventListener('click', () => window.tigerestOpenMpvSettings?.('main'));
 document.addEventListener('keydown', event => {
     if (committingSelection && event.key === 'Escape') { event.preventDefault(); return; }
@@ -329,15 +355,24 @@ document.addEventListener('keydown', event => {
 });
 
 (async () => {
-    el('server-choice').hidden = false;
-    el('connect-form').hidden = true;
+    // A server switch and the mobile clients always start on the servers. The
+    // desktop's first screen depends on the native API: only the logo shows
+    // until it answers.
+    const mobile = !!window.tigerestAndroidApi || !!window.tigerestIPadApi;
+    showScreen(explicitChoice || mobile ? 'servers' : '');
     el('choose-tigerest').disabled = el('choose-custom').disabled = true;
     await window.apiPromise;
     el('choose-tigerest').disabled = el('choose-custom').disabled = false;
+    usageAvailable = !!window.tigerestLocalPlayerAvailable?.();
+    el('server-back-button').hidden = !usageAvailable;
     el('cancel-switch-button').hidden = !explicitChoice || window.history.length < 2;
-    el('local-files-button').hidden = !window.tigerestLocalPlayerAvailable?.();
+    el('local-files-button').hidden = !usageAvailable;
+    // The Mac's file panel has no address bar: a share is connected in Finder first.
+    const mac = window.api.system.isMacos === true;
+    el('share-help-windows').hidden = mac;
+    el('share-help-mac').hidden = !mac;
     // Before a server page there is no other way into the desktop settings.
-    el('settings-button').hidden = !window.tigerestOpenMpvSettings || !!window.tigerestAndroidApi || !!window.tigerestIPadApi;
+    el('settings-button').hidden = !window.tigerestOpenMpvSettings || mobile;
     if (window.tigerestAndroidApi?.system?.editServerAddress) {
         el('address').readOnly = true;
         el('address').setAttribute('aria-haspopup', 'dialog');
@@ -353,11 +388,15 @@ document.addEventListener('keydown', event => {
     // Opened with a video file, the client is a local player: no server
     // connects until the user chooses one.
     if (await window.api.system.startedWithLocalFiles?.()) {
+        if (usageAvailable) {
+            el('local-notice').hidden = false;
+            return showScreen('local');
+        }
         showChoices();
         el('choice-description').textContent = '正在作为本地播放器使用，没有连接媒体服务器。需要媒体库时，请选择要连接的服务器。';
         return;
     }
-    if (!['tigerest', 'custom'].includes(mode)) return showChoices();
+    if (!['tigerest', 'custom'].includes(mode)) return usageAvailable ? showUsage() : showChoices();
     main.serverConnectionMode = mode;
     showManualConnection(saved);
     if (mode === 'custom') {

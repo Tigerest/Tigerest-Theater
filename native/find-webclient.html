@@ -7,11 +7,51 @@
     <link rel="stylesheet" href="find-webclient.css">
 </head>
 <body>
+    <button id="settings-button" type="button" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="8.4" stroke-width="3.2" stroke-dasharray="3.3 3.297" transform="rotate(-11.25 12 12)"/><circle cx="12" cy="12" r="5.5" stroke-width="3.4"/></svg>
+        <span>设置</span>
+    </button>
     <div id="container">
         <img class="logo" src="logo.png" alt="Tigerest Theater / 大河影院">
-        <section id="server-choice" aria-labelledby="choice-title">
+        <section id="usage-choice" aria-labelledby="usage-title" hidden>
             <p class="eyebrow">欢迎来到大河影院</p>
-            <h1 id="choice-title">你的影院，从这里开始</h1>
+            <h1 id="usage-title" tabindex="-1">你的影院，从这里开始</h1>
+            <p class="intro">先选择使用方式</p>
+            <div class="server-options">
+                <button id="choose-local" class="server-option" type="button">
+                    <span class="option-number" aria-hidden="true">01</span>
+                    <span class="option-text">
+                        <span class="option-title">本地播放</span>
+                        <span class="option-detail">本机文件、局域网共享（SMB）、离线下载的媒体</span>
+                    </span>
+                    <span class="option-arrow" aria-hidden="true">↗</span>
+                </button>
+                <button id="choose-server" class="server-option" type="button">
+                    <span class="option-number" aria-hidden="true">02</span>
+                    <span class="option-text">
+                        <span class="option-title">连接媒体服务器</span>
+                        <span class="option-detail">Emby / Jellyfin</span>
+                    </span>
+                    <span class="option-arrow" aria-hidden="true">↗</span>
+                </button>
+            </div>
+        </section>
+        <section id="local-choice" aria-labelledby="local-title" hidden>
+            <button id="local-back-button" class="text-button" type="button">← 返回选择使用方式</button>
+            <h1 id="local-title" tabindex="-1">本地播放</h1>
+            <p id="local-notice" role="status" hidden>正在作为本地播放器使用，没有连接媒体服务器。需要媒体库时，请返回并选择“连接媒体服务器”。</p>
+            <button id="open-local-files" class="primary-action" type="button">打开本地视频</button>
+            <button id="open-offline-media" class="secondary-action" type="button">打开离线媒体</button>
+            <div class="local-help">
+                <p id="share-help-windows">局域网共享（SMB）里的视频：在文件选择窗口的地址栏输入共享路径即可打开，例如 <code>\\server\share</code>。</p>
+                <p id="share-help-mac" hidden>局域网共享（SMB）里的视频：先在“访达”中连接该共享，再从文件选择窗口打开。</p>
+                <p>也可以把视频文件拖到大河影院的程序图标上，或者在文件上使用“打开方式”。</p>
+            </div>
+        </section>
+        <section id="server-choice" aria-labelledby="choice-title" hidden>
+            <button id="server-back-button" class="text-button" type="button" hidden>← 返回选择使用方式</button>
+            <p class="eyebrow">欢迎来到大河影院</p>
+            <h1 id="choice-title" tabindex="-1">你的影院，从这里开始</h1>
             <p class="intro">选择要连接的媒体服务器</p>
             <section id="saved-servers" aria-labelledby="saved-title" hidden>
                 <h2 id="saved-title">连接过的自建服务器</h2>
@@ -44,10 +84,9 @@
             <button id="connect-button" type="submit"></button>
         </form>
         <button id="cancel-switch-button" class="text-button" type="button" hidden>取消切换，返回当前服务器</button>
-        <div id="client-actions">
+        <div id="client-actions" hidden>
             <button id="local-files-button" class="text-button" type="button" hidden>打开本地视频</button>
             <button id="offline-button" class="text-button" type="button">打开离线媒体</button>
-            <button id="settings-button" class="text-button" type="button" hidden>设置</button>
         </div>
     </div>
     <script src="serverHistory.js"></script>

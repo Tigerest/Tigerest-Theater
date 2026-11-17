@@ -31,13 +31,20 @@ function fakeElement(tag = 'div') {
     };
 }
 
-function page({ saved = '', mode = '', known, lan = false, connect, switching = false, editAddress, finishSelection } = {}) {
+const markup = fs.readFileSync(path.join(__dirname, '../native/find-webclient.html'), 'utf8');
+
+// `local` is a desktop client that plays local files (Windows, or the Mac with
+// `mac`); `startedWithFiles` is that client opened with a video file.
+function page({ saved = '', mode = '', known, lan = false, connect, switching = false, editAddress, finishSelection,
+    local = false, mac = false, startedWithFiles = false } = {}) {
     const elements = new Map();
     function element(id) {
         if (!elements.has(id)) elements.set(id, fakeElement());
         return elements.get(id);
     }
-    const requests = [];
+    // Elements start hidden where the shipped page hides them.
+    for (const [, id] of markup.matchAll(/<\w+ id="([^"]+)"[^>]*\bhidden>/g)) element(id).hidden = true;
+    const requests = [], opened = [];
     const settings = { main: { userWebClient: saved, serverConnectionMode: mode, ...(known === undefined ? {} : { knownServers: known }) } };
     const check = async url => {
         requests.push(url);
@@ -48,8 +55,11 @@ function page({ saved = '', mode = '', known, lan = false, connect, switching = 
         apiPromise: Promise.resolve(), jmpInfo: { settings }, location: switching ? { search: '?choose=1' } : '',
         history: { length: switching ? 2 : 1, back() { window.wentBack = true; } },
         tigerestAndroidApi: editAddress ? { system: { editServerAddress: editAddress } } : null,
-        api: { system: { isAddressOnLocalSubnet: () => lan, cancelServerConnectivity() {}, finishServerSelection: finishSelection } },
-        jmpCheckServerConnectivity: check, tigerestOpenOfflineLibrary() {},
+        api: { system: { isAddressOnLocalSubnet: () => lan, cancelServerConnectivity() {}, finishServerSelection: finishSelection,
+            isMacos: mac, startedWithLocalFiles: () => startedWithFiles } },
+        jmpCheckServerConnectivity: check, tigerestOpenOfflineLibrary() { opened.push('offline'); },
+        tigerestOpenMpvSettings(section) { opened.push('settings:' + section); },
+        ...(local ? { tigerestLocalPlayerAvailable: () => true, tigerestOpenLocalFiles() { opened.push('files'); } } : {}),
     };
     const context = vm.createContext({
         window, URL, console: { log() {}, error() {}, warn() {} },
@@ -62,7 +72,9 @@ function page({ saved = '', mode = '', known, lan = false, connect, switching = 
         current: item.all('saved-server-tag').length > 0, open: item.all('saved-server-open')[0],
         status: item.all('saved-server-status')[0], button: text => item.all('saved-server-action').find(button => button.textContent === text) || null,
     }));
-    return { element, requests, settings, window, context, cards };
+    // The one screen showing: usage-choice, local-choice, server-choice or connect-form.
+    const screen = () => ['usage-choice', 'local-choice', 'server-choice', 'connect-form'].filter(id => !element(id).hidden).join();
+    return { element, elements, requests, opened, settings, window, context, cards, screen };
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
@@ -288,12 +300,168 @@ test('rejected native selection retains old settings and allows another choice',
     assert.equal(p.window.wentBack, true);
 });
 
-test('first launch waits for a server choice without probing any server', async () => {
+test('a desktop first launch asks how the client will be used before any server', async () => {
+    const p = page({ local: true, lan: true });
+    assert.equal(p.screen(), '', 'only the logo until the native API answers');
+    await settle();
+    assert.equal(p.screen(), 'usage-choice');
+    assert.deepEqual(p.requests, []);
+    assert.equal(p.element('client-actions').hidden, true, 'the first screen has no links under it');
+    for (const id of p.elements.keys()) assert.ok(markup.includes(`id="${id}"`), `the page has no #${id}`);
+});
+
+test('the media server choice shows the servers as before, with a way back to the first screen', async () => {
+    const p = page({ local: true });
+    await settle();
+    await p.element('choose-server').emit('click');
+    assert.equal(p.screen(), 'server-choice');
+    assert.equal(p.element('choice-title').focused, true);
+    assert.equal(p.element('server-back-button').hidden, false);
+    assert.equal(p.element('client-actions').hidden, false);
+    assert.equal(p.element('local-files-button').hidden, false);
+    await p.element('choose-custom').emit('click');
+    assert.equal(p.screen(), 'connect-form');
+    await p.element('back-button').emit('click');
+    assert.equal(p.screen(), 'server-choice', 'the address form returns to the servers');
+    await p.element('server-back-button').emit('click');
+    assert.equal(p.screen(), 'usage-choice');
+    await p.element('choose-server').emit('click');
+    await p.element('choose-custom').emit('click');
+    p.element('address').value = '192.168.114.114:8097';
+    await p.element('connect-form').emit('submit');
+    assert.deepEqual(p.requests, ['http://192.168.114.114:8097/']);
+    assert.equal(p.window.location, 'http://192.168.114.114:8097/web/index.html');
+});
+
+test('the local playback choice opens files and offline media without any server', async () => {
+    const p = page({ local: true });
+    await settle();
+    await p.element('choose-local').emit('click');
+    assert.equal(p.screen(), 'local-choice');
+    assert.equal(p.element('local-title').focused, true);
+    assert.equal(p.element('local-notice').hidden, true);
+    assert.equal(p.element('client-actions').hidden, true, 'the local screen has its own buttons');
+    assert.deepEqual([p.element('share-help-windows').hidden, p.element('share-help-mac').hidden], [false, true]);
+    await p.element('open-local-files').emit('click');
+    await p.element('open-offline-media').emit('click');
+    assert.deepEqual(p.opened, ['files', 'offline']);
+    await p.element('local-back-button').emit('click');
+    assert.equal(p.screen(), 'usage-choice');
+    assert.deepEqual(p.requests, []);
+    assert.equal(p.settings.main.serverConnectionMode, '', 'local playback is not saved as a server choice');
+    const mac = page({ local: true, mac: true });
+    await settle();
+    assert.deepEqual([mac.element('share-help-windows').hidden, mac.element('share-help-mac').hidden], [true, false]);
+});
+
+test('settings open from the corner button on the desktop and stay hidden on Android', async () => {
+    const p = page({ local: true });
+    await settle();
+    assert.equal(p.element('settings-button').hidden, false);
+    await p.element('settings-button').emit('click');
+    assert.deepEqual(p.opened, ['settings:main']);
+    const linux = page();
+    await settle();
+    assert.equal(linux.element('settings-button').hidden, false, 'a desktop client without local playback keeps settings');
+    const android = page({ editAddress: async () => null });
+    await settle();
+    assert.equal(android.element('settings-button').hidden, true);
+});
+
+// Android injects no localPlayer.js (WebHost.kt), so it has no local playback and
+// no first screen; its settings live in the player and the server pages.
+test('Android starts on the servers and never shows the first screen, local playback or the settings button', async () => {
+    const editAddress = async () => null;
+    const firstScreen = ['usage-choice', 'local-choice', 'settings-button', 'server-back-button', 'local-files-button'];
+    const hidden = (p, when) => { for (const id of firstScreen) assert.equal(p.element(id).hidden, true, `#${id} ${when}`); };
+    for (const options of [{}, { switching: true, saved: 'https://a.example/', mode: 'custom' }]) {
+        const android = page({ editAddress, ...options });
+        assert.equal(android.screen(), 'server-choice', 'the servers show before the native API answers');
+        hidden(android, 'before the native API answers');
+        await settle();
+        assert.equal(android.screen(), 'server-choice');
+        hidden(android, 'once the native API answered');
+        await android.element('choose-custom').emit('click');
+        assert.equal(android.screen(), 'connect-form');
+        await android.element('back-button').emit('click');
+        assert.equal(android.screen(), 'server-choice', 'the address form returns to the servers, not to a first screen');
+        hidden(android, 'after leaving the address form');
+        assert.deepEqual(android.requests, []);
+    }
+    const saved = page({ editAddress, saved: 'https://a.example/', mode: 'custom' });
+    await settle();
+    assert.deepEqual(saved.requests, ['https://a.example/'], 'a saved server still connects at start');
+    hidden(saved, 'while a saved server connects');
+});
+
+test('a saved server still connects at start, and a server switch still opens on the servers', async () => {
+    const p = page({ local: true, saved: 'https://a.example/', mode: 'custom' });
+    await settle();
+    assert.deepEqual(p.requests, ['https://a.example/']);
+    assert.equal(p.element('usage-choice').hidden, true);
+    const switching = page({ local: true, saved: 'https://a.example/', mode: 'custom', switching: true });
+    assert.equal(switching.screen(), 'server-choice', 'a switch shows the servers at once');
+    await settle();
+    assert.deepEqual(switching.requests, []);
+    assert.equal(switching.screen(), 'server-choice');
+    assert.equal(switching.element('server-back-button').hidden, false);
+    assert.equal(switching.element('cancel-switch-button').hidden, false);
+});
+
+test('returning to the first screen drops a saved-server connection still pending', async () => {
+    let finish, committed = false;
+    const p = page({ local: true, saved: 'https://a.example/', mode: 'custom', switching: true, known: known(['https://a.example/'], ['https://b.example/']),
+        connect: () => new Promise(resolve => { finish = resolve; }), finishSelection: async () => { committed = true; return true; } });
+    await settle();
+    const pending = p.cards()[0].open.emit('click');
+    await settle();
+    await p.element('server-back-button').emit('click');
+    assert.equal(p.screen(), 'usage-choice');
+    finish('https://b.example/web/index.html');
+    await pending; await settle();
+    assert.equal(committed, false);
+    assert.equal(p.screen(), 'usage-choice');
+});
+
+test('opened with a video file, the client rests on the local screen and connects nothing', async () => {
+    const p = page({ local: true, startedWithFiles: true, saved: 'https://a.example/', mode: 'custom' });
+    await settle();
+    assert.deepEqual(p.requests, []);
+    assert.equal(p.screen(), 'local-choice');
+    assert.equal(p.element('local-notice').hidden, false);
+    await p.element('local-back-button').emit('click');
+    await p.element('choose-server').emit('click');
+    assert.deepEqual(p.cards().map(card => [card.key, card.current]), [['custom:https://a.example/', true]], 'the saved server is still offered');
+    // A client without the first screen keeps the notice on the servers.
+    const other = page({ startedWithFiles: true, saved: 'https://a.example/', mode: 'custom' });
+    await settle();
+    assert.deepEqual(other.requests, []);
+    assert.equal(other.screen(), 'server-choice');
+    assert.match(other.element('choice-description').textContent, /本地播放器/);
+});
+
+test('a failed server page returns the desktop to the servers, not to the first screen', async () => {
+    const p = page({ local: true, finishSelection: async () => true });
+    await settle();
+    await p.element('choose-server').emit('click');
+    await p.element('choose-custom').emit('click');
+    p.element('address').value = 'https://broken.example/';
+    await p.element('connect-form').emit('submit');
+    await p.element('server-back-button').emit('click');
+    assert.equal(p.screen(), 'connect-form', 'nothing leaves the form while native code commits the selection');
+    // Native rollback after the HTML load fails.
+    p.window.tigerestServerSelectionFailed();
+    assert.equal(p.screen(), 'server-choice');
+    assert.match(p.element('choice-description').textContent, /加载失败/);
+});
+
+test('first launch without local playback waits on the servers without probing any server', async () => {
     const p = page({ lan: true });
     await settle();
     assert.deepEqual(p.requests, []);
-    assert.equal(p.element('server-choice').hidden, false);
-    assert.equal(p.element('connect-form').hidden, true);
+    assert.equal(p.screen(), 'server-choice', 'no first screen where local files cannot play');
+    assert.equal(p.element('server-back-button').hidden, true);
+    assert.equal(p.element('client-actions').hidden, false);
 });
 
 test('self-hosted choice opens a blank form and connects directly to the supplied IP and port', async () => {

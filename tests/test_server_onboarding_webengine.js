@@ -134,6 +134,12 @@ async function devtools(url) {
         await until(() => cdp.evaluate("Boolean(document.querySelector('#choose-custom') && window.api && !document.querySelector('#choose-custom').disabled)"), 'server choices');
         assert.deepEqual(requests, []);
         assert.equal(await cdp.evaluate("document.querySelector('#connect-form').hidden"), true);
+        // A first launch on the desktop asks how the app will be used before
+        // it shows the servers.
+        await until(() => cdp.evaluate("!document.querySelector('#usage-choice').hidden || !document.querySelector('#server-choice').hidden"), 'the first screen');
+        if (await cdp.evaluate("!document.querySelector('#usage-choice').hidden"))
+            await cdp.evaluate("document.querySelector('#choose-server').click()");
+        await until(() => cdp.evaluate("!document.querySelector('#server-choice').hidden"), 'the server screen');
         await cdp.evaluate("document.querySelector('#choose-tigerest').focus()");
         assert.match(await cdp.evaluate("document.querySelector('#choice-description').textContent"), /B站充电/);
         // Optional pause for inspection through the native window capture tool.

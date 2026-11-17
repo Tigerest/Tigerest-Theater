@@ -480,10 +480,19 @@ def test_native_player_composition() -> None:
             "WebEngine composition is not separated for GPU-Next and libmpv")
     # A window shortcut takes the key press before the focused video item sees
     # it: left enabled during uosc playback, Ctrl+V never reached uosc's menus.
+    # Professional mode enables the page beside the video; there the shortcuts
+    # additionally need the page itself to hold the keyboard.
+    require("readonly property bool webShortcuts: web.enabled && (!proLayout || web.activeFocus)" in qml,
+            "the page's editing shortcuts no longer follow the page's input state")
     for key in ("Copy", "Cut", "Paste", "SelectAll", "Undo", "Redo", "Back", "Forward"):
         action = qml.split(f"shortcut: StandardKey.{key}\n", 1)[0].rsplit("Action", 1)[-1]
-        require("enabled: web.enabled" in action,
+        require("enabled: mainWindow.webShortcuts" in action,
                 f"the page's {key} shortcut stays active while uosc owns playback input")
+    require("|| mainWindow.proLayout\n" in qml and "plugins/tigerest_pro.lua" in read("src/player/MpvConfigManager.cpp") and
+            '":/web-client/extension/proMode.js"' in read("src/system/SystemComponent.cpp") and
+            "<user-data/tigerest/pro/available>button:pro-mode" in read("resources/mpv/script-opts/uosc.conf") and
+            (ROOT / "resources/mpv/plugins/tigerest_pro.lua").is_file() and (ROOT / "native/proMode.js").is_file(),
+            "professional mode is not wired: page input, data script, page script or uosc button")
     player = read("native/mpvVideoPlayer.js")
     require("getExternalSubtitleUrl" in player and "new URL(deliveryUrl, this._currentSrc).href" in player,
             "external subtitle URLs are not resolved for libmpv")
@@ -805,6 +814,38 @@ def test_windows_delay_load_targets_final_executable() -> None:
     require(not problems, "; ".join(problems))
 
 
+def test_nvidia_video_features() -> None:
+    # Frame generation: the filter plugin and its script go into vfg/, and
+    # NVIDIA's runtime into vfg/nvidia from the hash lock (see
+    # test_nvidia_vfx_deployment.py for the deployment itself).
+    interpolation = read("src/player/interpolation/CMakeLists.txt")
+    require("add_library(tigerest_vfg_vs MODULE windows/vfg/VfgVsPlugin.cpp" in interpolation and
+            "install(TARGETS tigerest_vfg_vs LIBRARY DESTINATION vfg RUNTIME DESTINATION vfg)" in interpolation and
+            'resources/mpv/vfg/interpolate_vfg.vpy" DESTINATION vfg)' in interpolation,
+            "the VFG filter plugin and script are not installed into vfg")
+    for path in ("src/player/interpolation/windows/vfg/VfgVsPlugin.cpp", "src/player/interpolation/windows/vfg/VfgApi.h",
+                 "resources/mpv/vfg/interpolate_vfg.vpy", "dev/windows/nvidia-vfx/runtime-lock.json",
+                 "dev/windows/nvidia-vfx/NOTICE.txt", "dev/windows/nvidia-vfx/prepare_nvidia_vfx_runtime.py",
+                 "CMakeModules/DeployWindowsNvidiaVfx.cmake"):
+        require((ROOT / path).is_file(), f"{path} is missing")
+    player = read("src/player/PlayerComponent.cpp")
+    require('applicationDirPath() + QStringLiteral("/vfg")' in player and 'QStringLiteral("nvidia")' in player,
+            "the player does not look for frame generation next to the program")
+    # RTX video: the d3d11vpp filter, its two settings and the panel's switches.
+    require('QStringLiteral("@tigerest-rtx:")' in player and "scaling-mode=nvidia" in player and "nvidia-true-hdr=yes" in player,
+            "the RTX video filter is not built by the player")
+    settings = json.loads(read("resources/settings/settings_description.json"))
+    video = {item["value"]: item for item in next(item for item in settings if item.get("section") == "video")["values"]}
+    for key in ("vfg", "vfgFactor", "rtxVsr", "rtxHdr"):
+        require(key in video and video[key].get("platforms") == "windows", f"video.{key} is not a Windows setting")
+    require(video["rtxVsr"]["default"] is False and video["rtxHdr"]["default"] is False and video["vfg"]["default"] == "off",
+            "NVIDIA video features must default to off")
+    panel = read("native/proMode.js")
+    require("player.proRtxState()" in panel and "player.proSetRtx(" in panel and "{custom: 'rtx'}" in panel and
+            "setting: ['video', item.setting]" in panel,
+            "professional mode has no RTX switches that save to the settings")
+
+
 def test_windows_packages_bundle_runtime_locally() -> None:
     installer = read("bundle/win/JellyfinDesktop.iss.in")
     file_entries = inno_section_entries(installer, "Files")
@@ -946,6 +987,7 @@ def main() -> int:
         test_offline_download_cleanup,
         test_local_player_file_types,
         test_windows_delay_load_targets_final_executable,
+        test_nvidia_video_features,
         test_windows_packages_bundle_runtime_locally,
         test_windows_portable_runtime_bundle_contract,
         test_macos_reproducibility_contract,

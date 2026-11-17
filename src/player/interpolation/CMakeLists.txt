@@ -56,4 +56,15 @@ if(WIN32)
   install(FILES "${CMAKE_SOURCE_DIR}/resources/mpv/rife/interpolate_trt.vpy"
                 "${CMAKE_SOURCE_DIR}/resources/mpv/rife/trt_pipeline.py"
           DESTINATION rife)
+
+  # NVIDIA Video Frame Generation as a VapourSynth filter. It runs on the RIFE
+  # extension's private VapourSynth runtime and loads NVIDIA's runtime from
+  # vfg/nvidia, which the bundle step deploys (TIGEREST_NVIDIA_VFX_RUNTIME_DIR,
+  # see dev/windows/nvidia-vfx/README.md).
+  add_library(tigerest_vfg_vs MODULE windows/vfg/VfgVsPlugin.cpp windows/vfg/VfgApi.h)
+  target_compile_features(tigerest_vfg_vs PRIVATE cxx_std_17)
+  target_include_directories(tigerest_vfg_vs PRIVATE ${RIFE_VS_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/windows/vfg)
+  set_target_properties(tigerest_vfg_vs PROPERTIES PREFIX "" OUTPUT_NAME "tigerest-vfg-vs")
+  install(TARGETS tigerest_vfg_vs LIBRARY DESTINATION vfg RUNTIME DESTINATION vfg)
+  install(FILES "${CMAKE_SOURCE_DIR}/resources/mpv/vfg/interpolate_vfg.vpy" DESTINATION vfg)
 endif()
