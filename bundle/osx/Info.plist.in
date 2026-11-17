@@ -37,7 +37,7 @@
 	<key>NSRequiresAquaSystemAppearance</key>
 	<string>False</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>26.0</string>
+	<string>${CMAKE_OSX_DEPLOYMENT_TARGET}</string>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
 	<!-- Local video files: the 24 LocalMedia::videoExtensions(), offered under

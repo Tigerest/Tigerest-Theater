@@ -12,7 +12,8 @@ body{margin:0;background:#123;color:white}.page{position:fixed;inset:0;padding:3
 </style><div id=home class=page><div class=tg-home-nav>Library</div><div class=tg-home-rail>Posters</div><div class=tg-home-stage>Home</div></div>
 <div id=library class="page hide"><h1>Library</h1><div class=itemsContainer></div></div><div class="docspinner mdl-spinner"></div>
 <script src=/transitions.js></script>`},
-'/transitions.js': {path: path.join(__dirname, '../native/homeTransitions.js')}}, async ({evaluate}) => {
+'/transitions.js': {path: path.join(__dirname, '../native/homeTransitions.js')}}, async ({evaluate, call}) => {
+    await call('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'no-preference'}]});
     // Count frames between the copy's insertion and its first animated frame.
     const run = (loadMs) => evaluate(`(() => {
         window.copyFrames = {drawn: 0, primedOpacity: 0, opacity: null, willChange: null};

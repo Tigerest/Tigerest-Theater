@@ -1,6 +1,11 @@
 # 在 macOS 26+ 构建 Tigerest Theater
 
-本工程支持 Apple Silicon 与 Intel macOS 26+。本地脚本按当前机器架构构建；GitHub Actions 工程分别使用 macOS 26 arm64 与 x86_64 runner。
+本工程默认支持 Apple Silicon 与 Intel macOS 26+，也可以构建最低 macOS 15 的安装包（见下文）。本地脚本按当前机器架构构建。GitHub Actions 的 Apple Silicon 构建产出两个包：
+
+- `tigerest-theater-macos-arm64`：最低 macOS 26，在 `xcode-27` runner 上用 Xcode 27（macOS 27.2 SDK）编译，与正式版相同。
+- `tigerest-theater-macos15-arm64`：最低 macOS 15，在 `macos-15` runner 上用 macOS 26.2 SDK 编译，供 macOS 15 使用；通过 macOS 15 真机验收之前不作为发布候选。
+
+x86_64 包需手动运行 `build-macos` 工作流（`macos-15-intel` runner，最低 macOS 15）。
 
 ## 快速开始
 
@@ -12,7 +17,11 @@ dev/macos/run.sh
 dev/macos/bundle.sh
 ```
 
-依赖包括 Xcode Command Line Tools、Homebrew、CMake、Ninja、create-dmg、Node.js、mpv、aqtinstall 和 Qt 6.9.3（含 WebEngine、WebChannel、Positioning）。所有 CMake 入口均将最低部署目标设为 macOS 26.0。
+依赖包括 Xcode Command Line Tools、Homebrew、CMake、Ninja、create-dmg、Node.js、mpv、aqtinstall 和 Qt 6.9.3（含 WebEngine、WebChannel、Positioning）。所有 CMake 入口默认将最低部署目标设为 macOS 26.0，可用 `MACOS_DEPLOYMENT_TARGET` 覆盖；`Info.plist` 的 `LSMinimumSystemVersion` 跟随 `CMAKE_OSX_DEPLOYMENT_TARGET`。
+
+安装包会原样带上 Homebrew 的媒体库（FFmpeg、libplacebo、libass 等），而 Homebrew bottle 的最低系统就是它所针对的 macOS 版本。因此最低 macOS 15 的安装包必须用 macOS 15 的 bottle 构建，例如在 macOS 15 上运行 `MACOS_DEPLOYMENT_TARGET=15.0 dev/macos/build.sh`；用更新系统的 bottle 打出的包会在 macOS 15 启动时被 dyld 以 `Symbol not found` 终止。`tests/test_macos_bundle.py` 会检查包内每个 Mach-O 的最低系统，超过 `LSMinimumSystemVersion` 时停止打包。
+
+主程序链接的 SDK 版本同样影响运行：macOS 27 会把用 26.x SDK 链接的主程序当作旧 SDK 程序处理，播放呈现明显变差（M4 Pro、macOS 27.2、RIFE ×2 实测：SDK 26.2 估算刷新率 94.0 Hz、输出丢帧 687；SDK 27.2 为 117.2 Hz、100）。因此最低 macOS 26 的包整套用 Xcode 27 的 macOS 27.2 SDK 编译。
 
 输出位置：
 

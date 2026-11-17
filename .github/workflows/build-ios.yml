@@ -1,0 +1,65 @@
+name: build-ios
+
+# Unsigned universal iOS IPA (iPhone and iPad), packaged like the release
+# attachment: recipients sign it with their own Apple identity. Native RIFE
+# needs the compiled Core ML model the macOS arm64 build produces in the
+# same workflow run.
+on:
+  workflow_call:
+
+jobs:
+  ios:
+    runs-on: macos-26
+    env:
+      # Pinned by apple/tools/prepare_native_rife.py.
+      MPV_REVISION: 41f6a645068483470267271e1d09966ca3b9f413
+    steps:
+    - uses: actions/checkout@v7
+    - name: Select Xcode
+      run: |
+        # The Apple apps are developed with Xcode 27; use it when the image has it.
+        if ! xcodebuild -version | head -1 | grep -q '^Xcode 27'; then
+          candidate=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$candidate" ]; then sudo xcode-select -s "$candidate"; fi
+        fi
+        xcodebuild -version
+    - name: Restore compiled RIFE model
+      uses: actions/cache/restore@v6
+      with:
+        key: rife-model-${{ github.run_id }}
+        path: build/output/Tigerest Theater.app/Contents/Resources/rife/model
+        fail-on-cache-miss: true
+    - name: Resolve pinned MPVKit
+      run: |
+        # generate_project.py creates this ignored personal-team file later;
+        # the committed project needs it before then. CI builds unsigned.
+        [ -f apple/Local.xcconfig ] || echo '// Unsigned CI build.' > apple/Local.xcconfig
+        xcodebuild -resolvePackageDependencies -project apple/TigerestTheater.xcodeproj \
+          -scheme TigerestTheater -derivedDataPath apple/DerivedData
+    - name: Prepare native RIFE sources
+      run: |
+        git init -q "$RUNNER_TEMP/mpv"
+        git -C "$RUNNER_TEMP/mpv" fetch -q --depth 1 https://github.com/mpv-player/mpv "$MPV_REVISION"
+        git -C "$RUNNER_TEMP/mpv" checkout -q FETCH_HEAD
+        python3 apple/tools/prepare_native_rife.py --mpv-source "$RUNNER_TEMP/mpv" --model "build/output/Tigerest Theater.app/Contents/Resources/rife/model"
+    - name: Generate project
+      run: |
+        python3 apple/tools/generate_project.py
+        # The committed project already includes native RIFE; regenerating
+        # must not change it, or package_ipa.py refuses the dirty tree.
+        git diff --exit-code -- apple
+    - name: Build Release for generic iOS device
+      run: |
+        xcodebuild -project apple/TigerestTheater.xcodeproj -scheme TigerestTheater \
+          -configuration Release -derivedDataPath apple/DerivedData \
+          -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+    - name: Package unsigned IPA
+      run: |
+        python3 apple/tools/package_ipa.py \
+          --app apple/DerivedData/Build/Products/Release-iphoneos/TigerestTheater.app \
+          --output "$PWD/dist"
+    - name: Archive IPA
+      uses: actions/upload-artifact@v7
+      with:
+        name: tigerest-theater-ios
+        path: dist/*.ipa

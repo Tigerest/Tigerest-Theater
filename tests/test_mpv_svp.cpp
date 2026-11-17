@@ -18,6 +18,7 @@ private slots:
   void initTestCase();
   void embeddedConfigExposesSvpIpc();
   void leavesAnotherPlayersSocketUntouched();
+  void rewriteKeepsTheEndpointItsOwnMpvServes();
   void discoversVapourSynth_data();
   void discoversVapourSynth();
   void preservesExplicitVapourSynth();
@@ -128,6 +129,25 @@ void TestMpvSvp::leavesAnotherPlayersSocketUntouched()
   QLocalSocket client;
   client.connectToServer("/tmp/mpvsocket");
   QVERIFY(client.waitForConnected(3000));
+}
+
+void TestMpvSvp::rewriteKeepsTheEndpointItsOwnMpvServes()
+{
+  QLocalSocket existing;
+  existing.connectToServer("/tmp/mpvsocket");
+  if (existing.waitForConnected(100))
+    QSKIP("Another player is using the standard SVP socket");
+  QVERIFY(MpvConfigManager::prepare());
+  // The client's own mpv now serves the endpoint the file gave it. A later
+  // rewrite (an editor save) must not mistake it for another player.
+  QLocalServer ownMpv;
+  if (!ownMpv.listen("/tmp/mpvsocket"))
+    QSKIP("Another player is using the standard SVP socket");
+  const auto cleanup = qScopeGuard([&] { ownMpv.close(); });
+  QVERIFY(MpvConfigManager::refresh().ok);
+  QFile config(QDir(MpvConfigManager::activeConfigDir()).filePath("mpv.conf"));
+  QVERIFY(config.open(QIODevice::ReadOnly));
+  QVERIFY(config.readAll().contains("\ninput-ipc-server=/tmp/mpvsocket\n"));
 }
 
 void TestMpvSvp::discoversVapourSynth_data()

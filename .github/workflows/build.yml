@@ -1,24 +1,56 @@
 name: build
 
+# Builds every shipped platform and keeps the packages as run artifacts.
+# Pushes to main, pull requests and manual runs build; a fork that sets the
+# Actions variable BUILD_EVERY_PUSH to true also builds every pushed branch.
+# Release publishing stays in publish-release.yml.
 on:
   push:
-    branches:
-      - release
-      - prerelease
-      - test
+  pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  macos:
+  # Every build job needs this one, so a skipped gate skips the whole run.
+  gate:
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main' || vars.BUILD_EVERY_PUSH == 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "Building $GITHUB_REF for $GITHUB_EVENT_NAME"
+
+  # Intel Macs are not a shipped platform, and Homebrew has no Intel bottles
+  # since September 2026, so that build compiles the media stack for hours.
+  # Run build-macos manually for an x86_64 package.
+  macos-arm64:
+    needs: gate
     uses: ./.github/workflows/build-macos.yml
+    with:
+      architecture: arm64
 
   windows:
+    needs: gate
     permissions:
       contents: write
     uses: ./.github/workflows/build-windows.yml
 
-  linux:
-    uses: ./.github/workflows/build-linux.yml
+  android:
+    needs: gate
+    uses: ./.github/workflows/build-android.yml
 
-  appimage:
-    uses: ./.github/workflows/build-appimage.yml
+  ios:
+    # Universal iPhone/iPad app. Waits for the compiled RIFE model the macOS
+    # arm64 job saves to the Actions cache before its unit tests run.
+    needs: [gate, macos-arm64]
+    if: ${{ !cancelled() && needs.gate.result == 'success' }}
+    uses: ./.github/workflows/build-ios.yml
+
+  tvos:
+    # Queued next to the other macOS jobs, this macos-26 job was cancelled
+    # twice after 15 minutes without a runner; the iOS job, started once the
+    # macOS build had finished, got one at once. Run after it.
+    needs: [gate, ios]
+    if: ${{ !cancelled() && needs.gate.result == 'success' }}
+    uses: ./.github/workflows/build-tvos.yml

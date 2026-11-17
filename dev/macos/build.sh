@@ -48,7 +48,8 @@ if [ "$(uname -m)" = arm64 ]; then
     fi
 fi
 "${RIFE_PYTHON}" "${SCRIPT_DIR}/rife/build_mpv.py" --output "${RIFE_BUILD}/playback" \
-    --meson "${RIFE_BUILD}/venv/bin/meson" --vapoursynth-python "${RIFE_PYTHON}"
+    --meson "${RIFE_BUILD}/venv/bin/meson" --vapoursynth-python "${RIFE_PYTHON}" \
+    --deployment-target "${MACOS_DEPLOYMENT_TARGET}"
 
 # Configure
 mkdir -p "${BUILD_DIR}"
@@ -57,7 +58,7 @@ cd "${BUILD_DIR}"
 echo "Configuring..."
 cmake -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET}" \
     -DCMAKE_INSTALL_PREFIX=output \
     -DQTROOT="${QTROOT}" \
     -DCMAKE_PREFIX_PATH="${QTROOT}" \
