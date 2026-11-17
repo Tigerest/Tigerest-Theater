@@ -3,6 +3,7 @@
 #include "settings/SettingsComponent.h"
 #include "settings/SettingsSection.h"
 #include "player/PlayerComponent.h"
+#include "player/MpvVideoItem.h"
 #include "display/DisplayComponent.h"
 #include "taskbar/TaskbarComponent.h"
 #include "input/InputComponent.h"
@@ -115,6 +116,12 @@ void WindowManager::initializeWindow(QQuickWindow* window)
   connect(&PlayerComponent::Get(), &PlayerComponent::windowVisible,
           this, &WindowManager::updateNativePlaybackWindow,
           Qt::UniqueConnection);
+  connect(&PlayerComponent::Get(), &PlayerComponent::proModeChanged, this, [this](bool active) {
+    if (active)
+      beginMacProMode();
+    else
+      endMacProMode();
+  });
 #endif
 
   // Install event filter to track cursor enter/leave
@@ -440,6 +447,96 @@ void WindowManager::updateNativePlaybackWindow(bool visible)
   Q_UNUSED(visible)
 #endif
 }
+
+#if defined(Q_OS_MAC)
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::waitForMacProStep(quint64 serial, int attempts, std::function<bool()> ready,
+                                      std::function<void()> then)
+{
+  if (serial != m_macProSerial)
+    return;
+  if (ready() || attempts <= 0)
+  {
+    then();
+    return;
+  }
+  QTimer::singleShot(50, this, [=]() { waitForMacProStep(serial, attempts - 1, ready, then); });
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::beginMacProMode()
+{
+  if (!m_window || !PlayerComponent::Get().usingNativeVideoOutput() || m_macProMode)
+    return;
+  auto* video = m_window->findChild<MpvVideoItem*>(QStringLiteral("video"));
+  if (!video)
+    return;
+  m_macProMode = true;
+  const quint64 serial = ++m_macProSerial;
+  m_macProSavedGeometry = m_window->geometry();
+  // PlayerComponent::setProMode has asked mpv to leave fullscreen.
+  const bool fullscreen = PlayerComponent::Get().proStartedFullScreen();
+  MpvVideoItem::macFullScreenTransitionActive();  // starts observing transitions
+  waitForMacProStep(serial, 80, [video]() {
+    return !video->macPlaybackWindowFullScreen() && !MpvVideoItem::macFullScreenTransitionActive();
+  }, [=]() {
+    if (serial != m_macProSerial)
+      return;
+    const QRect frame = video->macPlaybackWindowGeometry();
+    if (fullscreen)
+    {
+      m_window->showFullScreen();
+    }
+    else
+    {
+      if (frame.width() > 200 && frame.height() > 150)
+        m_window->setGeometry(frame);
+      m_window->show();
+    }
+    m_window->raise();
+    m_window->requestActivate();
+    qInfo() << "Professional mode: page window shown" << (fullscreen ? "fullscreen" : "windowed") << frame;
+    // Attach after the page's window has finished entering fullscreen: a
+    // child added during the transition keeps the window where it was.
+    waitForMacProStep(serial, 80, [=]() {
+      return m_window->isExposed() && !MpvVideoItem::macFullScreenTransitionActive() &&
+             (!fullscreen || MpvVideoItem::macWindowFullScreen(m_window));
+    }, [=]() {
+      if (serial == m_macProSerial && m_macProMode)
+        video->setMacProAttached(true);
+    });
+  });
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::endMacProMode()
+{
+  if (!m_macProMode || !m_window)
+    return;
+  m_macProMode = false;
+  const quint64 serial = ++m_macProSerial;
+  auto* video = m_window->findChild<MpvVideoItem*>(QStringLiteral("video"));
+  const bool fullscreen = isFullScreen();
+  // The child window leaves after the page's window left its fullscreen
+  // Space, so mpv's window comes back on the desktop it played on.
+  if (fullscreen)
+    m_window->showNormal();
+  waitForMacProStep(serial, 80, [this]() {
+    return !MpvVideoItem::macWindowFullScreen(m_window) && !MpvVideoItem::macFullScreenTransitionActive();
+  }, [=]() {
+    if (video)
+      video->setMacProAttached(false);
+    // Playback still runs in mpv's window: the library stays hidden. When
+    // playback ended meanwhile, updateNativePlaybackWindow restores it.
+    if (m_mainWindowHiddenForNativePlayback)
+      m_window->hide();
+    if (m_macProSavedGeometry.isValid())
+      m_window->setGeometry(m_macProSavedGeometry);
+    PlayerComponent::Get().restorePlaybackFullScreen(fullscreen);
+    qInfo() << "Professional mode: page window released; playback fullscreen" << fullscreen;
+  });
+}
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void WindowManager::toggleFullscreen()
@@ -1034,6 +1131,12 @@ void WindowManager::saveWindowPosition()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void WindowManager::saveGeometry()
 {
+#if defined(Q_OS_MAC)
+  // Professional mode lends the library window to the playback; its size
+  // and place then are not the library's.
+  if (m_macProMode)
+    return;
+#endif
   saveWindowSize();
   saveWindowPosition();
 }

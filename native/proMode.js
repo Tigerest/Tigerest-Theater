@@ -1,4 +1,5 @@
-// Professional mode (Windows desktop: embedded gpu-next with uosc).
+// Professional mode (desktop with native gpu-next and uosc: Windows embeds the
+// video window, the Mac attaches mpv's own window as a child of this one).
 // The native side shrinks the video into the rectangle this page reports and
 // gives the page input around it. This file draws what is there: live controls
 // for the running mpv, the shader chain, danmaku style, and the statistics
@@ -44,6 +45,7 @@ const PRO_TABS = [
     ]},
     {id: 'motion', title: '补帧', groups: [
         {custom: 'rife'},
+        {custom: 'native'},
         {custom: 'vfg'},
         {title: 'mpv 时间插帧', note: '在显示器刷新率下混合相邻帧，减轻 24 帧视频的抖动；与 RIFE 不能同时使用。',
             controls: [{key: 'interpolation'}, {key: 'tscale'}]}
@@ -359,6 +361,8 @@ function createProMode(player) {
     let danmaku = null;                       // {style, on, loaded} from the danmaku plugin, null without it
     let vfg = null;                           // proVfgState() where the client can run NVIDIA frame generation
     let rtx = null;                           // proRtxState(): the RTX video choices, the settings, why one is not in use
+    let native = null;                        // proNativeState() on the Mac: Apple-native frame interpolation
+    let nativeChoice = null;                  // {mode, target} chosen here; the settings until it is changed
     const history = [];
     const paceSamples = [];                   // {at, dropped, decoder}: the last three seconds of the drop counters
     const rateHistory = [];                   // {shown, refresh}: frames and refreshes a second, one minute of them
@@ -806,7 +810,7 @@ function createProMode(player) {
         const video = stats?.video || {};
         if (video.w) steps.push([`输入 ${video.w}×${video.h}`, false]);
         steps.push([video.hwdec && video.hwdec !== 'no' ? `硬解 ${video.hwdec}` : '软解', false]);
-        const named = {'tigerest-rife': 'RIFE 补帧', 'tigerest-vfg': 'VFG 补帧',
+        const named = {'tigerest-rife': 'RIFE 补帧', 'tigerest-vfg': 'VFG 补帧', 'tigerest-vtfi': '系统原生补帧',
             'tigerest-rtx': rtx ? ['RTX', rtx.vsr && !rtx.vsrReason && 'VSR', rtx.hdr && !rtx.hdrReason && 'HDR'].filter(Boolean).join(' ') : 'RTX'};
         for (const filter of stats?.filters || []) {
             if (filter.enabled !== false) steps.push([named[filter.label] || (filter.label ? `@${filter.label}` : filter.name), true]);
@@ -1027,6 +1031,59 @@ function createProMode(player) {
         select.addEventListener('change', () => applyVfg(Number(vfgSelect.value), Number(vfgFactorSelect.value)));
     }
 
+    // Apple-native frame interpolation (Mac): VideoToolbox's frame-rate
+    // conversion or low-latency interpolation as an mpv filter. A choice here
+    // replaces the filter at once; saving writes 设置 → 视频.
+    const NATIVE_MODES = [['off', '关闭'], ['quality', '画质优先（帧率转换）'], ['efficient', '低功耗（低延迟插帧）']];
+    const NATIVE_TARGETS = [['2x', '2 倍'], ['60', '60 fps'], ['display', '跟随屏幕刷新率']];
+    const NATIVE_STATUS = {
+        waiting: '等待第一帧…', preparing: '正在载入系统模型（首次使用某个分辨率时要几秒）…', warming: '正在启动…',
+        'needs-hardware-frames': '需要硬件解码，当前保持原帧。', unavailable: '这台 Mac 不支持所选的方式。',
+        'unsupported-size': '这个分辨率保持原帧（最高 1080p）。', 'unsupported-fps': '这个帧率保持原帧（最高 30 fps）。',
+        hdr: 'HDR 视频保持原帧。', interlaced: '隔行视频保持原帧。', 'speed-bypass': '倍速播放时保持原帧。',
+        'target-not-higher': '源帧率已经不低于目标帧率，保持原帧。', 'no-timestamps': '视频没有时间戳，保持原帧。',
+        'too-slow': '跟不上播放，本集已恢复原帧；可以改用低功耗或 2 倍。', failed: '出错了，本集已恢复原帧，详情见客户端日志。'
+    };
+    const nativeModeSelect = el('select'), nativeTargetSelect = el('select');
+    const nativeStatus = el('p', 'note');
+    for (const [select, list] of [[nativeModeSelect, NATIVE_MODES], [nativeTargetSelect, NATIVE_TARGETS]]) {
+        for (const [value, title] of list) {
+            const option = el('option', '', title);
+            option.value = value;
+            select.appendChild(option);
+        }
+    }
+    const nativeLive = () => (load?.native?.active ? load.native : native?.active ? native : null);
+    function renderNative() {
+        if (!native) return;
+        const chosen = nativeChoice || {mode: native.setting, target: native.target};
+        nativeModeSelect.value = chosen.mode;
+        nativeTargetSelect.value = chosen.target;
+        nativeModeSelect.disabled = nativeTargetSelect.disabled = !native.available || !native.playing;
+        const live = nativeLive();
+        const status = live?.status;
+        nativeStatus.textContent = !native.available ? '需要客户端的原生视频输出。'
+            : !live ? '未开启。'
+            : status === 'active' ? `${live.fellBack ? '画质优先跟不上播放，本集已改用低功耗方式。\n' : ''}运行中：${Number(live.sourceFps).toFixed(3)} → ${Number(live.outputFps).toFixed(3)} fps · 每对源帧 ${Number(live.processP95Ms).toFixed(1)} ms（P95）\n已补 ${live.generated} 帧，停住的画面 ${live.statics} 对，镜头切换 ${live.cuts} 次（这两种不补，沿用原帧）`
+            : NATIVE_STATUS[status] || `状态：${status || '未知'}`;
+    }
+    async function refreshNative() {
+        const before = JSON.stringify(native);
+        native = typeof player.proNativeState === 'function' ? await player.proNativeState() : null;
+        renderNative();
+        if (JSON.stringify(native) !== before) refreshChanges();
+    }
+    async function applyNative(mode, target) {
+        nativeChoice = {mode, target};
+        const result = await player.proSetNative(mode, target);
+        if (!result?.ok) notify(`原生补帧没有生效：${result?.error || '未知原因'}`, true);
+        await refreshNative();
+        refreshChanges();
+    }
+    for (const select of [nativeModeSelect, nativeTargetSelect]) {
+        select.addEventListener('change', () => applyNative(nativeModeSelect.value, nativeTargetSelect.value));
+    }
+
     // Whether mpv reads the display's ICC profile: a setting of the client,
     // not a line of the profile, because the client has to turn it off where
     // the system manages colour already. Compared with the setting like the
@@ -1193,6 +1250,27 @@ function createProMode(player) {
                 el('p', 'note', 'RIFE 的开关、模型和目标帧率在「设置 → 视频」里修改，重新打开视频后生效。'));
             return group;
         },
+        native: () => {
+            const group = el('div', 'group');
+            group.hidden = !native;
+            nativeStatus.style.whiteSpace = 'pre-line';
+            const pair = (title, select, hint) => {
+                const row = el('div', 'ctl');
+                const value = el('div', 'value');
+                value.appendChild(select);
+                const label = el('label', '', title);
+                label.title = hint;
+                row.append(label, value);
+                return row;
+            };
+            group.append(el('h3', '', '系统原生补帧（VideoToolbox）'),
+                pair('方式', nativeModeSelect, '画质优先用 Apple 的帧率转换，鬼影最少；低功耗用低延迟插帧，只用神经引擎，只有 2 倍和 4 倍。'),
+                pair('输出帧率', nativeTargetSelect, '2 倍：23.976 → 47.95；60 fps：23.976 → 59.94；跟随屏幕：补到屏幕刷新率，最多 5 倍。'),
+                nativeStatus,
+                el('p', 'note', '由 macOS 在显卡和神经引擎上补帧，处理 1080p、30 fps 以内的 SDR 视频。切换立即生效（画面会停顿一下），开启后本集的 RIFE 会让出。点「保存」后写入「设置 → 视频」，以后每次播放自动开启。'));
+            renderNative();
+            return group;
+        },
         vfg: () => {
             const group = el('div', 'group');
             group.hidden = !vfg?.configured;
@@ -1292,6 +1370,16 @@ function createProMode(player) {
                         store: text => Number(text) ? String(Number(text)) : 'auto'}});
             }
         }
+        if (native && nativeChoice) {
+            if (nativeChoice.mode !== native.setting) {
+                list.push({key: 'native-mode', other: true, before: native.setting, now: nativeChoice.mode,
+                    def: {title: '系统原生补帧', kind: 'choice', choices: NATIVE_MODES, save: 'setting', setting: ['video', 'nativeInterpolation']}});
+            }
+            if (nativeChoice.target !== native.target) {
+                list.push({key: 'native-target', other: true, before: native.target, now: nativeChoice.target,
+                    def: {title: '原生补帧输出帧率', kind: 'choice', choices: NATIVE_TARGETS, save: 'setting', setting: ['video', 'nativeInterpolationTarget']}});
+            }
+        }
         for (const item of rtx ? RTX_SWITCHES : []) {
             const before = rtx[item.stored] ? 'yes' : 'no', now = rtx[item.field] ? 'yes' : 'no';
             if (before !== now) {
@@ -1339,6 +1427,7 @@ function createProMode(player) {
         if (list.some(change => change.key.startsWith('vfg-'))) applyVfg(Number(vfg.setting), Number(vfg.settingFactor) || 0);
         if (list.some(change => change.key === 'icc-mode')) applyIcc(icc.setting);
         if (list.some(change => change.key.startsWith('rtx-'))) applyRtx(rtx.settingVsr, rtx.settingHdr);
+        if (list.some(change => change.key.startsWith('native-'))) { nativeChoice = null; applyNative(native.setting, native.target).then(() => { nativeChoice = null; refreshChanges(); }); }
         notify('已恢复到改动前。');
     });
 
@@ -1597,6 +1686,14 @@ function createProMode(player) {
             motion.total += inference * 1e6;
             motion.steps.push({label: `${load.rife.model || 'RIFE'} 推理（P95，不在 GPU 渲染里）`, avg: inference * 1e6, peak: inference * 1e6, parts: ['每对源帧的推理耗时']});
         }
+        const nativeRun = nativeLive();
+        if (nativeRun?.status === 'active' && Number(nativeRun.processP95Ms) > 0) {
+            const motion = stages.get('motion');
+            const value = Number(nativeRun.processP95Ms) * 1e6;
+            motion.total += value;
+            motion.steps.push({label: '系统原生补帧（每对源帧，P95，不在 GPU 渲染里）', avg: value, peak: value,
+                parts: ['VideoToolbox 处理一对源帧的时间，在渲染之前运行']});
+        }
         const generation = vfgLive();
         if (generation && generation.ms > 0 && !generation.disabled) {
             const motion = stages.get('motion');
@@ -1680,7 +1777,14 @@ function createProMode(player) {
         const generating = (stats?.filters || []).some(item => item.label === 'tigerest-vfg' && item.enabled !== false);
         const inference = interpolationMs();
         let motion = {load: 0, words: '—', hint: '没有在补帧。', state: ''};
-        if (generating && live?.disabled) {
+        const nativeNow = nativeLive();
+        if (nativeNow?.status === 'active' && Number(nativeNow.processP95Ms) > 0 && Number(nativeNow.sourceFps) > 0) {
+            const value = Number(nativeNow.processP95Ms) * Number(nativeNow.sourceFps) / 1000;
+            motion = {load: value, words: share(value), state: level(value, 0.7, 0.9),
+                hint: `系统原生补帧处理一对源帧 ${Number(nativeNow.processP95Ms).toFixed(1)} ms（P95），每秒有 ${Number(nativeNow.sourceFps).toFixed(2)} 对。\n接近 100% 时跟不上播放。`};
+        } else if (nativeNow && nativeNow.status !== 'active') {
+            motion = {load: 0, words: '—', hint: `系统原生补帧：${NATIVE_STATUS[nativeNow.status] || nativeNow.status}`, state: ''};
+        } else if (generating && live?.disabled) {
             motion = {load: 1, words: '停', hint: `VFG 已停止生成（${live.disabled}），现在只是重复源帧。`, state: 'hot'};
         } else if (generating && live && live.ms > 0 && needed > 0) {
             const value = live.ms * needed / 1000;
@@ -1849,6 +1953,7 @@ function createProMode(player) {
         if (vfg?.configured) refreshVfg();
         // The reasons follow the video and the screen (size, HDR, the driver's answer).
         if (rtx) refreshRtx();
+        if (native) renderNative();
         renderRife(); renderLoad();
         if (stats) renderPasses(stats.passes || {}, 1e9 / (stats.video?.output_fps || stats.video?.fps || 24));
     }
@@ -1906,6 +2011,8 @@ function createProMode(player) {
         iccChoice = null;
         await refreshIcc();
         await refreshRtx();
+        nativeChoice = null;
+        await refreshNative();
         if (!active) return;
         ready = true;
         buildTabs();

@@ -1,8 +1,13 @@
 #include "MpvVideoItem.h"
 
+#include <QDebug>
+#include <QQuickWindow>
+#include <QWindow>
+
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
 #import <objc/runtime.h>
+#include <algorithm>
 
 namespace
 {
@@ -94,6 +99,156 @@ bool isMpvWindow(NSWindow* window)
     return image && [[[NSString stringWithUTF8String:image] lastPathComponent]
                      hasPrefix:@"libmpv."];
 }
+}
+
+namespace
+{
+// mpv's playback window: the visible one, else any of its windows.
+NSWindow* playbackWindow()
+{
+    for (NSWindow* window in NSApp.windows)
+        if (isMpvWindow(window) && window.isVisible)
+            return window;
+    for (NSWindow* window in NSApp.windows)
+        if (isMpvWindow(window))
+            return window;
+    return nil;
+}
+
+NSWindow* cocoaWindow(QWindow* window)
+{
+    if (!window)
+        return nil;
+    NSView* view = (__bridge NSView*)reinterpret_cast<void*>(window->winId());
+    return view.window;
+}
+
+// Qt's global coordinates have their origin at the top left of the primary
+// screen, Cocoa's at its bottom left; both count points.
+NSRect cocoaRect(const QRectF& rect)
+{
+    const CGFloat height = NSScreen.screens.firstObject.frame.size.height;
+    return NSMakeRect(rect.x(), height - rect.y() - rect.height(), rect.width(), rect.height());
+}
+
+QRectF qtRect(NSRect rect)
+{
+    const CGFloat height = NSScreen.screens.firstObject.frame.size.height;
+    return QRectF(rect.origin.x, height - rect.origin.y - rect.size.height, rect.size.width, rect.size.height);
+}
+}
+
+// Fullscreen transitions in progress in this application: AppKit runs one
+// at a time, and a window shown or attached during one stays where it was.
+// A transition that fails sends no notification; three seconds end it.
+static int g_fullScreenTransitions = 0;
+static CFAbsoluteTime g_fullScreenTransitionStarted = 0;
+static void observeFullScreenTransitions()
+{
+    static bool observing = false;
+    if (observing)
+        return;
+    observing = true;
+    NSNotificationCenter* center = NSNotificationCenter.defaultCenter;
+    for (NSNotificationName name in @[NSWindowWillEnterFullScreenNotification, NSWindowWillExitFullScreenNotification])
+        [center addObserverForName:name object:nil queue:nil usingBlock:^(NSNotification*) {
+            g_fullScreenTransitions++;
+            g_fullScreenTransitionStarted = CFAbsoluteTimeGetCurrent();
+        }];
+    for (NSNotificationName name in @[NSWindowDidEnterFullScreenNotification, NSWindowDidExitFullScreenNotification])
+        [center addObserverForName:name object:nil queue:nil usingBlock:^(NSNotification*) {
+            g_fullScreenTransitions = std::max(0, g_fullScreenTransitions - 1);
+        }];
+}
+
+bool MpvVideoItem::macFullScreenTransitionActive()
+{
+    observeFullScreenTransitions();
+    if (g_fullScreenTransitions > 0 && CFAbsoluteTimeGetCurrent() - g_fullScreenTransitionStarted > 3)
+        g_fullScreenTransitions = 0;
+    return g_fullScreenTransitions > 0;
+}
+
+bool MpvVideoItem::macWindowFullScreen(QWindow* window)
+{
+    NSWindow* native = cocoaWindow(window);
+    return native && (native.styleMask & NSWindowStyleMaskFullScreen);
+}
+
+bool MpvVideoItem::macPlaybackWindowFullScreen() const
+{
+    NSWindow* window = playbackWindow();
+    return window && (window.styleMask & NSWindowStyleMaskFullScreen);
+}
+
+QRect MpvVideoItem::macPlaybackWindowGeometry() const
+{
+    NSWindow* window = playbackWindow();
+    if (!window || !window.isVisible)
+        return {};
+    return qtRect([window contentRectForFrameRect:window.frame]).toRect();
+}
+
+void MpvVideoItem::setMacProAttached(bool attached)
+{
+    if (attached == m_macProAttached) {
+        if (attached)
+            updateMacProFrame();
+        return;
+    }
+    if (attached) {
+        NSWindow* video = playbackWindow();
+        NSWindow* parent = cocoaWindow(window());
+        if (!video || !parent || video == parent) {
+            qWarning() << "Professional mode: no playback window to attach";
+            return;
+        }
+        const NSRect frame = video.frame;
+        m_macProSavedFrame = QRectF(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
+        m_macProSavedStyle = video.styleMask;
+        m_macProSavedBehavior = video.collectionBehavior;
+        // A borderless child follows the page's window, also into its
+        // fullscreen Space, and never enters fullscreen on its own.
+        video.styleMask = NSWindowStyleMaskBorderless;
+        video.collectionBehavior = (video.collectionBehavior & ~NSWindowCollectionBehaviorFullScreenPrimary) |
+                                   NSWindowCollectionBehaviorFullScreenAuxiliary;
+        [parent addChildWindow:video ordered:NSWindowAbove];
+        m_macProWindow = (__bridge_retained void*)video;
+        m_macProParent = (__bridge_retained void*)parent;
+        m_macProAttached = true;
+        updateMacProFrame();
+        qInfo() << "Professional mode: playback window attached to the page";
+        return;
+    }
+    NSWindow* video = (__bridge_transfer NSWindow*)m_macProWindow;
+    NSWindow* parent = (__bridge_transfer NSWindow*)m_macProParent;
+    m_macProWindow = nullptr;
+    m_macProParent = nullptr;
+    m_macProAttached = false;
+    if (parent && video)
+        [parent removeChildWindow:video];
+    if (video) {
+        video.styleMask = (NSWindowStyleMask)m_macProSavedStyle;
+        video.collectionBehavior = (NSWindowCollectionBehavior)m_macProSavedBehavior;
+        [video setFrame:NSMakeRect(m_macProSavedFrame.x(), m_macProSavedFrame.y(),
+                                   m_macProSavedFrame.width(), m_macProSavedFrame.height())
+                display:YES];
+        qInfo() << "Professional mode: playback window detached";
+    }
+}
+
+void MpvVideoItem::updateMacProFrame()
+{
+    if (!m_macProAttached || !window())
+        return;
+    NSWindow* video = (__bridge NSWindow*)m_macProWindow;
+    const QRectF rect(mapToGlobal(QPointF(0, 0)), QSizeF(qMax<qreal>(1, width()), qMax<qreal>(1, height())));
+    const NSRect frame = NSIntegralRect(cocoaRect(rect));
+    if (!NSEqualRects(video.frame, frame)) {
+        [video setFrame:frame display:YES];
+        qDebug() << "Professional mode: video area" << rect << "frame" << NSStringFromRect(frame).UTF8String
+                 << "now" << NSStringFromRect(video.frame).UTF8String;
+    }
 }
 
 void MpvVideoItem::installMacInputMonitor()

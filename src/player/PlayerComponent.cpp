@@ -20,6 +20,8 @@
 #include "utils/Log.h"
 #ifdef Q_OS_MAC
 #include "utils/osx/OSXUtils.h"
+#include "utils/osx/SystemLoad.h"
+#include "ui/WindowManager.h"
 #endif
 #include "ComponentManager.h"
 #include "settings/SettingsSection.h"
@@ -46,6 +48,9 @@
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
 #include "interpolation/FrameInterpolationController.h"
 #include "interpolation/MpvPollAccess.h"
+#endif
+#ifdef Q_OS_MAC
+#include "interpolation/NativeInterpolationPolicy.h"
 #endif
 #include "AlbumArtProvider.h"
 #include "input/InputComponent.h"
@@ -98,6 +103,10 @@ static constexpr uint64_t ProReply = 0x58000000;
 static constexpr uint64_t ProfileResetReply = 0x59000000;
 // Commands that add, remove or move the RTX video filter (updateRtx).
 static constexpr uint64_t RtxReply = 0x5a000000;
+// Reads of the Apple-native interpolation filter's statistics (Mac).
+static constexpr uint64_t NativeStatsReply = 0x5b000000;
+// {ok: false, error}: a professional-mode request refused (defined below).
+static QVariantMap proRefusal(const QString& message);
 static bool isStreamAddReply(uint64_t reply)
 {
   return (reply & ~uint64_t(0xffffff)) == StreamAddReply;
@@ -1449,6 +1458,31 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       }
       break;
     case MPV_EVENT_GET_PROPERTY_REPLY:
+#ifdef Q_OS_MAC
+      if(event->reply_userdata==NativeStatsReply){
+        auto *property=static_cast<mpv_event_property*>(event->data);
+        QVariantMap stats;
+        if(event->error>=0&&property&&property->format==MPV_FORMAT_NODE&&property->data)
+          stats=mpv::qt::node_to_variant(static_cast<mpv_node*>(property->data)).toMap();
+        if(m_nativeFilter.isEmpty())break;
+        const QString status=stats.value(QStringLiteral("status")).toString();
+        if(status!=m_nativeStats.value(QStringLiteral("status")).toString())
+          qInfo().noquote()<<"Native interpolation status:"<<status<<"source"<<stats.value(QStringLiteral("sourceFps")).toString()
+                           <<"output"<<stats.value(QStringLiteral("outputFps")).toString()<<"error"<<stats.value(QStringLiteral("error")).toString();
+        m_nativeStats=stats;
+        // Tell once per item why the filter keeps the video's own frames.
+        // The quality mode handing over to the efficient one is news too.
+        const QString shown=stats.value(QStringLiteral("fallback")).toString()==QLatin1String("efficient")&&
+                            status==QLatin1String("active")?QStringLiteral("fallback-efficient"):status;
+        const QString notice=native::notice(shown);
+        if(!notice.isEmpty()&&m_nativeNoticeShown!=shown){
+          m_nativeNoticeShown=shown;
+          qInfo()<<"Native interpolation:"<<status<<stats.value(QStringLiteral("error")).toString();
+          m_mpv->commandAsync(QStringList{QStringLiteral("show-text"),notice,QStringLiteral("5000")});
+        }
+        break;
+      }
+#endif
       if(m_rife&&m_rifeAccess){
         auto *property=static_cast<mpv_event_property*>(event->data);
         QVariant value;
@@ -1549,6 +1583,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
 #endif
 #ifdef Q_OS_MAC
       if(m_rife)m_rife->stopOnEndFile();
+      endNativeInterpolation(true);
       m_rifeStartup.cancel();
       publishInterpolationPause();
       // mpv sends END_FILE before releasing the native VO. MPV_EVENT_IDLE is
@@ -1794,7 +1829,19 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       }
       else if (strcmp(prop->name, "fullscreen") == 0 && prop->format == MPV_FORMAT_FLAG)
       {
-        emit fullscreenRequested(!!*static_cast<int*>(prop->data));
+        const bool fullscreen = !!*static_cast<int*>(prop->data);
+#ifdef Q_OS_MAC
+        m_mpvFullscreen = fullscreen;
+        // In professional mode mpv's window is a part of the page's window:
+        // uosc's button, F11 or f toggle the page's window instead.
+        if (m_proMode && m_nativeVideoOutput && fullscreen)
+        {
+          m_mpv->setPropertyAsync(QStringLiteral("fullscreen"), false);
+          QMetaObject::invokeMethod(&WindowManager::Get(), "toggleFullscreen", Qt::QueuedConnection);
+          break;
+        }
+#endif
+        emit fullscreenRequested(fullscreen);
       }
       else if (!m_nativeVideoOutput && strcmp(prop->name, "vo") == 0 &&
                prop->format == MPV_FORMAT_STRING)
@@ -2309,7 +2356,11 @@ void PlayerComponent::beginInterpolationItem()
   m_rife->setFullScreen(WindowManager::Get().isFullScreen());
   if(m_windowsRifeReloaded)m_rife->bypassCurrentItem("filter-error");
 #else
-  m_rife->beginItem(enabled,false);
+  // Apple-native interpolation takes the item where its setting is on.
+  const bool native=beginNativeInterpolation(
+      SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO,"nativeInterpolation").toString(),
+      SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO,"nativeInterpolationTarget").toString());
+  m_rife->beginItem(enabled&&!native,false);
 #endif
   const bool prepare=m_rife->state()==rife::State::Preparing&&
       m_mpv->getProperty("vid").toString()!="no";
@@ -2322,6 +2373,9 @@ void PlayerComponent::beginInterpolationItem()
 }
 void PlayerComponent::pollInterpolation()
 {
+#ifdef Q_OS_MAC
+  requestNativeStats();
+#endif
   if(m_rife)m_rife->serviceClock();
   checkInterpolationResume(m_rifeClock.isValid()?m_rifeClock.elapsed():0);
 #ifdef Q_OS_WIN
@@ -2392,6 +2446,95 @@ void PlayerComponent::pollInterpolation()
   if(m_rifeStartup.waiting()&&m_rife->state()!=rife::State::Preparing) {
     finishInterpolationStartup();
   }
+}
+#endif
+
+#ifdef Q_OS_MAC
+/////////////////////////////////////////////////////////////////////////////////////////
+// Runs in mpv's on_load hook, before the file opens: the filter goes into the
+// chain while nothing decodes yet. Returns whether it took the item.
+bool PlayerComponent::beginNativeInterpolation(const QString& setting, const QString& target)
+{
+  // A filter END_FILE could not remove (a failed load) goes first.
+  endNativeInterpolation(false);
+  const native::Mode mode = native::modeFromSetting(setting);
+  if (mode == native::Mode::Off || !m_mpv)
+    return false;
+  const QString filter = native::filterText(mode, target, DisplayComponent::Get().currentRefreshRate());
+  // hwdec is a list option ("auto-copy" reads back as ["auto-copy"]).
+  const QVariant current = m_mpv->getProperty(QStringLiteral("hwdec"));
+  QStringList entries;
+  for (const QVariant& entry : current.toList())
+    entries << entry.toString();
+  const QString hwdec = current.typeId() == QMetaType::QVariantList ? entries.join(QLatin1Char(',')) : current.toString();
+  const QString replacement = native::hardwareDecoding(hwdec);
+  if (!replacement.isEmpty() && m_mpv->setProperty(QStringLiteral("hwdec"), replacement) >= 0)
+  {
+    m_nativeSavedHwdec = hwdec;
+    m_nativeOwnsHwdec = true;
+  }
+  const QVariant added = m_mpv->command(QStringList{QStringLiteral("vf"), QStringLiteral("add"), filter});
+  if (added.metaType() == QMetaType::fromType<ErrorReturn>())
+  {
+    qWarning() << "Native interpolation filter not added:" << filter;
+    endNativeInterpolation(false);
+    return false;
+  }
+  m_nativeFilter = filter;
+  m_nativeStats.clear();
+  m_nativeNoticeShown.clear();
+  m_nativeStatsRequestedAt = -1;
+  qInfo() << "Native interpolation for this item:" << filter << "hwdec" << (m_nativeOwnsHwdec ? replacement : hwdec);
+  return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::endNativeInterpolation(bool asynchronous)
+{
+  if (!m_mpv)
+    return;
+  // END_FILE can arrive while macvk's VO waits for the main thread; nothing
+  // here may block on mpv then.
+  if (!m_nativeFilter.isEmpty())
+  {
+    const QStringList remove{QStringLiteral("vf"), QStringLiteral("remove"), QStringLiteral("@") + QLatin1String(native::FilterLabel)};
+    if (asynchronous)
+      m_mpv->commandAsync(remove);
+    else
+      m_mpv->command(remove);
+    m_nativeFilter.clear();
+  }
+  if (m_nativeOwnsHwdec)
+  {
+    if (asynchronous)
+      m_mpv->setPropertyAsync(QStringLiteral("hwdec"), m_nativeSavedHwdec);
+    else
+      m_mpv->setProperty(QStringLiteral("hwdec"), m_nativeSavedHwdec);
+    m_nativeOwnsHwdec = false;
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::requestNativeStats()
+{
+  // An asynchronous read: the timer must not wait on mpv's core.
+  if (m_nativeFilter.isEmpty() || !m_mpv || !m_inPlayback || !m_rifeClock.isValid())
+    return;
+  const qint64 now = m_rifeClock.elapsed();
+  if (m_nativeStatsRequestedAt >= 0 && now - m_nativeStatsRequestedAt < 1000)
+    return;
+  m_nativeStatsRequestedAt = now;
+  m_mpv->getPropertyAsync(QStringLiteral("vf-metadata/") + QLatin1String(native::FilterLabel), int(NativeStatsReply));
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+QVariantMap PlayerComponent::nativeInterpolationState() const
+{
+  QVariantMap state = native::diagnostics(m_nativeStats, m_nativeFilter);
+  state.insert(QStringLiteral("setting"), SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, "nativeInterpolation"));
+  state.insert(QStringLiteral("target"), SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, "nativeInterpolationTarget"));
+  state.insert(QStringLiteral("ownsHardwareDecoding"), m_nativeOwnsHwdec);
+  return state;
 }
 #endif
 
@@ -3366,6 +3509,9 @@ QVariantMap PlayerComponent::mpvDiagnostics()
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
   if(m_rife)result["rife"]=m_rife->diagnostics();
   result["rifeSetting"]=SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO,"aiRife");
+#ifdef Q_OS_MAC
+  result["native"]=nativeInterpolationState();
+#endif
 #ifdef Q_OS_WIN
   result["vfg"]=proVfgState();
   result["rtx"]=proRtxState();
@@ -3718,6 +3864,20 @@ void PlayerComponent::setVideoConfiguration()
       }
       else
         option.value = QStringLiteral("audio");
+    }
+#endif
+#ifdef Q_OS_MAC
+    if (m_nativeOwnsHwdec && option.key == QStringLiteral("hwdec"))
+    {
+      // Native interpolation keeps zero-copy frames for the playing item and
+      // restores this value when it ends; software decoding applies at once.
+      m_nativeSavedHwdec = option.value.toString();
+      if (native::hardwareDecoding(m_nativeSavedHwdec).isEmpty())
+      {
+        m_nativeOwnsHwdec = false;
+        m_mpv->setProperty(option.key, option.value);
+      }
+      continue;
     }
 #endif
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
@@ -4440,9 +4600,10 @@ void PlayerComponent::setIntroSkip(const QVariantMap& intro)
 /////////////////////////////////////////////////////////////////////////////////////////
 bool PlayerComponent::proModeAvailable() const
 {
-#ifdef Q_OS_WIN
-  // The page needs the embedded video window to shrink beside it, and uosc
-  // to keep the playback controls inside that window.
+#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
+  // The page needs the native video window beside it (embedded on Windows,
+  // a child window on the Mac), and uosc to keep the playback controls
+  // inside that window.
   return m_mpv && m_nativeVideoOutput &&
          SettingsComponent::Get().value(SETTINGS_SECTION_MPV, "enableUosc").toBool();
 #else
@@ -4462,7 +4623,7 @@ void PlayerComponent::setProMode(bool active)
   m_proVideoRect = QRect();
   qInfo() << "Professional mode:" << active;
   updateWebVisibility();
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
   if (active && !m_proLoadSampler)
   {
     m_proLoadSampler = new SystemLoad(this);
@@ -4471,6 +4632,7 @@ void PlayerComponent::setProMode(bool active)
         return;
       if (m_rife)
         load.insert(QStringLiteral("rife"), m_rife->diagnostics());
+#ifdef Q_OS_WIN
       // Display sync that drifted earlier keeps later items on the audio clock.
       load.insert(QStringLiteral("syncFallback"), m_displaySyncUnreliable);
       // What the frame-generation script counted in its last half second.
@@ -4484,6 +4646,9 @@ void PlayerComponent::setProMode(bool active)
             load.insert(QStringLiteral("vfg"), counted.toVariantMap());
         }
       }
+#else
+      load.insert(QStringLiteral("native"), nativeInterpolationState());
+#endif
       emit proLoad(load);
     });
   }
@@ -4492,11 +4657,72 @@ void PlayerComponent::setProMode(bool active)
   else if (m_proLoadSampler)
     m_proLoadSampler->stop();
 #endif
+#ifdef Q_OS_MAC
+  if (m_nativeVideoOutput)
+  {
+    // mpv's window becomes a borderless part of the page's window (see
+    // WindowManager::beginMacProMode): it must not resize itself to the
+    // video or keep the video's aspect, and leaves fullscreen to the page.
+    if (active)
+    {
+      m_proStartedFullScreen = m_mpvFullscreen;
+      m_proSavedAutoResize = m_mpv->getProperty(QStringLiteral("auto-window-resize"));
+      m_proSavedKeepAspect = m_mpv->getProperty(QStringLiteral("keepaspect-window"));
+      if (m_mpvFullscreen)
+        m_mpv->setPropertyAsync(QStringLiteral("fullscreen"), false);
+      m_mpv->setPropertyAsync(QStringLiteral("auto-window-resize"), false);
+      m_mpv->setPropertyAsync(QStringLiteral("keepaspect-window"), false);
+      m_mpv->setPropertyAsync(QStringLiteral("border"), false);
+    }
+    else
+    {
+      m_mpv->setPropertyAsync(QStringLiteral("border"), true);
+      if (m_proSavedAutoResize.isValid())
+        m_mpv->setPropertyAsync(QStringLiteral("auto-window-resize"), m_proSavedAutoResize);
+      if (m_proSavedKeepAspect.isValid())
+        m_mpv->setPropertyAsync(QStringLiteral("keepaspect-window"), m_proSavedKeepAspect);
+    }
+  }
+#endif
   m_mpv->setPropertyAsync("user-data/tigerest/pro/active", active);
   // The video keeps the whole window until the page reports its video area.
   emit proLayoutChanged(active, 0, 0, 0, 0);
   emit proModeChanged(active);
 }
+
+#ifdef Q_OS_MAC
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::restorePlaybackFullScreen(bool fullscreen)
+{
+  if (m_mpv && m_inPlayback && m_nativeVideoOutput && fullscreen)
+    m_mpv->setPropertyAsync(QStringLiteral("fullscreen"), true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+QVariantMap PlayerComponent::proNativeState()
+{
+  QVariantMap state = nativeInterpolationState();
+  state.insert(QStringLiteral("available"), m_nativeVideoOutput);
+  state.insert(QStringLiteral("playing"), m_inPlayback);
+  return state;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+QVariantMap PlayerComponent::proSetNative(const QString& mode, const QString& target)
+{
+  if (!m_mpv || !m_inPlayback)
+    return proRefusal(QStringLiteral("播放视频后可用"));
+  if (native::modeFromSetting(mode) == native::Mode::Off && mode != QLatin1String("off"))
+    return proRefusal(QStringLiteral("没有这个选项"));
+  // RIFE and the native filter both replace frames; one at a time.
+  if (m_rife && m_rife->ownsFilter() && mode != QLatin1String("off"))
+    m_rife->bypassCurrentItem(QStringLiteral("external-filter"));
+  endNativeInterpolation(false);
+  if (mode != QLatin1String("off") && !beginNativeInterpolation(mode, target))
+    return proRefusal(QStringLiteral("mpv 没有接受原生补帧滤镜"));
+  return {{QStringLiteral("ok"), true}, {QStringLiteral("state"), proNativeState()}};
+}
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::setProVideoRect(int x, int y, int w, int h)

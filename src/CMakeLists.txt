@@ -240,7 +240,7 @@ if(WIN32)
   # pdh: the graphics-card load counters behind professional mode's gauges.
   target_link_libraries(jmp_core Advapi32 pdh)
 elseif(APPLE)
-  target_link_libraries(jmp_core "-framework Security")
+  target_link_libraries(jmp_core "-framework Security" "-framework IOKit")
 endif()
 
 # Delay-load libmpv on Windows for runtime AVX2 fallback

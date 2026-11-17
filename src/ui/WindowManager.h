@@ -2,6 +2,7 @@
 #define WINDOWMANAGER_H
 
 #include <QObject>
+#include <functional>
 #include <QAbstractNativeEventFilter>
 #include <QPointer>
 #include <QQuickItem>
@@ -84,6 +85,18 @@ private:
   void configureNativeWindowFrame();
   void prepareFullscreenComposition();
   void updateNativePlaybackWindow(bool visible);
+#if defined(Q_OS_MAC)
+  // Professional mode while mpv plays in its own Cocoa window: the hidden
+  // library window shows the page's panels where the video window was (or
+  // fullscreen when it was), and mpv's window becomes its child on the page's
+  // video area. Each step waits for the fullscreen transition before it.
+  void beginMacProMode();
+  void endMacProMode();
+  void waitForMacProStep(quint64 serial, int attempts, std::function<bool()> ready, std::function<void()> then);
+  bool m_macProMode = false;
+  quint64 m_macProSerial = 0;
+  QRect m_macProSavedGeometry;
+#endif
   bool nativePlaybackOwnsCursor() const;
   void releaseCursorOverrideForNativePlayback();
   // Geometry (separate size/position)

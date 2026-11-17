@@ -94,6 +94,7 @@ MpvVideoItem::~MpvVideoItem()
     // already been destroyed by then, so stop callbacks into this subclass.
     disconnect(this, nullptr, this, nullptr);
 #if defined(Q_OS_MAC)
+    setMacProAttached(false);
     removeMacInputMonitor();
 #endif
 }
@@ -283,6 +284,11 @@ bool MpvVideoItem::eventFilter(QObject* watched, QEvent* event)
 
 void MpvVideoItem::updateNativeHostWindow()
 {
+#if defined(Q_OS_MAC)
+    // Professional mode keeps mpv's own window on this item's rectangle.
+    if (m_macProAttached)
+        updateMacProFrame();
+#endif
     if (!m_nativeHostWindow)
         return;
 

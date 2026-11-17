@@ -36,6 +36,23 @@ public:
     // Keyboard input for mpv and uosc: this item in the scene and, with the
     // embedded gpu-next window, its native host.
     Q_INVOKABLE void focusNativeHost();
+#if defined(Q_OS_MAC)
+    // Professional mode on the Mac. mpv's playback window is a window of its
+    // own (Cocoa has no wid embedding), so while the mode is on it becomes a
+    // borderless child of the page's window, kept on this item's rectangle.
+    // Attaching remembers its frame, style and Spaces behaviour; detaching
+    // restores them.
+    void setMacProAttached(bool attached);
+    bool macProAttached() const { return m_macProAttached; }
+    // mpv's playback window: whether it is in macOS fullscreen, and its
+    // content rectangle in Qt's global coordinates (empty when none).
+    bool macPlaybackWindowFullScreen() const;
+    QRect macPlaybackWindowGeometry() const;
+    // Whether a Cocoa window is in macOS fullscreen (its style, not Qt's
+    // requested state), and whether any fullscreen transition still runs.
+    static bool macWindowFullScreen(QWindow* window);
+    static bool macFullScreenTransitionActive();
+#endif
 
 Q_SIGNALS:
     void fullscreenRequested(bool fullscreen);
@@ -62,6 +79,13 @@ private:
     void* m_macInputMonitor = nullptr;
     void* m_macInputFocusObserver = nullptr;
     QHash<unsigned short, QString> m_macPressedKeys;
+    void updateMacProFrame();
+    bool m_macProAttached = false;
+    void* m_macProWindow = nullptr;      // mpv's NSWindow while attached (retained)
+    void* m_macProParent = nullptr;      // the page's NSWindow while attached (retained)
+    QRectF m_macProSavedFrame;           // Cocoa frame before attaching
+    unsigned long long m_macProSavedStyle = 0;
+    unsigned long long m_macProSavedBehavior = 0;
 #endif
     void initializeController();
     QWindow* ensureNativeHostWindow();

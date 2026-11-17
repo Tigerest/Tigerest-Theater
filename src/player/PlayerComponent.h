@@ -26,6 +26,9 @@ class QFileDialog;
 class WindowsHdrSwitch;
 class SystemLoad;
 #endif
+#ifdef Q_OS_MAC
+class SystemLoad;
+#endif
 
 #include "ComponentManager.h"
 #include "QtHelper.h"
@@ -233,6 +236,17 @@ public:
   Q_INVOKABLE QVariantMap proSetShaders(const QStringList& shaders);
   Q_INVOKABLE bool proApplyProfile(const QString& profile);
   Q_INVOKABLE void proTogglePause();
+#ifdef Q_OS_MAC
+  // The playback window was fullscreen when the mode began (the page's
+  // window takes it over), and mpv's own fullscreen once the mode ends.
+  bool proStartedFullScreen() const { return m_proStartedFullScreen; }
+  void restorePlaybackFullScreen(bool fullscreen);
+  // Apple-native frame interpolation for the playing item (professional
+  // mode, 补帧 page): {setting, target, active, status, …}; changing it
+  // replaces the filter at once and does not save the setting.
+  Q_INVOKABLE QVariantMap proNativeState();
+  Q_INVOKABLE QVariantMap proSetNative(const QString& mode, const QString& target);
+#endif
 #ifdef Q_OS_WIN
   // NVIDIA Video Frame Generation: a VapourSynth plugin, its script and
   // NVIDIA's runtime installed in vfg/ next to the program ("vfg-test.json"
@@ -456,6 +470,21 @@ private:
   void beginInterpolationItem();
   void pollInterpolation();
 #endif
+#ifdef Q_OS_MAC
+  // Apple-native frame interpolation (设置 → 视频 → 系统原生补帧): the mpv
+  // filter of the playing item (empty for none), the hardware decoding it
+  // replaced, and the filter's last statistics. It takes RIFE's place.
+  QString m_nativeFilter;
+  QString m_nativeSavedHwdec;
+  bool m_nativeOwnsHwdec = false;
+  QVariantMap m_nativeStats;
+  QString m_nativeNoticeShown;
+  qint64 m_nativeStatsRequestedAt = -1;
+  bool beginNativeInterpolation(const QString& mode, const QString& target);
+  void endNativeInterpolation(bool asynchronous);
+  void requestNativeStats();
+  QVariantMap nativeInterpolationState() const;
+#endif
 #ifdef Q_OS_WIN
   // Destroy the coordinator before the controller and its runtime manager.
   std::unique_ptr<rife::RifePlaybackCoordinator> m_windowsRifePlayback;
@@ -636,6 +665,13 @@ private:
   uint32_t m_profileBatchSerial = 0;
   uint32_t m_profileRequestSerial = 0;
   bool m_proMode = false;
+#ifdef Q_OS_MAC
+  class SystemLoad* m_proLoadSampler = nullptr;
+  bool m_mpvFullscreen = false;
+  bool m_proStartedFullScreen = false;
+  // mpv's window options while its window is a part of the page's window.
+  QVariant m_proSavedAutoResize, m_proSavedKeepAspect;
+#endif
   // Who manages colour on the window's display, as of the last load.
   QString m_systemColor;
   bool iccWanted(const QString& mode) const;
