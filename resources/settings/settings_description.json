@@ -378,6 +378,22 @@
         "input_type": "number"
       },
       {
+        "value": "nativeInterpolation",
+        "display_name": "系统原生补帧",
+        "help": "用 Apple VideoToolbox 在显卡和神经引擎上补帧，不需要下载模型。「画质优先」用帧率转换，鬼影最少；「低功耗」用低延迟插帧，更省电，只有 2 倍和 4 倍。处理 1080p 以内、30 fps 以内的 SDR 视频，其他片源和倍速播放保持原帧；镜头切换和停住的画面不补。开启后由它代替 RIFE。重新打开视频后生效，也可以在播放时用专业模式（F2）切换。",
+        "default": "off",
+        "platforms": ["osx"],
+        "possible_values": [["off", "关闭"], ["quality", "画质优先（帧率转换）"], ["efficient", "低功耗（低延迟插帧）"]]
+      },
+      {
+        "value": "nativeInterpolationTarget",
+        "display_name": "原生补帧输出帧率",
+        "help": "「2 倍」：23.976 帧变 47.95 帧，开销最小；「60 fps」：23.976 帧变 59.94 帧；「跟随屏幕刷新率」：补到屏幕的刷新率，最多 5 倍（120 Hz 屏幕上 23.976 帧变 119.88 帧）。低功耗模式只有 2 倍和 4 倍，会取最接近的一档。重新打开视频后生效。",
+        "default": "2x",
+        "platforms": ["osx"],
+        "possible_values": [["2x", "2 倍"], ["60", "60 fps"], ["display", "跟随屏幕刷新率"]]
+      },
+      {
         "value": "vfg",
         "display_name": "NVIDIA 帧生成（VFG）",
         "help": "用 NVIDIA 的帧生成模型（Video Effects SDK）补帧，开启后由它代替 RIFE 处理视频；输出倍数见下一项。档位越高画质越好、显卡开销越大。需要 RTX 40 或 50 系显卡（驱动 570.65 或更新）、已安装的 RIFE 扩展（借用其中的 VapourSynth 运行库），以及「硬解后复制回显」或软件解码。重新打开视频后生效，也可以在播放时用专业模式（F2）切换。NVIDIA 的运行库随客户端安装，按 NVIDIA 的许可条款使用（安装目录下 licenses\\nvidia-vfx）。",

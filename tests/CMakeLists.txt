@@ -220,6 +220,16 @@ if(Python3_Interpreter_FOUND)
       "${CMAKE_SOURCE_DIR}/apple/Tests/test_native_rife_scheduler.py")
     set_tests_properties(test_ipad_rife_scheduler PROPERTIES TIMEOUT 60)
   endif()
+  if(APPLE)
+    add_executable(test_native_interpolation_policy test_native_interpolation_policy.cpp)
+    target_link_libraries(test_native_interpolation_policy PRIVATE tigerest_rife_control Qt6::Test)
+    add_test(NAME test_native_interpolation_policy COMMAND test_native_interpolation_policy)
+    # Apple-native frame interpolation (VideoToolbox), as the libmpv filter
+    # and the iOS and tvOS apps use it.
+    add_test(NAME test_native_vtfi_engine COMMAND "${Python3_EXECUTABLE}" -B -X utf8
+      "${CMAKE_SOURCE_DIR}/apple/Tests/test_native_vtfi_engine.py")
+    set_tests_properties(test_native_vtfi_engine PROPERTIES TIMEOUT 240)
+  endif()
 endif()
 if(WIN32)
   add_executable(test_rife_windows_ipc test_rife_windows_ipc.cpp)

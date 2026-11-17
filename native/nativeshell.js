@@ -1423,7 +1423,7 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
             rifeExtensionPanel?.refreshPreferences();
         }
         showSaved(restartSettings.has(`${section}.${key}`) ? '已保存；此项将在重启后生效。'
-            : section === 'video' && (key.startsWith('aiRife') || key.startsWith('vfg')) ? '已保存；重新打开视频后生效。' : '已保存并应用。');
+            : section === 'video' && (key.startsWith('aiRife') || key.startsWith('vfg') || key.startsWith('nativeInterpolation')) ? '已保存；重新打开视频后生效。' : '已保存并应用。');
     };
 
     let rifeCallout = null;
