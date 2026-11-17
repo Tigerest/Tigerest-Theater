@@ -595,6 +595,12 @@ private:
   // mpv has taken the seek of seekToKeyframe; it has started that seek.
   enum class KeyframeSeek { None, Sent, Running };
   KeyframeSeek m_keyframeSeek = KeyframeSeek::None;
+#ifdef Q_OS_MAC
+  // Restarted after a keyframe seek; its landing waits for the frame's position.
+  bool m_keyframeLandingPending = false;
+  QTimer m_keyframeLandingTimer;
+  void finishKeyframeLanding();
+#endif
   QVariantMap m_decodedVideoParams;
   // Playback-start notice of HDR/SDR output; the same rules and wording as
   // apple/Core/Sources/AppleCore/DynamicRangeSummary.swift.

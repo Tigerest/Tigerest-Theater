@@ -137,6 +137,13 @@ PlayerComponent::PlayerComponent(QObject* parent)
   qmlRegisterType<MpvVideoItem>("Konvergo", 1, 0, "MpvVideoItem");
 
   m_restoreDisplayTimer.setSingleShot(true);
+#ifdef Q_OS_MAC
+  // A keyframe seek's landing waits for the frame's position; this long when
+  // mpv reports none because the position did not move.
+  m_keyframeLandingTimer.setSingleShot(true);
+  m_keyframeLandingTimer.setInterval(200);
+  connect(&m_keyframeLandingTimer, &QTimer::timeout, this, &PlayerComponent::finishKeyframeLanding);
+#endif
 #ifdef Q_OS_WIN
   m_applicationQuitTimer.setInterval(100);
   connect(&m_applicationQuitTimer, &QTimer::timeout, this, &PlayerComponent::checkApplicationQuit);
@@ -1496,6 +1503,10 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
     case MPV_EVENT_START_FILE:
     {
       m_keyframeSeek = KeyframeSeek::None;
+#ifdef Q_OS_MAC
+      m_keyframeLandingPending = false;
+      m_keyframeLandingTimer.stop();
+#endif
       setSeeking(false);
 #ifdef Q_OS_WIN
       // Frame generation is set up for one item's frame rate; left in the
@@ -1728,6 +1739,10 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
           default:break;
           }
           m_rifeAccess->observe(QString::fromUtf8(prop->name),value);
+#ifdef Q_OS_MAC
+          if (m_keyframeLandingPending && strcmp(prop->name, "playback-time") == 0)
+            finishKeyframeLanding();
+#endif
           if(m_rife&&strcmp(prop->name,"video-sync")==0) {
             auto polling=m_rifeAccess->enterPolling();
             m_rife->onVideoSyncChanged(value.toString());
@@ -2100,6 +2115,19 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       if (m_keyframeSeek == KeyframeSeek::Running)
       {
         m_keyframeSeek = KeyframeSeek::None;
+#ifdef Q_OS_MAC
+        // Native output reads the positions mpv has reported, and at this
+        // restart the last one is still the seek's target (20.009 s for a
+        // keyframe at 20.042 s). The frame's own position is the next
+        // playback-time change: the landing, and the end of the seek, wait
+        // for it.
+        if (m_nativeVideoOutput)
+        {
+          m_keyframeLandingPending = true;
+          m_keyframeLandingTimer.start();
+          break;
+        }
+#endif
         emit keyframeSeekLanded(getPosition());
       }
       setSeeking(false);
@@ -2132,6 +2160,11 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
 #endif
       if (m_keyframeSeek == KeyframeSeek::Sent)
         m_keyframeSeek = KeyframeSeek::Running;
+#ifdef Q_OS_MAC
+      // A newer seek: the pending landing is not where the player will be.
+      m_keyframeLandingPending = false;
+      m_keyframeLandingTimer.stop();
+#endif
       setSeeking(true);
       break;
     default:; /* ignore */
@@ -2139,6 +2172,17 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef Q_OS_MAC
+void PlayerComponent::finishKeyframeLanding()
+{
+  if (!m_keyframeLandingPending) return;
+  m_keyframeLandingPending = false;
+  m_keyframeLandingTimer.stop();
+  emit keyframeSeekLanded(getPosition());
+  setSeeking(false);
+}
+#endif
+
 void PlayerComponent::setSeeking(bool seeking)
 {
   // MPV_EVENT_SEEK and MPV_EVENT_PLAYBACK_RESTART are queued events, so they
