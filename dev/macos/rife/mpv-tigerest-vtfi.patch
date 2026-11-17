@@ -1,0 +1,48 @@
+diff --git a/filters/user_filters.c b/filters/user_filters.c
+index 68c7016..929a615 100644
+--- a/filters/user_filters.c
++++ b/filters/user_filters.c
+@@ -91,6 +91,9 @@ const struct mp_user_filter_entry *vf_list[] = {
+ #if HAVE_VAPOURSYNTH
+     &vf_vapoursynth,
+ #endif
++#if HAVE_TIGEREST_VTFI
++    &vf_tigerest_vtfi,
++#endif
+ #if HAVE_VDPAU
+     &vf_vdpaupp,
+ #endif
+diff --git a/filters/user_filters.h b/filters/user_filters.h
+index 639ffe7..e7a88e4 100644
+--- a/filters/user_filters.h
++++ b/filters/user_filters.h
+@@ -31,6 +31,7 @@ extern const struct mp_user_filter_entry vf_lavfi;
+ extern const struct mp_user_filter_entry vf_lavfi_bridge;
+ extern const struct mp_user_filter_entry vf_sub;
+ extern const struct mp_user_filter_entry vf_vapoursynth;
++extern const struct mp_user_filter_entry vf_tigerest_vtfi;
+ extern const struct mp_user_filter_entry vf_format;
+ extern const struct mp_user_filter_entry vf_vdpaupp;
+ extern const struct mp_user_filter_entry vf_vavpp;
+diff --git a/meson.build b/meson.build
+index ab74a6c..02ef1b0 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1520,6 +1520,17 @@ if features['videotoolbox-pl']
+     sources += files('video/out/hwdec/hwdec_vt_pl.m')
+ endif
+ 
++# Tigerest: Apple-native frame interpolation with VideoToolbox's frame
++# processors (video/filter/vf_tigerest_vtfi.c). The client's build script
++# copies the filter and its engine into video/filter from the client sources.
++tigerest_vtfi = dependency('appleframeworks', modules: ['VideoToolbox', 'CoreMedia', 'Foundation'],
++                           required: false)
++features += {'tigerest-vtfi': features['videotoolbox-pl'] and tigerest_vtfi.found()}
++if features['tigerest-vtfi']
++    dependencies += tigerest_vtfi
++    sources += files('video/filter/vf_tigerest_vtfi.c', 'video/filter/TigerestVTInterpolator.m')
++endif
++
+ 
+ # macOS features
+ macos_sdk_version_py = ''

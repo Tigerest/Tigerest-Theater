@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Build the pinned libmpv with EOF-aware VS and safe CoreAudio hotplug."""
+"""Build the pinned libmpv with EOF-aware VS, safe CoreAudio hotplug and the
+Apple-native interpolation filter (apple/NativeInterpolation)."""
 import argparse
 import hashlib
 import json
@@ -14,6 +15,7 @@ from vapoursynth_runtime import inspect_runtime
 VERSION='0.41.0'
 SHA256='ee21092a5ee427353392360929dc64645c54479aefdb5babc5cfbb5fad626209'
 HERE=Path(__file__).resolve().parent
+NATIVE_INTERPOLATION=HERE.parents[2]/'apple/NativeInterpolation'
 
 def setup_meson(meson,out,source,arguments,env):
     # Meson ignores changed PKG_CONFIG_PATH on reconfigure and caches found
@@ -33,12 +35,18 @@ def build(destination,meson,runtime_python=None):
     source=destination/f'mpv-{VERSION}'
     marker=source/'.tigerest-patches.json'
     patches=[HERE/'mpv-vapoursynth79.patch',HERE/'mpv-eof-aware.patch',
-             HERE/'mpv-coreaudio-hotplug.patch']
-    hashes={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in patches}
+             HERE/'mpv-coreaudio-hotplug.patch',HERE/'mpv-tigerest-vtfi.patch']
+    # The Apple-native interpolation filter is shared with the iOS and tvOS
+    # apps; its sources are copied in, not duplicated in a patch.
+    filters=[NATIVE_INTERPOLATION/name for name in
+             ('vf_tigerest_vtfi.c','TigerestVTInterpolator.m','TigerestVTInterpolator.h')]
+    hashes={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in patches+filters}
     if not source.exists():
         with tarfile.open(archive) as tar:tar.extractall(destination,filter='data')
         for patch in patches:
             subprocess.run(['patch','-p1','-i',str(patch)],cwd=source,check=True)
+        for file in filters:
+            shutil.copyfile(file,source/'video/filter'/file.name)
         marker.write_text(json.dumps(hashes,indent=2)+'\n')
     elif not marker.exists() or json.loads(marker.read_text())!=hashes:
         raise RuntimeError('Existing mpv source lacks this patch provenance; choose a fresh build directory')
