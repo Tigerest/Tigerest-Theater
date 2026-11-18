@@ -10,7 +10,8 @@ RIFE 在原视频帧之间生成中间帧，提高运动画面的输出帧率。
 | Windows x64，RTX 40／50 系（NVIDIA VFG，3.0.0 起） | 安装包自带的 NVIDIA 运行库，另需上面的 RIFE 扩展 | 逐行、恒定帧率的 SDR，见[下文](#nvidia-vfg-帧生成windows-300-起) |
 | Apple Silicon Mac | 包内模型与插件，Core ML / Metal | 最高逐行 SDR 1080p / 30 fps、恒定帧率 |
 | iPad | 包内原生滤镜，Core ML / Metal | 1920×1080、BT.709 SDR（8 位或 10 位）、23–30 fps，固定两倍 |
-| Android、Apple TV | 当前不提供 | 使用正常播放 |
+| Mac、iPhone／iPad、Apple TV（系统原生补帧，3.0.0 起） | 系统自带的 VideoToolbox 帧处理器 | 逐行 SDR 1080p 以内、30 fps 以内，见[下文](#系统原生补帧maciphoneipadapple-tv-300-起) |
+| Android | 当前不提供 | 使用正常播放 |
 
 以上是格式门槛，不是所有设备都能实时达到的性能承诺。Windows 不自动缩小推理分辨率或把 HDR 转为 SDR 来满足条件；Mac 和 iPad 的 HDR、4K、变帧率及色彩信息不完整的视频保持原帧播放。
 
@@ -120,6 +121,21 @@ NVIDIA Video Frame Generation（VFG）是 RIFE 之外的另一种补帧：用 NV
 排查步骤见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting#设置里没有-vfgvfg-不能开)。
 
 RTX 视频超分辨率（VSR）和 RTX Video HDR 排在补帧之后：开着 RIFE 或 VFG 时，放大和转换的是补帧后的画面，见[播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#nvidia-rtx-视频增强windows-300-起)。
+
+## 系统原生补帧（Mac、iPhone／iPad、Apple TV 3.0.0 起）
+
+RIFE 之外的另一种补帧，用 Apple VideoToolbox 的帧处理器在图形处理器和神经引擎上补帧，系统自带，不用下载模型。开启后这一集由它代替 RIFE。
+
+| 方式 | 用的是 | 特点 |
+| --- | --- | --- |
+| 画质优先 | 帧率转换（VTFrameRateConversion） | 鬼影最少，能补到任意帧率；开销较大，Apple TV 没有 |
+| 低功耗 | 低延迟插帧（VTLowLatencyFrameInterpolation） | 更省电，只有 2 倍和 4 倍，最高 1920×1080 |
+
+- **开启：** Mac 与 iPhone／iPad 在「设置 → 视频」选「系统原生补帧」和「原生补帧输出帧率」（2 倍；60 fps；跟随屏幕刷新率，最多 5 倍，ProMotion 屏幕是 120 Hz），重新打开视频后生效；Mac 播放中也可以在[专业模式](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#专业模式windows-300-起)的「补帧」页切换。Apple TV 在「播放设置 → 原生补帧」开启，固定低延迟插帧 2 倍。
+- **片源：** 1080p 以内（画质优先最高 1920×1200）、30 fps 以内的 SDR 视频。4K、高帧率、HDR、隔行片源和倍速播放保持原帧，并在画面上提示原因。镜头切换和停住的画面不补，直接重复原帧，免得拉出鬼影。
+- **跟不上时：** 按每对源帧实际用了多久判断。「画质优先」持续超过一帧的时间预算时，这一集先改用低功耗；还跟不上就恢复原帧，并提示可以改用低功耗或 2 倍。
+- **硬件解码：** 补帧直接处理硬件解码出来的画面。Mac 上「硬解后复制回显」在开着原生补帧时这一集改用零拷贝的硬件解码；关闭硬件解码时保持原帧。
+- **和 RIFE 比：** 在 M4 Pro 的 Mac 上播放 1080p 23.976 fps 动画，画质优先每对源帧约 22 ms（P95 在机器忙时到 31–45 ms，接近 41.7 ms 的预算），低功耗约 12–19 ms。iPhone、iPad 和 Apple TV 的真机性能还没有测过。
 
 ## Mac 开启步骤
 

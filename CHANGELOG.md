@@ -7,11 +7,11 @@
 | Windows 安装版 | [3.0.0 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
 | Windows 便携版 | [3.0.0 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-x64.zip) | 同上；完整解压后运行 |
 | Android | [3.0.0 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-android.apk) | Android 15+，arm64-v8a / x86_64 |
-| Apple Silicon Mac | [2.9.5.9 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5.9/TigerestTheater-2.9.5.9-arm64.dmg) | macOS 26+，M 系列芯片 |
-| iPad / iPhone | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
-| Apple TV | [2.9.5 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v2.9.5/TigerestTheater-2.9.5-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+| Apple Silicon Mac | [3.0.0 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [3.0.0 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [3.0.0 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
 
-发布 Windows 与 Android。Mac 仍是 2.9.5.9，iPhone／iPad 与 Apple TV 仍是 2.9.5，这些平台的检查更新不会提示这一版。Windows 2.9.5.3 到 2.9.5.8 里 Android 也用得上的改动从这一版起进入 Android 安装包。
+全部平台都是 3.0.0：Windows 与 Android 先发布，Mac、iPhone／iPad 与 Apple TV 随后加到同一个发行页。Windows 2.9.5.3 到 2.9.5.8 里 Android 也用得上的改动从这一版起进入 Android 安装包；Windows 这一版的一起看、首页和设置改动也随 Mac 安装包到 Mac 上。
 
 **专业模式（Windows）**
 
@@ -41,7 +41,37 @@
 - 没有选定服务器时，打开后先选择使用方式：「本地播放」（本机文件、局域网共享、离线媒体）或「连接媒体服务器」（Emby／Jellyfin）。右上角固定有「设置」按钮。
 - 播放时 `Ctrl+V` 能粘贴进 uosc 的输入框了（例如弹幕的「添加弹幕源」）；粘贴的文字去掉换行和首尾空格。
 
-**一起看（Windows 与 Android）**
+**专业模式（Mac）**
+
+- 和 Windows 一样，播放时按 `F2` 或点 uosc 控制栏里的仪表盘按钮进入，再按 `F2` 或点右上角「退出专业模式」退出；窗口和全屏都能用，全屏进入的退出后仍是全屏。画面缩到左边继续播放，右边七页面板、下方实时统计、对比、保存和「复制为 mpv.conf」与 Windows 相同。
+- Mac 上没有 NVIDIA VFG 和 RTX 视频增强，这两组不显示。「补帧」页是 RIFE 的状态、系统原生补帧（播放中切换方式和输出帧率，立即生效）和 mpv 时间插帧；负载环里的 GPU 占用读自系统的图形处理器统计。
+
+**系统原生补帧（Mac、iPhone／iPad、Apple TV）**
+
+- 新的补帧方式，用 Apple VideoToolbox 的帧处理器在图形处理器和神经引擎上补帧，不需要下载模型。「画质优先」用帧率转换，鬼影最少；「低功耗」用低延迟插帧，只有 2 倍和 4 倍，更省电。
+- 处理 1080p 以内、30 fps 以内的 SDR 视频，其他片源和倍速播放保持原帧；镜头切换和停住的画面不补。跟不上播放时「画质优先」先改用低功耗，再跟不上就恢复原帧，并提示原因。
+- Mac：「设置 → 视频」的「系统原生补帧」和「原生补帧输出帧率」（2 倍、60 fps、跟随屏幕刷新率），重新打开视频后生效，也可以在专业模式里切换。开启后由它代替 RIFE。
+- iPhone／iPad：同样两项在「设置 → 视频」，ProMotion 屏幕「跟随屏幕刷新率」补到 120 fps；iPad 上开启后代替 RIFE。
+- Apple TV：「播放设置 → 原生补帧」，只有低延迟插帧的 2 倍（tvOS 没有帧率转换）。
+- 一起看：开着原生补帧时和 RIFE 一样靠停帧对齐，不再微调倍速。原生补帧在快于 1 倍时保持原帧，微调追进度时画面会在补帧和原帧之间来回切换。
+
+**Mac**
+
+- 首次打开先选择「本地播放」或「连接媒体服务器」，右上角固定有「设置」按钮。
+- 「设置 → 视频 → 显示器 ICC 色彩配置」：「自动」在支持 EDR 的屏幕上不读 ICC，交给系统色彩管理（和 2.9.x 相同），其他屏幕读取；「始终使用」和「不使用」不看屏幕。「设置 → 字幕」新增「字幕垂直位置」。
+- 一起看的改动（连续跳转只同步最后一次、房间一起换集、片尾、跟不上实时等）从这一版起也在 Mac 上。Mac 跳到关键帧后报告的落点改为画面实际所在的位置：以前报告的是跳转的目标（例如目标 20.010 秒、关键帧在 20.042 秒，报告 20.009 秒），关键帧间隔长的片源上会和画面实际的位置差出几秒，直到下一次位置报告。
+
+**iPhone／iPad**
+
+- 下放桌面版的设置：「设置 → 视频」的系统原生补帧和输出帧率；「设置 → MPV」的画质参数（放大、色度放大、缩小算法、时间插帧、去色带的轮数／阈值／范围／颗粒、S 形放大、线性缩小、抗振铃、色域映射、HDR 峰值估算、抖动位深、字幕混合）和回退缓存，画质参数只在打开「用下方高级参数覆盖当前档位」时覆盖档位，和桌面版相同；「设置 → 字幕」的「字幕粗体」和「字幕垂直位置」。
+- 连接时可以换服务器（#42）：打开应用后连接上次的服务器超过 1 秒，画面中间显示「正在连接」，可以点「切换服务器」中断这次连接、打开服务器列表，点「改用 …」直接连接另一个记住的服务器（例如在家用的局域网地址和在外用的 ZeroTier 地址），或打开离线媒体。自建服务器的地址没有回应时约 8 秒就停止并提示（以前要等页面加载超时，约 1 分钟），提示页上同样可以一键改用其他服务器。
+
+**Apple TV**
+
+- 首页右上角的「画质」改为「播放设置」：画质档位之外，加入桌面版也有的原生补帧、音画同步模式、画面比例、视频去隔行、HDR 色调映射、网络缓存、回退缓存、缓存不足时自动暂停、最大输出声道、音量标准化、音画偏移，以及字幕的字号、文字颜色、边框粗细和颜色、背景、位置、垂直位置、粗体、ASS 样式覆盖。设置保存在这台 Apple TV 上，从下一个视频起生效；默认值保持以前的播放方式。
+- 有设置没能应用，或原生补帧保持原帧时，播放控制栏下方写出原因。
+
+**一起看（Windows、Mac 与 Android）**
 
 - 在房间里点击或拖动进度条、按住方向键连续跳转时，房间只收到最后一次跳转（Windows 上取它之前最近的关键帧）；本机先停在那里，等所有人都解出画面后一起开始。以前点一下进度条，其他人会依次收到暂停、跳转和播放。
 - Windows：开着 RIFE 补帧时，跳到关键帧约 0.25 秒就能解出画面，跳到任意位置要 1.6–7 秒。需要对齐的成员改为停在房间前方的关键帧上，等房间播到那里。

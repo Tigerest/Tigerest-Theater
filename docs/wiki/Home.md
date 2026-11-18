@@ -1,6 +1,6 @@
 # Tigerest Theater 使用教程
 
-这里是 EMBY 大河版的中文使用说明，对应 Windows 与 Android 3.0.0、Mac 2.9.5.9，以及 iPhone／iPad 与 Apple TV 2.9.5。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
+这里是 EMBY 大河版的中文使用说明，对应全部平台的 3.0.0（Windows、Android、Mac、iPhone／iPad 与 Apple TV）。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
 
 ## 第一次使用
 
@@ -30,13 +30,19 @@
 | [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture) | 各客户端的实现与架构、播放链路、一起看同步、评论和弹幕的数据流 |
 | [引用来源与鸣谢](https://github.com/Tigerest/Tigerest-Theater/wiki/Credits) | 用到的开源项目、用途和许可证，源码与许可文件在哪里 |
 
-## 3.0.0 更新了什么（Windows、Android）
+## 3.0.0 更新了什么
+
+- **专业模式（Mac）：** 和 Windows 一样按 `F2` 进入，窗口和全屏都能用；Mac 的「补帧」页是 RIFE 状态、系统原生补帧和 mpv 时间插帧。见[专业模式](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#专业模式windows-300-起)。
+- **系统原生补帧（Mac、iPhone／iPad、Apple TV）：** 用 Apple VideoToolbox 补帧，不用下载模型：「画质优先」鬼影最少，「低功耗」更省电。Mac 与 iPhone／iPad 在「设置 → 视频」开启，Apple TV 在「播放设置」里开启（2 倍）。见 [RIFE 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE#系统原生补帧maciphoneipadapple-tv-300-起)。
+- **iPhone／iPad：** 设置里加入桌面版的画质参数、回退缓存、字幕粗体和字幕垂直位置；连接上次的服务器时可以直接「改用」另一个记住的服务器或「切换服务器」，自建服务器没有回应时约 8 秒就提示（#42）。见 [iPad 操作](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#ipad-操作)。
+- **Apple TV：** 「画质」改为「播放设置」，加入原生补帧、同步模式、画面比例、缓存、音频和字幕样式等设置。见 [Apple TV](https://github.com/Tigerest/Tigerest-Theater/wiki/Apple-TV#播放设置)。
+- **Mac 也有了 Windows 这一版的共用改动：** 首屏的使用方式选择、「显示器 ICC 色彩配置」（Mac 上「自动」在 EDR 屏幕上交给系统）、「字幕垂直位置」和一起看的改动。
 
 - **专业模式（Windows）：** 播放时按 `F2`，画面缩到左边继续播放，右边分「画质」「补帧」「色彩」「声音」「字幕」「弹幕」「画面」七页列出能调的选项，改动立即作用到画面。可以按住对比改动前或原始画面，下方实时显示各阶段的渲染耗时、视频与屏幕的帧率、CPU／GPU 占用和丢帧。调好后保存回当前画质档位，或另存为新档位。见[专业模式](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#专业模式windows-300-起)。
 - **NVIDIA VFG 帧生成（Windows）：** RIFE 之外的另一种补帧，按 0.5 倍一档提高帧率（1.5×–5×，或按 RIFE 目标帧率自动选），分低、中、高三档质量。需要 RTX 40／50 系显卡和已安装的 RIFE 扩展；NVIDIA 的运行库随安装包提供。见 [RIFE 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE#nvidia-vfg-帧生成windows-300-起)。
 - **RTX 视频超分辨率与 RTX Video HDR（Windows）：** 由显卡驱动把视频放大到屏幕的分辨率、把 SDR 视频转换成 HDR 输出。默认关闭，在「设置 → 视频」或专业模式里打开，立即生效；需要 RTX 20 系或更新的显卡，并在 NVIDIA App 里打开对应的开关。见[播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#nvidia-rtx-视频增强windows-300-起)。
 - **设置与首页（Windows）：** 新增「显示器 ICC 色彩配置」（系统已经在为屏幕管理色彩时，「自动」不再让 mpv 读取 ICC，免得校正两次）和「字幕垂直位置」。没有选定服务器时，打开后先选「本地播放」或「连接媒体服务器」，右上角固定有「设置」按钮。播放时 `Ctrl+V` 能粘贴进 uosc 的输入框。见[播放本地视频](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#播放本地视频windows-与-mac)。
-- **一起看（Windows、Android）：** 拖动进度条或按住方向键连续跳转时，房间只收到最后一次跳转（Windows 上停在它之前最近的关键帧），都解出画面后一起开始；房间里换上一集、下一集或在播放列表里选集时，整个房间一起换过去；同步在做什么会在画面上提示。Mac 2.9.5.9 的一起看修复这一版起也在 Windows 和 Android 上。见[一起看](https://github.com/Tigerest/Tigerest-Theater/wiki/Watch-Together)。
+- **一起看（Windows、Mac、Android）：** 拖动进度条或按住方向键连续跳转时，房间只收到最后一次跳转（Windows 上停在它之前最近的关键帧），都解出画面后一起开始；房间里换上一集、下一集或在播放列表里选集时，整个房间一起换过去；同步在做什么会在画面上提示。Mac 2.9.5.9 的一起看修复这一版起也在 Windows 和 Android 上。见[一起看](https://github.com/Tigerest/Tigerest-Theater/wiki/Watch-Together)。
 - **Android：** 上一个安装包是 2.9.5。新增跳过片头按钮和自动跳过（按 Emby 的「片头跳过模式」）、「字幕粗体」和「字幕垂直位置」；外挂字幕改到后台加载，服务器准备字幕时最多等 10 秒就先开始播放；一起看的提示按各自的时长显示，HDR 直出时也看得到。Windows 2.9.5.3–2.9.5.8 里 Android 也用得上的改动（启动超时 75 秒、不再运行 Emby 4.8–4.10 服务器写进网页的美化脚本、评论自动重发、首页海报快速划过不重影、弹幕额度用完的提示）也一并带上。见[播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#android-操作)。
 
 ## 2.9.5.9 更新了什么（Mac）
