@@ -420,6 +420,10 @@ extension WebHostTests {
         XCTAssertTrue(app.buttons["暂停"].waitForExistence(timeout: 2))
         point.doubleTap()
         XCTAssertTrue(app.buttons["播放"].waitForExistence(timeout: 2))
+        // The double tap's 播放／暂停 message leaves by itself within a second;
+        // it used to stay until the next gesture.
+        let message = app.staticTexts.matching(NSPredicate(format: "label == '播放' OR label == '暂停'")).firstMatch
+        XCTAssertTrue(message.waitForNonExistence(timeout: 3), "The play/pause message must disappear")
         point.tap()
         XCTAssertTrue(app.buttons["锁定"].waitForNonExistence(timeout: 2))
         point.tap()

@@ -47,6 +47,7 @@ import AppleCore
         NotificationCenter.default.addObserver(self, selector: #selector(suspendInteraction), name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(applicationBackgrounded), name: UIApplication.didEnterBackgroundNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(applicationForegrounded), name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(applicationEnteringForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
         let center = MPRemoteCommandCenter.shared()
         func bind(_ command: MPRemoteCommand, _ method: String) {
             let target = command.addTarget { [weak self] _ in Task { @MainActor in _ = try? self?.dispatch(method, []) }; return .success }
@@ -118,6 +119,7 @@ import AppleCore
                 if !headers.isEmpty { try next.set("http-header-fields", headers.joined(separator: ",")) }
                 try next.command(["loadfile", url, "replace"])
             } catch { next.close(); engine = nil; throw error }
+            backgroundVideoTrack = nil; foregroundCheckTask?.cancel()
             model.diagnostics.record("info", "Player load requested"); state.begin(); active = true; locked = false; loaded = false; dynamicRangeReported = false; resetValidationTimeline(); dynamicRangeNotice = ""; performanceNotice = ""; rifeGuard.reset(); rifeWarned = false; nativeNoticeShown = ""; nativePolledAt = 0; position = 0; duration = 0; watchdog = PlaybackWatchdog()
             UIApplication.shared.isIdleTimerDisabled = true
             timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in Task { @MainActor in self?.tick() } }
@@ -270,6 +272,7 @@ import AppleCore
         let wasActive = state.finish(generation: state.generation)
         danmakuEpoch &+= 1; model.danmaku.clear(); timer?.invalidate(); timer = nil; temporary = TemporarySpeed()
         engine?.close(); engine = nil; active = false; loaded = false
+        backgroundVideoTrack = nil; foregroundCheckTask?.cancel()
         interactionRevision &+= 1
         UIApplication.shared.isIdleTimerDisabled = false
         restoreBrightness()
@@ -302,8 +305,45 @@ import AppleCore
         model.diagnostics.record("info", "Touch lock=" + String(value))
         endTemporarySpeed(); interactionRevision &+= 1; locked = value
     }
-    @objc private func applicationBackgrounded() { emit("backgrounded") }
-    @objc private func applicationForegrounded() { emit("foregrounded") }
+    /// The video track while the app is in the background, nil otherwise.
+    /// There (screen locked, another app in front) only the sound goes on:
+    /// VideoToolbox sessions are lost in the background, so mpv fell back to
+    /// software decoding for the rest of the item, which also kept native
+    /// interpolation off, and the output came back at 1x1 with a frozen
+    /// picture (iPhone 17 Pro, 3.0.0). Decoding stops until the app returns.
+    private var backgroundVideoTrack: String?
+    private var foregroundCheckTask: Task<Void, Never>?
+    @objc private func applicationBackgrounded() {
+        emit("backgrounded")
+        guard active, let engine, backgroundVideoTrack == nil else { return }
+        let track = engine.string("vid")
+        guard !track.isEmpty, track != "no" else { return }
+        foregroundCheckTask?.cancel()
+        do { try engine.set("vid", "no"); backgroundVideoTrack = track; model.diagnostics.record("info", "Background: video decoding stopped") }
+        catch { model.diagnostics.record("warning", "Background: video decoding could not be stopped") }
+    }
+    @objc private func applicationEnteringForeground() { restoreVideoAfterBackground() }
+    @objc private func applicationForegrounded() { emit("foregrounded"); restoreVideoAfterBackground() }
+    private func restoreVideoAfterBackground() {
+        guard let track = backgroundVideoTrack else { return }
+        backgroundVideoTrack = nil
+        guard active, let engine else { return }
+        do { try engine.set("vid", track); model.diagnostics.record("info", "Foreground: video track " + track + " restored") }
+        catch { model.diagnostics.record("warning", "Foreground: video track could not be restored") }
+        // The output can come back at the size it had in the background; check
+        // until frames flow again and the drawable has settled.
+        foregroundCheckTask?.cancel()
+        foregroundCheckTask = Task { @MainActor [weak self] in
+            for _ in 0..<10 {
+                do { try await Task.sleep(for: .milliseconds(400)) } catch { return }
+                guard let self, self.active, let engine = self.engine else { return }
+                if self.outputMismatched(engine) {
+                    self.model.diagnostics.record("info", "Foreground: video output resized")
+                    await self.reconfigureVideoOutput(engine)
+                }
+            }
+        }
+    }
     @objc private func suspendInteraction() {
         endTemporarySpeed(); restoreBrightness(); interactionRevision &+= 1
     }

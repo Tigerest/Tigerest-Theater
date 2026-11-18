@@ -242,9 +242,11 @@ struct PlayerView: View {
     private func gestureFeedback(_ text: String, _ touching: Bool) {
         feedbackTask?.cancel(); interacting = touching
         if !text.isEmpty { gestureMessage = text }
-        else {
+        // A finished action (a double tap's 播放／暂停) leaves by itself like the
+        // end of a drag; only a message while a finger is down stays.
+        if text.isEmpty || !touching {
             feedbackTask = Task { @MainActor in
-                do { try await Task.sleep(for: .milliseconds(800)) } catch { return }
+                do { try await Task.sleep(for: .milliseconds(text.isEmpty ? 800 : 1000)) } catch { return }
                 gestureMessage = ""
             }
         }
