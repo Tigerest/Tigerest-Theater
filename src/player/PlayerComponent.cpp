@@ -1851,9 +1851,11 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
         // uosc's button, F11 or f toggle the page's window instead. mpv's
         // window never goes fullscreen there (libmpv refuses and reports
         // false again), so its own state must not move the page's window.
+        // mpv reports each change once per observation, and MpvVideoItem
+        // observes fullscreen as well: toggle once, on this one's report.
         if (m_proMode && m_nativeVideoOutput)
         {
-          if (fullscreen)
+          if (fullscreen && event->reply_userdata == 0)
           {
             m_mpv->setPropertyAsync(QStringLiteral("fullscreen"), false);
             QMetaObject::invokeMethod(&WindowManager::Get(), "toggleFullscreen", Qt::QueuedConnection);
