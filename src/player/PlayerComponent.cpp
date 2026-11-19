@@ -1848,11 +1848,16 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
 #ifdef Q_OS_MAC
         m_mpvFullscreen = fullscreen;
         // In professional mode mpv's window is a part of the page's window:
-        // uosc's button, F11 or f toggle the page's window instead.
-        if (m_proMode && m_nativeVideoOutput && fullscreen)
+        // uosc's button, F11 or f toggle the page's window instead. mpv's
+        // window never goes fullscreen there (libmpv refuses and reports
+        // false again), so its own state must not move the page's window.
+        if (m_proMode && m_nativeVideoOutput)
         {
-          m_mpv->setPropertyAsync(QStringLiteral("fullscreen"), false);
-          QMetaObject::invokeMethod(&WindowManager::Get(), "toggleFullscreen", Qt::QueuedConnection);
+          if (fullscreen)
+          {
+            m_mpv->setPropertyAsync(QStringLiteral("fullscreen"), false);
+            QMetaObject::invokeMethod(&WindowManager::Get(), "toggleFullscreen", Qt::QueuedConnection);
+          }
           break;
         }
 #endif

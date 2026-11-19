@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Build the pinned libmpv with EOF-aware VS, safe CoreAudio hotplug and the
-Apple-native interpolation filter (apple/NativeInterpolation)."""
+"""Build the pinned libmpv with EOF-aware VS, safe CoreAudio hotplug, the
+Apple-native interpolation filter (apple/NativeInterpolation) and a Cocoa
+window that never waits forever for a fullscreen transition."""
 import argparse
 import hashlib
 import json
@@ -35,7 +36,8 @@ def build(destination,meson,runtime_python=None):
     source=destination/f'mpv-{VERSION}'
     marker=source/'.tigerest-patches.json'
     patches=[HERE/'mpv-vapoursynth79.patch',HERE/'mpv-eof-aware.patch',
-             HERE/'mpv-coreaudio-hotplug.patch',HERE/'mpv-tigerest-vtfi.patch']
+             HERE/'mpv-coreaudio-hotplug.patch',HERE/'mpv-tigerest-vtfi.patch',
+             HERE/'mpv-mac-fullscreen-wait.patch']
     # The Apple-native interpolation filter is shared with the iOS and tvOS
     # apps; its sources are copied in, not duplicated in a patch.
     filters=[NATIVE_INTERPOLATION/name for name in

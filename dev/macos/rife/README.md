@@ -25,7 +25,7 @@ The model inference code runs natively. The embedded Python bridge only coordina
 
 ## Portable macOS package
 
-Use Xcode's toolchain (set `DEVELOPER_DIR` to Xcode-beta on the beta host). `build_mpv.py` downloads and verifies mpv 0.41.0, applies the included API/EOF patches and sets both C/Objective-C and Swift deployment targets to macOS 26.0. It refuses to reuse a source tree with different patch provenance. The Homebrew libraries are build inputs only.
+Use Xcode's toolchain (set `DEVELOPER_DIR` to Xcode-beta on the beta host). `build_mpv.py` downloads and verifies mpv 0.41.0, applies the included API/EOF, CoreAudio hotplug, native interpolation and Cocoa fullscreen patches (`mpv-mac-fullscreen-wait.patch`: a child window in professional mode refuses fullscreen, and the VO never waits forever for a transition AppKit dropped) and sets both C/Objective-C and Swift deployment targets to macOS 26.0. It refuses to reuse a source tree with different patch provenance. The Homebrew libraries are build inputs only.
 
 `dev/macos/build.sh` prepares the pinned model and playback runtime. CMake accepts `TIGEREST_RIFE_MODEL_DIR` pointing to the verified split packages and `MPV_LIBRARY_mpv` pointing to the resulting library. Installation compiles Encoder/Stage0–3/Refine into `Contents/Resources/rife/model`; development fixtures, PyTorch and conversion tools are excluded. The runtime recipe is verified against VapourSynth R79 and records Python/VS versions in its manifest.
 
