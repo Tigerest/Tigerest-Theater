@@ -11,7 +11,7 @@
  
      var unfsContentFramePixel: NSRect { return convertToBacking(unfsContentFrame) }
      @objc var framePixel: NSRect { return convertToBacking(frame) }
-@@ -116,6 +120,16 @@
+@@ -116,6 +120,17 @@
              return
          }
  
@@ -19,16 +19,17 @@
 +        // attaches this one to its page) cannot enter fullscreen by itself.
 +        // AppKit ignores the request without any delegate call, so the
 +        // animation would never end and vo_destroy would wait for it forever.
-+        // Keep the window as it is and report its real state.
++        // Leave the window as it is. The option keeps the requested value:
++        // the client turns the request into one for its page and sets the
++        // option back itself, so it must see the request first.
 +        if parent != nil {
-+            option.setOption(fullscreen: isInFullscreen)
 +            return
 +        }
 +
          animationLock.lock()
          isAnimating = true
          animationLock.unlock()
-@@ -142,6 +156,7 @@
+@@ -142,6 +157,7 @@
  
          if Bool(option.vo.native_fs) {
              super.toggleFullScreen(sender)
@@ -36,12 +37,10 @@
          } else {
              if !isInFullscreen {
                  setToFullScreen()
-@@ -186,6 +201,38 @@
-                 window.animator().setFrame(newFrame, display: true)
-             }, completionHandler: nil)
+@@ -188,6 +204,42 @@
          })
-+    }
-+
+     }
+ 
 +    // [tigerest] AppKit can drop a request for other reasons too (another
 +    // transition, a window that cannot go fullscreen). Without a transition
 +    // two seconds later, or one still unfinished after ten, it counts as lost.
@@ -54,7 +53,11 @@
 +    }
 +
 +    func endLostFullScreenTransition(_ request: Int, waited: Int) {
-+        guard isAnimating, request == fullScreenRequests, let common = common else { return }
++        // MacCommon.uninit clears the delegate on this thread before the VO,
++        // its options and its log are freed; after that only isAnimating may
++        // still be touched.
++        guard isAnimating, request == fullScreenRequests, delegate != nil,
++              let common = common else { return }
 +        if fullScreenTransitionActive && waited < 10 {
 +            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
 +                self?.endLostFullScreenTransition(request, waited: waited + 2)
@@ -72,10 +75,12 @@
 +
 +    func windowWillExitFullScreen(_ notification: Notification) {
 +        fullScreenTransitionActive = true
-     }
- 
++    }
++
      func windowDidEnterFullScreen(_ notification: Notification) {
-@@ -226,6 +273,7 @@
+         isInFullscreen = true
+         option.setOption(fullscreen: isInFullscreen)
+@@ -226,6 +278,7 @@
              }, completionHandler: nil )
          }
  
@@ -83,7 +88,7 @@
          animationLock.lock()
          isAnimating = false
          animationLock.signal()
-@@ -272,8 +320,16 @@
+@@ -272,8 +325,16 @@
  
      func waitForAnimation() {
          animationLock.lock()

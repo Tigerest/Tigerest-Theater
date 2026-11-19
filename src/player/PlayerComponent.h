@@ -577,6 +577,7 @@ private:
   bool m_nativeVoTeardownPending = false;
   QList<DeferredMediaLoad> m_deferredMediaLoads;
   void completeNativeVoTransition();
+  bool queueDuringNativeTeardown(const QString& property, const QVariant& value);
 #endif
 
   State m_state;

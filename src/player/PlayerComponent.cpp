@@ -853,8 +853,12 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
   {
     // The Cocoa window is recreated whenever gpu-next configures a new VO.
     // Set fullscreen before load so it opens directly on the target Space
-    // without briefly flashing a normal-sized window.
-    m_mpv->setProperty("fullscreen", true);
+    // without briefly flashing a normal-sized window. A replace load in
+    // professional mode keeps that window attached to the page, which owns
+    // fullscreen until the mode ends (restorePlaybackFullScreen); a write
+    // here would read as a request to toggle the page.
+    if (!m_proMode)
+      m_mpv->setProperty("fullscreen", true);
     m_mpv->setProperty("force-window", false);
     // The profile's automatic ICC profile describes an SDR display. On an EDR
     // display it became the colorspace hint target, so HDR and Dolby Vision
@@ -2841,6 +2845,20 @@ void PlayerComponent::finishApplicationQuit()
 #endif
 
 #ifdef Q_OS_MAC
+/////////////////////////////////////////////////////////////////////////////////////////
+// While macvk closes its Cocoa window the mpv core waits for the VO thread and
+// the VO thread for this main thread, so a synchronous write from the page
+// (it sets the subtitle delay, volume and speed as the next item starts)
+// would block both. Queue such writes until the window is gone.
+bool PlayerComponent::queueDuringNativeTeardown(const QString& property, const QVariant& value)
+{
+  if (!m_nativeVideoOutput || !m_nativeVoTeardownPending)
+    return false;
+  m_mpv->setPropertyAsync(property, value);
+  return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::completeNativeVoTransition()
 {
   if (!m_nativeVideoOutput || !m_nativeVoTeardownPending)
@@ -3037,6 +3055,10 @@ void PlayerComponent::setVolume(double volume)
     qWarning() << "PlayerComponent::setVolume: mpv not initialized yet";
     return;
   }
+#ifdef Q_OS_MAC
+  if (queueDuringNativeTeardown(QStringLiteral("volume"), volume))
+    return;
+#endif
   m_mpv->setProperty( "volume", volume);
 }
 
@@ -3066,6 +3088,10 @@ void PlayerComponent::setMuted(bool muted)
     qWarning() << "PlayerComponent::setMuted: mpv not initialized yet";
     return;
   }
+#ifdef Q_OS_MAC
+  if (queueDuringNativeTeardown(QStringLiteral("mute"), muted))
+    return;
+#endif
   // Will fail if no audio output opened (i.e. no file playing)
   m_mpv->setProperty( "mute", muted);
 }
@@ -3378,6 +3404,10 @@ void PlayerComponent::setAudioDelay(qint64 milliseconds)
     audioDelaySetting = "audio_delay.50hz";
 
   double fixedDelay = SettingsComponent::Get().value(SETTINGS_SECTION_VIDEO, audioDelaySetting).toFloat();
+#ifdef Q_OS_MAC
+  if (queueDuringNativeTeardown(QStringLiteral("audio-delay"), (fixedDelay + m_playbackAudioDelay) / 1000.0))
+    return;
+#endif
   m_mpv->setProperty( "audio-delay", (fixedDelay + m_playbackAudioDelay) / 1000.0);
 }
 
@@ -3391,6 +3421,10 @@ void PlayerComponent::setSubtitleDelay(qint64 milliseconds)
     qWarning() << "PlayerComponent::setSubtitleDelay: mpv not initialized yet";
     return;
   }
+#ifdef Q_OS_MAC
+  if (queueDuringNativeTeardown(QStringLiteral("sub-delay"), milliseconds / 1000.0))
+    return;
+#endif
   m_mpv->setProperty( "sub-delay", milliseconds / 1000.0);
 }
 
@@ -3405,6 +3439,9 @@ void PlayerComponent::setPlaybackRate(int rate)
     return;
   }
   double speed = rate / 1000.0;
+#ifdef Q_OS_MAC
+  if (!queueDuringNativeTeardown(QStringLiteral("speed"), speed))
+#endif
   m_mpv->setProperty( "speed", speed);
   emit playbackRateChanged(speed);
 }
