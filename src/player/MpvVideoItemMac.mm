@@ -175,6 +175,12 @@ bool MpvVideoItem::macWindowFullScreen(QWindow* window)
     return native && (native.styleMask & NSWindowStyleMaskFullScreen);
 }
 
+bool MpvVideoItem::macPlaybackWindowAttached()
+{
+    NSWindow* window = playbackWindow();
+    return window && window.parentWindow != nil;
+}
+
 bool MpvVideoItem::macPlaybackWindowFullScreen() const
 {
     NSWindow* window = playbackWindow();

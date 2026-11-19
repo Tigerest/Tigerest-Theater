@@ -52,6 +52,10 @@ public:
     // requested state), and whether any fullscreen transition still runs.
     static bool macWindowFullScreen(QWindow* window);
     static bool macFullScreenTransitionActive();
+    // Whether mpv's playback window is still a child of another window. It
+    // stays attached after professional mode ends until the page has left
+    // fullscreen.
+    static bool macPlaybackWindowAttached();
 #endif
 
 Q_SIGNALS:
