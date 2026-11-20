@@ -647,6 +647,12 @@ if(Node_EXECUTABLE)
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_home_gallery_ui.cjs
                    $<TARGET_FILE:${MAIN_TARGET}> --webengine)
   set_tests_properties(test_home_gallery_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+  # The first-run usage tour on a fixture home and item page (no Emby account),
+  # with the native new/upgrade decision.
+  add_test(NAME test_onboarding_tour_webengine
+           COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_onboarding_tour_ui.cjs
+                   $<TARGET_FILE:${MAIN_TARGET}> --webengine)
+  set_tests_properties(test_onboarding_tour_webengine PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE)
   add_test(NAME test_jellyfin_home_layout_webengine
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_jellyfin_home_layout.cjs
                     $<TARGET_FILE:${MAIN_TARGET}> --webengine)

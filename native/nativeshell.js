@@ -1679,6 +1679,12 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
                 resetServer.addEventListener('click', window.tigerestSwitchServer);
                 actions.appendChild(resetServer);
             }
+            if (window.TigerestTour) {
+                // Starts on the home page; from the first-run page, once a server's home page opens.
+                const tour = element('button', 'tgs-action', '重新打开引导');
+                tour.addEventListener('click', () => { close(); window.TigerestTour.replay(); });
+                actions.appendChild(tour);
+            }
             const offline = element('button', 'tgs-action', '打开下载与离线媒体管理');
             offline.addEventListener('click', () => {
                 close();
@@ -1968,8 +1974,9 @@ function closeClientMenu(restoreFocus = true) {
     if (restoreFocus && anchor?.isConnected) anchor.focus({preventScroll: true});
     return true;
 }
-// Android Back closes the menu before navigating.
-window.tigerestClientMenuBack = () => closeClientMenu();
+// Android Back (and the iPhone/iPad swipe back) closes the usage tour or the
+// menu before navigating.
+window.tigerestClientMenuBack = () => window.TigerestTour?.back?.() === true || closeClientMenu();
 function onClientMenuPointer(event) {
     if (!clientMenu?.contains(event.target) && !clientMenuAnchor?.contains(event.target)) closeClientMenu(false);
 }

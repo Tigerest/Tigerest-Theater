@@ -14,7 +14,7 @@ class SettingsStore(context: Context) {
     var changed: (String, JSONObject) -> Unit = { _, _ -> }
     private val supported = mapOf(
         "home" to setOf("displayOrder","libraryLayout"),
-        "main" to setOf("enableMPV","allowBrowserZoom","userWebClient","serverConnectionMode","knownServers","checkForUpdates"),
+        "main" to setOf("enableMPV","allowBrowserZoom","userWebClient","serverConnectionMode","knownServers","checkForUpdates","onboardingTour"),
         "audio" to setOf("channels","normalize"),
         "video" to setOf("hardwareDecoding","deinterlace","cache","aspect","sync_mode","default_playback_speed","audio_delay.normal","force_transcode_hevc","force_transcode_4k","force_transcode_av1","force_transcode_hdr","force_transcode_hi10p","force_transcode_dovi","always_force_transcode","allow_transcode_to_hevc","prefer_transcode_to_h265"),
         "mpv" to setOf("enableDanmaku","audioLanguage","subtitleLanguage","cachePause","deband","toneMapping"),
@@ -69,6 +69,9 @@ class SettingsStore(context: Context) {
             val savedSection = saved.optJSONObject(section) ?: continue
             for (key in supported[section]!!) if (savedSection.has(key)) runCatching { set(section,key,savedSection.get(key),false) }
         }
+        // The first-run usage tour (shared/onboardingTour.js) cannot be skipped on a
+        // new install; settings an earlier version saved belong to an upgraded user.
+        if (saved.optJSONObject("main")?.has("onboardingTour") != true) set("main","onboardingTour",if (prefs.contains("values")) "upgrade" else "new",false)
     }
     @Synchronized fun set(section: String, key: String, value: Any, notify: Boolean = true): Boolean {
         require(key in (supported[section] ?: emptySet())) { "此设置不适用于安卓" }

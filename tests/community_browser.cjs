@@ -38,8 +38,9 @@ module.exports=async function withBrowser(routes,work,{settings={},gpu=false,vis
         fs.writeFileSync(path.join(folder,'profile.json'),JSON.stringify({name:'MessagesFixture'}));
         // Match CMakeModules/NameConfiguration.cmake on each native platform.
         const settingsFile=path.join(folder,['win32','darwin'].includes(process.platform)?'Tigerest Theater.conf':'tigerest-theater.conf');
+        // The first-run usage tour stays off unless a test asks for it.
         fs.writeFileSync(settingsFile,JSON.stringify({version:configVersion,sections:{
-            ...settings,main:{...settings.main,enableWindowsTrayIcon:false},path:{...settings.path,startupurl_desktop:url}}}));
+            ...settings,main:{onboardingTour:'off',...settings.main,enableWindowsTrayIcon:false},path:{...settings.path,startupurl_desktop:url}}}));
         // Restore maximized; keys mirror WindowManager::configKeyPrefix for multi-screen setups.
         if(maximized)fs.writeFileSync(path.join(folder,'storage.json'),JSON.stringify({version:configVersion,sections:{state:Object.fromEntries([2,3,4].map(n=>[n+' screens: Window-Maximized',true]))}}));
         if(prepareProfile)await prepareProfile(profile,folder,settingsFile);

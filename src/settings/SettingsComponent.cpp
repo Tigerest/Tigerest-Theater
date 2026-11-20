@@ -253,6 +253,7 @@ void SettingsComponent::load()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void SettingsComponent::loadConf(const QString& path, bool storage)
 {
+  const bool existed = QFile::exists(path);
   QJsonObject json = loadJson(path);
 
   int version = json["version"].toInt(0);
@@ -271,7 +272,13 @@ void SettingsComponent::loadConf(const QString& path, bool storage)
     if (storage)
       saveStorage();
     else
+    {
+      // The first-run usage tour (native/onboardingTour.js) cannot be skipped
+      // in a new profile. Settings an earlier client left behind belong to an
+      // upgraded user, who may skip it.
+      getSection(SETTINGS_SECTION_MAIN)->setValue("onboardingTour", existed ? "upgrade" : "new");
       saveSettings();
+    }
     return;
   }
 
@@ -297,6 +304,13 @@ void SettingsComponent::loadConf(const QString& path, bool storage)
 
     for(const QString& setting : jsonSection.keys())
       sec->setValue(setting, jsonSection.value(setting).toVariant());
+  }
+
+  // Settings saved before the usage tour existed belong to an upgraded user.
+  if (!storage && !jsonSections.value(SETTINGS_SECTION_MAIN).toObject().contains("onboardingTour"))
+  {
+    getSection(SETTINGS_SECTION_MAIN)->setValue("onboardingTour", "upgrade");
+    saveSettings();
   }
 
 #ifdef DISABLE_UPDATE_CHECK
