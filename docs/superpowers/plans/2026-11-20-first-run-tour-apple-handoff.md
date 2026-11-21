@@ -1,6 +1,6 @@
 # 首次使用引导：交给 Mac 那边（iPhone / iPad、Apple TV、Mac 的 Qt 版）
 
-日期：2026-11-20（Asia/Shanghai）
+日期：2026-11-20（Asia/Shanghai）；2026-11-22 更新：播放器几步加了实拍配图，修正了评论区很高时的气泡位置。
 
 ## 1. 分支和基线
 
@@ -19,9 +19,11 @@
 | `native/nativeshell.js` | 「客户端 → 客户端设置」加「重新打开引导」（只在加载了引导脚本时出现）；`tigerestClientMenuBack()` 先交给引导 |
 | `native/inputPlugin.js` | 引导打开时，遥控器、手柄和 CEC 的按键先交给引导 |
 | `resources/settings/settings_description.json` | 隐藏设置 `main.onboardingTour`，默认空字符串 |
-| `src/settings/SettingsComponent.cpp`、`src/system/SystemComponent.cpp` | Qt 版判断新老用户，并注入脚本（Mac 的 Qt 版自动带上） |
+| `src/settings/SettingsComponent.cpp`、`src/system/SystemComponent.cpp` | Qt 版判断新老用户，注入脚本，并用 `jmpInfo.tourArtPath` 给出配图路径（Mac 的 Qt 版自动带上） |
+| `native/tour-art/*.webp` | 播放器、专业模式、补帧三步的实拍配图，只在桌面显示。和 `native/` 下其他文件一起进 qrc；Android 的资源同步不带这个目录 |
+| `dev/windows/tour-art/` | 重做配图的脚本：`compose.py clip` 做演示片，`capture.cjs` 在隔离配置的真实客户端里截图，`compose.py` 合成 WebP |
 | `android/.../SettingsStore.kt`、`WebHost.kt` | Android 判断新老用户，并注入脚本 |
-| `tests/test_onboarding_tour_ui.cjs` | CTest `test_onboarding_tour_webengine`；`TIGEREST_ANDROID_FIXTURE=1` 时也能在 Android 夹具上跑（跳过 Qt 才有的第 1 部分） |
+| `tests/test_onboarding_tour_ui.cjs` | CTest `test_onboarding_tour_webengine`；`TIGEREST_ANDROID_FIXTURE=1` 时也能在 Android 夹具上跑（跳过 Qt 才有的第 1 部分，不检查配图） |
 
 `main.onboardingTour` 的取值，各平台必须一致：
 
@@ -50,12 +52,18 @@
 3. 核对两处文案：
    - 专业模式那步写的是「播放时按 F2」。Mac 键盘可能要按 fn+F2，需要的话改成「fn+F2」或只写面板图标。
    - 「窗口与全屏」一步亮出的是首页左上的窗口按钮。
+4. 核对配图。播放器和专业模式两步显示 Windows 上截的图，控制栏和专业模式两边是同一份代码。补帧一步在 Mac 上不配图。
+   - **能载入：** `test_onboarding_tour_webengine` 在夹具里按 Windows 环境走，会检查三张图都从 qrc 载入。
+   - **和 Mac 一致：** 在真实客户端里对照 Mac 的控制栏按钮，看序号指的位置对不对。
+   - **不一致时：** 要么在 Mac 上重截，要么在 `ART` 里去掉那一步的图，改回纯文字。`capture.cjs` 现在只支持 Windows，因为它通过 Windows 命名管道连 mpv 的 IPC。
 
 ## 4. iPhone / iPad：四处小改
 
 ### 4.1 同步清单
 
 `apple/tools/sync_resources.py` 的 `SCRIPTS` 在 `homeMotion` 后面加 `onboardingTour`。顺序和桌面、Android 保持一致：homeMotion → onboardingTour → embycompat。
+
+`native/tour-art` 不用同步：iPhone/iPad 按触屏处理，播放器一步讲手势，不放图，也没有专业模式一步。以后哪一步要在 iOS 上放图，`sync_resources.py` 要像 `native/home-art` 一样把它拷进去。脚本默认从 `scriptPath + '/tour-art'` 读图，也可以由 `jmpInfo.tourArtPath` 指定。
 
 ### 4.2 `apple/App/SettingsStore.swift`
 
@@ -191,7 +199,21 @@ Apple TV 没有网页，要用 SwiftUI 另写一个外观相同的引导。步�
 
 ## 6. 这台电脑上的测试情况
 
-截至交接时：
+截至 2026-11-22：
 
-- **Windows：** `test_onboarding_tour_webengine` 通过（夹具页面，不是真实服务器）。整套 CTest 和真实客户端走查的结果见这个分支的提交说明。
-- **Android：** 编译、166 个单元测试（2 个跳过）、lint 都通过。测试手机上的走查还没做。
+- **Windows 夹具：** `test_onboarding_tour_webengine` 通过，整套 CTest 131 项全部通过。这些都跑在夹具页面上，不连真实服务器。
+- **Windows 真实客户端：** 用隔离配置档连真实服务器，测试账号由用户本人登录。
+  - 14 步都出现了，新用户的引导自动开始。
+  - 新用户按 Esc 退回上一步；点「完成」后记为 `done`。
+  - 在非首页点「重新打开引导」，会先回到首页再开始，卡片上有「跳过」和 ×。
+  - 重新打开的引导按 Esc 记为 `skipped`，刷新后不再出现。
+  - 播放器、专业模式、补帧三步的配图都能载入，序号位置正确。
+  - 走查时发现评论区被气泡挡住，修正后重走确认。
+  - 浅色主题只在夹具里看过。真实服务器要改账号的显示设置才能切到浅色，这次没改。
+- **配图脚本：**
+  - `compose.py` 用同一批截图，能逐字节重现提交的三张图。
+  - 用 `capture.cjs` 重新截图后，版面和提交的图一致；只有画面和统计数字不同，因为截到的帧和时刻不一样。
+- **Android：**
+  - 编译、166 个单元测试（2 个跳过）和 lint 在 2026-11-20 通过。
+  - 之后只改了共用脚本：`test_android_shared_scripts.cjs` 通过，APK 没有重新编译。
+  - 测试手机没连上，真机走查还没做。
