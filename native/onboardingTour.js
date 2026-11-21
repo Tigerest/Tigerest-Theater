@@ -12,6 +12,10 @@
 //   off      test profiles: never starts by itself
 // A tour that is interrupted (playback starts, the page goes away, the client
 // quits) keeps its state and starts again on the next visit to the home page.
+//
+// The player steps of the desktop clients show a picture of the real player
+// (native/tour-art, made from the client's own home art) with numbered marks
+// that their text refers to; without room or the picture, the plain text.
 (function () {
     'use strict';
     if (window.TigerestTour) return;
@@ -22,6 +26,17 @@
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
     let state, session = null;
+
+    // Pictures of the player: the file, and where its numbered marks sit, in
+    // percent of the picture. All are 1280×684, the page of the default window
+    // (dev/windows/tour-art makes them).
+    const ART = {
+        player: {file: 'player.webp', marks: [[14.7, 84.5], [52.7, 83.4], [92, 84.5]]},
+        pro: {file: 'pro-mode.webp', marks: [[2.7, 11.5], [96.9, 15.2], [16.6, 71.4]]},
+        interpolation: {file: 'interpolation.webp', marks: [[28.5, 51.8], [28.5, 67.5]]}
+    };
+    const ART_RATIO = 1280 / 684;
+    const artBase = () => window.jmpInfo?.tourArtPath || (window.jmpInfo?.scriptPath || '') + '/tour-art';
 
     // ---- Page state -------------------------------------------------------
 
@@ -150,10 +165,10 @@
         const header = ['bottom', 'left', 'right', 'top'];
         let interpolation = null;
         if (env.platform === 'windows' && env.interpolation) {
-            interpolation = {id: 'interpolation', title: env.rtx ? '补帧与画质增强' : '补帧',
-                body: '在「设置 → 视频」里打开「AI 补帧（RIFE）」，可以把 24 帧的动画补到 60 帧以上。第一次使用要先下载补帧扩展。'
-                    + (env.rtx ? '同一页还能打开 RTX 视频超分辨率和 RTX Video HDR。' : '')
-                    + (env.vfg ? '你的显卡还支持 NVIDIA 帧生成（VFG）。' : '')};
+            const more = (env.rtx ? '同一页还能打开 RTX 视频超分辨率和 RTX Video HDR。' : '') + (env.vfg ? '你的显卡还支持 NVIDIA 帧生成（VFG）。' : '');
+            interpolation = {id: 'interpolation', title: env.rtx ? '补帧与画质增强' : '补帧', art: 'interpolation',
+                body: '在「设置 → 视频」里打开「AI 补帧（RIFE）」，可以把 24 帧的动画补到 60 帧以上。第一次使用要先下载补帧扩展。' + more,
+                artBody: '在「设置 → 视频」里 ① 选一个补帧方案，第一次使用先 ② 下载补帧扩展，再打开「AI 补帧（RIFE）」，24 帧的动画就能补到 60 帧以上。' + more};
         } else if (env.platform === 'mac' && env.interpolation) {
             interpolation = {id: 'interpolation', title: '补帧', body: '在「设置 → 视频」里打开「AI 补帧（RIFE）」或「系统原生补帧」，把 24 帧的动画补到更高帧率。'};
         } else if (env.platform === 'ios' && env.interpolation) {
@@ -185,12 +200,14 @@
                     : `切换或管理服务器、播放器设置（${command},）、客户端设置、下载与离线媒体、打开本地视频（${command}O）都在这里。`},
             {id: 'messages', context: 'detail', target: '#tigerest-message-entry', toTop: true, placement: header, title: '消息',
                 body: '评论收到的回复、你上报问题的处理结果都会出现在这里；有新消息时，按钮上会显示数量。'},
-            {id: 'player', title: '播放器',
+            {id: 'player', title: '播放器', art: touch ? null : 'player',
                 body: env.platform === 'android' ? gestures + '其他设置在控制栏的「更多」里。'
                     : env.platform === 'ios' ? gestures
-                    : '播放时把鼠标移到画面下方，会出现控制栏：字幕、音轨、画质、弹幕、倍速和选集都在上面。右键打开完整菜单；空格暂停，↑ ↓ 调音量。'},
-            (env.platform === 'windows' || env.platform === 'mac') && {id: 'pro', title: '专业模式',
-                body: '播放时按 F2，或点控制栏上的面板图标：画面缩到左上，右边实时调画质、补帧、色彩、字幕和弹幕，下面显示帧率和负载统计。再按一次 F2 返回。'},
+                    : '播放时把鼠标移到画面下方，会出现控制栏：字幕、音轨、画质、弹幕、倍速和选集都在上面。右键打开完整菜单；空格暂停，↑ ↓ 调音量。',
+                artBody: '播放时把鼠标移到画面下方，会出现控制栏：① 字幕、画质、专业模式和弹幕，② 倍速，③ 上一集、选集和下一集。右键打开完整菜单；空格暂停，↑ ↓ 调音量。'},
+            (env.platform === 'windows' || env.platform === 'mac') && {id: 'pro', title: '专业模式', art: 'pro',
+                body: '播放时按 F2，或点控制栏上的面板图标：画面缩到左上，右边实时调画质、补帧、色彩、字幕和弹幕，下面显示帧率和负载统计。再按一次 F2 返回。',
+                artBody: '播放时按 F2，或点控制栏上的面板图标：① 画面缩到左上，② 右边实时调画质、补帧、色彩、字幕和弹幕，③ 下面显示帧率和负载统计。再按一次 F2 返回。'},
             interpolation,
             {id: 'end', target: '#tigerest-mpv-settings-button', optionalTarget: true, placement: header, title: '引导结束',
                 body: '想再看一遍：点「客户端 → 客户端设置」里的「重新打开引导」。祝观影愉快！'}
@@ -222,11 +239,15 @@
 #tigerest-tour .tgt-close:hover{background:var(--tgt-secondary);color:var(--tgt-text)}
 #tigerest-tour .tgt-title{margin:0 30px 6px 0;font-size:17px;font-weight:700;line-height:1.4;color:var(--tgt-text)}
 #tigerest-tour .tgt-body{margin:0;color:var(--tgt-body);font-size:14px;line-height:1.65;overflow-wrap:anywhere}
+#tigerest-tour .tgt-art{position:relative;margin:4px 0 12px;aspect-ratio:1280/684;border:1px solid var(--tgt-border);border-radius:10px;overflow:hidden;background:#0c0c0d}
+#tigerest-tour .tgt-art img{display:block;width:100%;height:100%;object-fit:cover;-webkit-user-drag:none}
+#tigerest-tour .tgt-mark{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--tgt-accent);color:var(--tgt-accent-text);
+ font:700 12px/22px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.45);pointer-events:none}
 #tigerest-tour .tgt-wait{display:none;align-items:center;gap:10px;color:var(--tgt-body)}
 #tigerest-tour .tgt-spinner{width:16px;height:16px;flex:0 0 auto;border:2px solid var(--tgt-secondary-hover);border-top-color:var(--tgt-accent);border-radius:50%;animation:tgt-spin .8s linear infinite}
 @keyframes tgt-spin{to{transform:rotate(360deg)}}
 #tigerest-tour.tgt-waiting .tgt-wait{display:flex}
-#tigerest-tour.tgt-waiting .tgt-title,#tigerest-tour.tgt-waiting .tgt-body,#tigerest-tour.tgt-waiting .tgt-footer{display:none}
+#tigerest-tour.tgt-waiting .tgt-title,#tigerest-tour.tgt-waiting .tgt-art,#tigerest-tour.tgt-waiting .tgt-body,#tigerest-tour.tgt-waiting .tgt-footer{display:none}
 #tigerest-tour .tgt-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px}
 #tigerest-tour .tgt-count{color:var(--tgt-muted);font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
 #tigerest-tour .tgt-buttons{display:flex;gap:8px;margin-left:auto}
@@ -265,6 +286,15 @@
         const arrow = element('span', 'tgt-arrow'); arrow.hidden = true;
         const close = element('button', 'tgt-close', '×'); close.type = 'button'; close.setAttribute('aria-label', '退出引导'); close.hidden = !s.skippable;
         const title = element('h2', 'tgt-title'); title.id = 'tigerest-tour-title';
+        const art = element('figure', 'tgt-art'); art.hidden = true;
+        const picture = element('img'); picture.alt = ''; picture.draggable = false; picture.decoding = 'async';
+        art.append(picture);
+        // A picture that cannot load leaves its step with the plain text.
+        picture.addEventListener('error', () => {
+            if (!picture.dataset.art) return;
+            s.artFailed.add(picture.dataset.art); picture.removeAttribute('src'); delete picture.dataset.art;
+            if (session === s) layout(s);
+        });
         const body = element('p', 'tgt-body'); body.id = 'tigerest-tour-body'; body.setAttribute('aria-live', 'polite');
         const wait = element('div', 'tgt-wait'); const waitText = element('span', '');
         wait.append(element('span', 'tgt-spinner'), waitText);
@@ -272,7 +302,7 @@
         const previous = element('button', 'tgt-button tgt-secondary'); previous.type = 'button';
         const next = element('button', 'tgt-button tgt-primary'); next.type = 'button';
         buttons.append(previous, next); footer.append(count, buttons);
-        bubble.append(arrow, close, title, body, wait, footer); root.append(spot, bubble);
+        bubble.append(arrow, close, title, art, body, wait, footer); root.append(spot, bubble);
         close.addEventListener('click', () => quit());
         previous.addEventListener('click', () => previous.dataset.action === 'skip' ? quit() : back(-1));
         next.addEventListener('click', () => forward());
@@ -294,7 +324,7 @@
         });
         bubble.addEventListener('pointercancel', () => { swipe = null; });
         document.body.append(root);
-        Object.assign(s, {root, spotNode: spot, bubble, arrow, close, title, body, wait, waitText, count, previous, next});
+        Object.assign(s, {root, spotNode: spot, bubble, arrow, close, title, art, picture, body, wait, waitText, count, previous, next});
     }
 
     // ---- Layout -----------------------------------------------------------
@@ -343,24 +373,60 @@
         const y = side === 'bottom' ? H - size.h - margin : side === 'top' ? margin : clamp(cy - size.h / 2, margin, H - size.h - margin);
         return {x, y, side: null};
     }
+    // A big lit block that leaves the bubble no room on any side (the comments
+    // on a short window): light its top part and put the bubble under it.
+    function fitSpot(spot, size, narrow, safe, order) {
+        if (!spot) return spot;
+        const H = innerHeight;
+        const fits = narrow ? Math.max(H - spot.bottom - safe.bottom, spot.top - safe.top) >= size.h + 24 : !!place(spot, size, order).side;
+        if (fits) return spot;
+        const bottom = Math.max(spot.top + 120, H - size.h - (narrow ? 24 + safe.bottom : 48));
+        return bottom < spot.bottom ? {...spot, bottom, height: bottom - spot.top, below: true} : spot;
+    }
+    // The step's picture, as large as the window has room for (`room` across);
+    // its text refers to the marks, so without the picture the plain text.
+    // Returns the bubble's width for the picture, 0 without one.
+    function showArt(s, step, room) {
+        const art = step?.art && !s.artFailed.has(step.art) ? ART[step.art] : null;
+        const width = art ? Math.floor(Math.min(640, room - 42, (innerHeight - 282) * ART_RATIO)) : 0;
+        const pictured = width >= 280;
+        s.art.hidden = !pictured;
+        if (pictured && s.picture.dataset.art !== step.art) {
+            s.picture.dataset.art = step.art; s.picture.alt = step.title;
+            s.picture.src = artBase() + '/' + art.file;
+            for (const mark of s.art.querySelectorAll('.tgt-mark')) mark.remove();
+            art.marks.forEach(([x, y], index) => {
+                const mark = element('span', 'tgt-mark', String(index + 1));
+                mark.style.left = x + '%'; mark.style.top = y + '%'; mark.setAttribute('aria-hidden', 'true');
+                s.art.append(mark);
+            });
+        }
+        if (step) {
+            const text = pictured && step.artBody ? step.artBody : typeof step.body === 'function' ? step.body() : step.body;
+            if (s.body.textContent !== text) s.body.textContent = text;
+        }
+        return pictured ? width + 42 : 0;
+    }
     function layout(s) {
-        const spot = s.spot, W = innerWidth, H = innerHeight;
+        const W = innerWidth, H = innerHeight, narrow = W < 600, safe = safeInsets(), step = s.current?.step;
+        const across = Math.max(220, W - 24 - safe.left - safe.right);
+        const pictured = showArt(s, step, narrow ? across : W - 32);
+        s.bubble.style.width = narrow ? across + 'px' : pictured ? pictured + 'px' : '';
+        const size = {w: s.bubble.offsetWidth, h: s.bubble.offsetHeight};
+        const order = step?.placement, spot = fitSpot(s.spot, size, narrow, safe, order);
         s.root.classList.toggle('tgt-centered', !spot);
         Object.assign(s.spotNode.style, spot
             ? {left: spot.left + 'px', top: spot.top + 'px', width: spot.width + 'px', height: spot.height + 'px', borderRadius: spot.radius + 'px'}
             : {left: W / 2 + 'px', top: H / 2 + 'px', width: '0px', height: '0px', borderRadius: '50%'});
-        const narrow = W < 600, safe = safeInsets();
-        s.bubble.style.width = narrow ? Math.max(220, W - 24 - safe.left - safe.right) + 'px' : '';
-        const size = {w: s.bubble.offsetWidth, h: s.bubble.offsetHeight};
         let x, y, side = null;
         if (narrow) {
             // Phones: across the screen, on the side away from the lit area.
             x = 12 + safe.left;
             const above = 12 + safe.top, below = H - size.h - 12 - safe.bottom;
-            y = !spot ? Math.max(above, (H - size.h) / 2) : H - spot.bottom >= spot.top ? Math.max(above, below) : above;
+            y = !spot ? Math.max(above, (H - size.h) / 2) : spot.below || H - spot.bottom >= spot.top ? Math.max(above, below) : above;
         } else if (!spot) {
             x = (W - size.w) / 2; y = Math.max(16, (H - size.h) / 2);
-        } else ({x, y, side} = place(spot, size, s.current?.step.placement));
+        } else ({x, y, side} = place(spot, size, order));
         s.bubble.style.transform = `translate(${Math.round(x)}px,${Math.round(y)}px)`;
         s.arrow.hidden = !side;
         if (side) {
@@ -483,7 +549,6 @@
         s.index = index; s.current = {step, target}; s.waitTarget = null;
         s.root.classList.remove('tgt-waiting');
         s.title.textContent = step.title;
-        s.body.textContent = typeof step.body === 'function' ? step.body() : step.body;
         s.count.textContent = position + ' / ' + visible.length;
         const skip = step.welcome && s.skippable;
         s.previous.dataset.action = skip ? 'skip' : 'back';
@@ -531,12 +596,14 @@
 
     async function start(mode = 'replay') {
         if (session) return false;
-        const s = session = {mode, skippable: mode !== 'new', token: 0, index: 0, skipped: new Set(), focus: document.activeElement};
+        const s = session = {mode, skippable: mode !== 'new', token: 0, index: 0, skipped: new Set(), artFailed: new Set(), focus: document.activeElement};
         mount(s);
         showWaiting(s, '正在准备引导…');
         const env = await environment();
         if (session !== s) return false;
         s.env = env; s.steps = buildSteps(env, mode);
+        // The player pictures load while the first steps are on screen.
+        for (const step of s.steps) if (step.art) new Image().src = artBase() + '/' + ART[step.art].file;
         s.width = innerWidth; s.height = innerHeight;
         follow(s);
         // Playback, or the page a step belongs to going away, interrupts the
@@ -627,7 +694,9 @@
             return {id: waiting ? null : s.current?.step.id || null, waiting: waiting ? s.waitText.textContent : null,
                 title: s.title.textContent, body: s.body.textContent, count: s.count.textContent, centered: s.root.classList.contains('tgt-centered'),
                 light: s.root.classList.contains('tgt-light'), close: !s.close.hidden,
-                buttons: [s.previous, s.next].filter(button => !button.hidden).map(button => button.textContent)};
+                buttons: [s.previous, s.next].filter(button => !button.hidden).map(button => button.textContent),
+                art: waiting || s.art.hidden ? null : {name: s.picture.dataset.art || null, loaded: s.picture.complete && s.picture.naturalWidth > 0,
+                    marks: s.art.querySelectorAll('.tgt-mark').length}};
         },
         start, replay, next: forward, previous: () => back(-1), close: quit,
         back: backKey, hostAction, reload: refreshState, homeReady,

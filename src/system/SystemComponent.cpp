@@ -1118,6 +1118,8 @@ QString SystemComponent::getNativeShellScript()
   clientData.insert("userAgent", QJsonValue::fromVariant(getUserAgent()));
   clientData.insert("scriptPath", QJsonValue::fromVariant("file:///" + path));
   clientData.insert("homeArtPath", "qrc:///web-client/extension/home-art");
+  // Pictures of the player in the first-run usage tour (onboardingTour.js).
+  clientData.insert("tourArtPath", "qrc:///web-client/extension/tour-art");
   QString defaultMode = SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "layout").toString();
 
   QFile flatpakOsFile {"/run/host/os-release"};

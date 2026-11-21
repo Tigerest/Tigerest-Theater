@@ -2,8 +2,9 @@
 // fixture page shaped like the home gallery and an item page; no Emby account.
 // Covers: the native new/upgrade decision, starting once by itself, a new
 // user's tour that cannot be skipped, skipping, the re-open entry in the client
-// settings, missing parts being skipped, keys, platforms, the light theme and a
-// covered window.
+// settings, missing parts being skipped, keys, platforms, the light theme, a
+// block that leaves the bubble no room beside it, the player pictures (a short
+// window or a missing picture keeps the plain text) and a covered window.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {setTimeout:delay}=require('node:timers/promises');
 const withBrowser=require('./community_browser.cjs');
@@ -155,14 +156,44 @@ function tools({evaluate,call}){
         assert.ok(tall.target.top>=56&&tall.spot.top>=56,'the comments start below the fixed header');
         assert.ok(tall.spot.bottom-tall.spot.top<=height/2,'only the top of the comments is lit');
         assert.equal(overlap(tall.bubble,tall.spot),0,'the bubble sits beside the lit part');
+        // Like the real item page: a little shorter than the window, and no room beside it.
+        await evaluate(`document.getElementById('tigerest-community').style.height='600px'`);
+        await t.key('ArrowLeft');await t.step('watch');await t.key('ArrowRight');await t.step('comments');
+        const block=await t.settled('#tigerest-community');
+        assert.equal(overlap(block.bubble,block.spot),0,'the bubble does not cover a block of most of the window');
+        assert.ok(block.bubble.top>=block.spot.bottom&&block.spot.bottom-block.spot.top>=120,'it sits under the lit top part: '+JSON.stringify(block));
+        await evaluate(`document.getElementById('tigerest-community').style.height=''`);
         await t.key('ArrowRight');await t.step('client');
         assert.equal(await evaluate('document.scrollingElement.scrollTop'),0,'scrolled back to the header');
         assert.match((await t.current()).body,/Ctrl\+,/);
         await t.key('ArrowRight');await t.step('messages');
         await t.key('ArrowRight');await t.step('player');
         c=await t.current();assert.equal(c.centered,true,'the player step has nothing to light');
+        // The desktop player steps show a picture of the player; the text refers to its marks.
+        // The Android fixture has no pictures: the plain text stays.
+        const pictures=!process.env.TIGEREST_ANDROID_FIXTURE;
+        const picture=async(name,marks)=>{
+            if(!pictures){await t.until('TigerestTour.current&&TigerestTour.current.art===null','no picture: '+name);assert.doesNotMatch((await t.current()).body,/①/);return;}
+            await t.until('TigerestTour.current?.art?.loaded','the picture loads: '+name);
+            const now=await t.current();
+            assert.deepEqual([now.art.name,now.art.marks],[name,marks]);assert.match(now.body,marks===3?/① .*② .*③ /:/① .*② /,'the text refers to the marks');
+            const card=await evaluate(`(()=>{const r=document.querySelector('#tigerest-tour .tgt-bubble').getBoundingClientRect();return {top:r.top,bottom:r.bottom,width:r.width,height:innerHeight};})()`);
+            assert.ok(card.top>=0&&card.bottom<=card.height&&card.width>600,'a wide card inside the window: '+JSON.stringify(card));
+        };
+        await picture('player',3);
         await t.key('ArrowRight');await t.step('pro');
+        await picture('pro',3);
+        if(pictures){
+            // A short window has no room for the picture: the plain text instead.
+            await context.call('Emulation.setDeviceMetricsOverride',{width:1280,height:400,deviceScaleFactor:0,mobile:false});
+            await t.key('ArrowLeft');await t.step('player');await t.key('ArrowRight');await t.step('pro');
+            c=await t.current();assert.equal(c.art,null,'no picture on a short window');assert.doesNotMatch(c.body,/①/);
+            await context.call('Emulation.clearDeviceMetricsOverride');
+            await t.key('ArrowLeft');await t.step('player');await t.key('ArrowRight');await t.step('pro');
+            await picture('pro',3);
+        }
         await t.key('ArrowRight');await t.step('interpolation');
+        await picture('interpolation',2);
         c=await t.current();
         assert.equal(c.title,'补帧与画质增强');assert.match(c.body,/RTX 视频超分辨率/);assert.doesNotMatch(c.body,/VFG/,'no VFG without an RTX 40/50');
         await t.key('ArrowRight');await t.step('end');
@@ -212,8 +243,13 @@ function tools({evaluate,call}){
         for(const id of ['libraries','hero','rail','window','detail','comments']){await t.key('ArrowRight');await t.step(id);}
         assert.equal((await t.current()).count,'7 / 13','the missing 一起看 step left the count');
         await t.key('ArrowRight');await t.step('client');
+        // A picture that cannot load leaves the plain text.
+        await evaluate(`window.jmpInfo.tourArtPath=location.origin+'/missing-tour-art'`);
+        for(const id of ['messages','player']){await t.key('ArrowRight');await t.step(id);}
+        await t.until('TigerestTour.current&&TigerestTour.current.art===null','a missing picture is left out');
+        assert.doesNotMatch((await t.current()).body,/①/,'and its marks with it');
         // RTX 40: VFG is mentioned.
-        for(const id of ['messages','player','pro','interpolation']){await t.key('ArrowRight');await t.step(id);}
+        for(const id of ['pro','interpolation']){await t.key('ArrowRight');await t.step(id);}
         assert.match((await t.current()).body,/VFG/);
         await t.key('Escape');
         await t.until('!TigerestTour.active','Esc closes a tour that can be skipped');
