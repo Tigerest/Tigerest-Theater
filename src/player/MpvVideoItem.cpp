@@ -192,6 +192,11 @@ void MpvVideoItem::trackWindow(QQuickWindow* newWindow)
             connect(newWindow, &QWindow::screenChanged, this, [this](QScreen* screen) {
                 trackScreen(screen);
                 scheduleNativeHostWindowUpdate();
+#if defined(Q_OS_WIN)
+                // Qt can announce the screen before the window has arrived
+                // there (QWindow::setGeometry does); tell mpv afterwards.
+                QTimer::singleShot(0, this, &MpvVideoItem::notifyNativeDisplayChange);
+#endif
             });
         }
     }
@@ -340,6 +345,29 @@ void MpvVideoItem::updateNativeHostWindow()
 }
 
 #if defined(Q_OS_WIN)
+void MpvVideoItem::notifyNativeDisplayChange()
+{
+    // mpv looks for its monitor again when its own window moves or resizes.
+    // When the whole window moves between two screens of the same size (a
+    // drag, or fullscreen on the chosen display), the renderer keeps its
+    // place and size inside the host, so mpv kept the old monitor: its display
+    // names, DPI, display-fps and ICC profile. WM_DISPLAYCHANGE makes it read
+    // them anew. Every window below the host is mpv's.
+    if (!m_nativeGpuNext || !m_nativeHostWindow || !m_nativeHostWindow->handle())
+        return;
+    const HWND host = reinterpret_cast<HWND>(m_nativeHostWindow->winId());
+    EnumChildWindows(host, [](HWND child, LPARAM) -> BOOL {
+        MONITORINFO monitor{};
+        monitor.cbSize = sizeof(monitor);
+        LPARAM size = 0;
+        if (GetMonitorInfoW(MonitorFromWindow(child, MONITOR_DEFAULTTONEAREST), &monitor))
+            size = MAKELPARAM(monitor.rcMonitor.right - monitor.rcMonitor.left,
+                              monitor.rcMonitor.bottom - monitor.rcMonitor.top);
+        PostMessageW(child, WM_DISPLAYCHANGE, 32, size);
+        return TRUE;
+    }, 0);
+}
+
 void MpvVideoItem::trackNativeHostCursor()
 {
     if (!m_nativeGpuNext || !m_nativeHostWindow || !m_nativeHostWindow->isVisible()) {
