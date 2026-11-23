@@ -116,6 +116,17 @@ hwdec 与 queue 的指针/局部副本补丁修复了两个位置，但 f9b11b1 
 （2.5×、audio 同步、默认 3 个 Shader），全程 Active、0 掉帧、音画偏差最大 0.13 ms，
 没有性能回退。翻页节奏在客户端里另测，见 `mpv-win32-precise-flip.patch` 的提交说明。
 
+`libplacebo-d3d11-cbv-slots.patch` 修 libplacebo 4d82c68 的 D3D11 常量缓冲区槽位。
+libplacebo 让寄存器号等于 SPIR-V 绑定号，而 UBO 排在一个 pass 的所有纹理之后；
+绑 14 张以上纹理的 pass（FSRCNNX_x2_56、ArtCNN 的 `*_YCbCr` 与 Legacy C4F32 共 5 个
+内置着色器）因此把 UBO 放到 b14 以后，D3DCompile 报 X4567（只有 14 个槽），整条着色器
+不生效。补丁只在绑定号放不进 14 个槽时改用最低的空槽，并避开本阶段其他 UBO 的绑定号；
+放得下的仍然寄存器号等于绑定号，原来能编译的 pass 字节码不变，用户已有的着色器缓存继续
+有效。上游 master 到 2026-11-23 仍是同样的代码。CI 冻结阶段用锁定的 libplacebo 源码
+跑 `test_rife_mpv_build.py`，检查补丁能应用、槽位分配正确。配方改动了 libplacebo，
+7a2b62d 的媒体缓存基线从此不再匹配，不会拿没打补丁的 libplacebo 去复用。新内核和其他
+内核一样，按上面的真实媒体验收通过后才能换进 `mpv-runtime-lock.json`。
+
 发布打包通过 `mpv-runtime-lock.json` 固定实际验收的内核 SHA、大小及 CI 来源，
 不从开发机的 import library 目录恢复 stock DLL。准备独立目录后设置
 `TIGEREST_MPV_RUNTIME_DIR` 再执行 `dev/windows/bundle.bat`：

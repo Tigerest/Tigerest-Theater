@@ -1,0 +1,105 @@
+diff --git a/src/d3d11/gpu_pass.c b/src/d3d11/gpu_pass.c
+index e47d5fa..f008978 100644
+--- a/src/d3d11/gpu_pass.c
++++ b/src/d3d11/gpu_pass.c
+@@ -196,6 +196,46 @@ static spvc_result buffer_block_has_decoration(spvc_compiler sc_comp,
+     return res;
+ }
+ 
++// Constant buffers have their own register namespace, but only 14 slots, and
++// libplacebo numbers UBOs after every texture of the pass. A pass that binds
++// 14 or more textures would put its UBO at b14 or higher, which D3DCompile
++// rejects. Keep register == binding whenever that slot exists and is free, so
++// every pass that compiled before compiles to the same bytecode; otherwise take
++// the lowest free slot that no UBO of this stage (`ubos`) claims as its own
++// binding, which also keeps clear of SPIRV-Cross's register == binding
++// fallback. Returns -1 when every slot is taken.
++static int cbv_register(pl_gpu gpu, const struct d3d_pass_stage *pass_s,
++                        spvc_compiler sc_comp, unsigned int binding,
++                        const spvc_reflected_resource *ubos, size_t num_ubos)
++{
++    const int num_slots = D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT;
++    if (binding < (unsigned int) num_slots &&
++        ((int) binding >= pass_s->cbvs.num ||
++         pass_s->cbvs.elem[binding] == HLSL_BINDING_NOT_USED))
++        return binding;
++
++    for (int slot = 0; slot < num_slots; slot++) {
++        if (slot < pass_s->cbvs.num &&
++            pass_s->cbvs.elem[slot] != HLSL_BINDING_NOT_USED)
++            continue;
++
++        bool claimed = false;
++        for (size_t i = 0; i < num_ubos && !claimed; i++) {
++            claimed = spvc_compiler_get_decoration(sc_comp, ubos[i].id,
++                          SpvDecorationDescriptorSet) == 0 &&
++                      spvc_compiler_get_decoration(sc_comp, ubos[i].id,
++                          SpvDecorationBinding) == (unsigned int) slot;
++        }
++        if (!claimed) {
++            PL_DEBUG(gpu, "Binding %u uses constant buffer slot b%d",
++                     binding, slot);
++            return slot;
++        }
++    }
++
++    return -1;
++}
++
+ static bool alloc_hlsl_reg_bindings(pl_gpu gpu, pl_pass pass,
+                                     struct d3d_pass_stage *pass_s,
+                                     spvc_context sc,
+@@ -275,16 +315,20 @@ static bool alloc_hlsl_reg_bindings(pl_gpu gpu, pl_pass pass,
+         // Use the SPIR-V binding directly as the HLSL register slot. This
+         // keeps slots in sync with SPIRV-Cross's default fallback when its
+         // resource-binding remap lookup silently misses, avoiding register
+-        // collisions. Per-namespace arrays become sparse.
++        // collisions. Per-namespace arrays become sparse. Constant buffers
++        // are the exception when the binding is past the last slot, see
++        // cbv_register.
+         if (has_cbv) {
+-            hlslbind.cbv.register_binding = binding;
+-            while (pass_s->cbvs.num <= binding)
+-                PL_ARRAY_APPEND(pass, pass_s->cbvs, HLSL_BINDING_NOT_USED);
+-            pass_s->cbvs.elem[binding] = binding;
+-            if (binding >= D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT) {
++            int slot = cbv_register(gpu, pass_s, sc_comp, binding,
++                                    res_list, res_count);
++            if (slot < 0) {
+                 PL_ERR(gpu, "Too many constant buffers in shader");
+                 goto error;
+             }
++            hlslbind.cbv.register_binding = slot;
++            while (pass_s->cbvs.num <= slot)
++                PL_ARRAY_APPEND(pass, pass_s->cbvs, HLSL_BINDING_NOT_USED);
++            pass_s->cbvs.elem[slot] = binding;
+         }
+ 
+         if (has_sampler) {
+@@ -445,16 +489,19 @@ static ID3DBlob *shader_compile_glsl(pl_gpu gpu, pl_pass pass,
+             binding.stage = stage_to_spv(stage);
+             binding.binding = pass_p->max_binding + 1;
+ 
+-            // Allocate a CBV register matching the synthesized binding
+-            binding.cbv.register_binding = binding.binding;
+-            while (pass_s->cbvs.num <= binding.binding)
+-                PL_ARRAY_APPEND(pass, pass_s->cbvs, HLSL_BINDING_NOT_USED);
+-            pass_s->cbvs.elem[binding.binding] = HLSL_BINDING_NUM_WORKGROUPS;
+-            if (binding.binding >=
+-                    D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT) {
++            // Allocate a CBV register matching the synthesized binding, or
++            // the lowest free one if that binding is past the last slot (every
++            // UBO already holds its slot, so none needs to be kept clear)
++            int slot = cbv_register(gpu, pass_s, sc_comp, binding.binding,
++                                    NULL, 0);
++            if (slot < 0) {
+                 PL_ERR(gpu, "Not enough constant buffer slots for gl_NumWorkGroups");
+                 goto error;
+             }
++            binding.cbv.register_binding = slot;
++            while (pass_s->cbvs.num <= slot)
++                PL_ARRAY_APPEND(pass, pass_s->cbvs, HLSL_BINDING_NOT_USED);
++            pass_s->cbvs.elem[slot] = HLSL_BINDING_NUM_WORKGROUPS;
+ 
+             spvc_compiler_set_decoration(sc_comp, num_workgroups_id,
+                                          SpvDecorationDescriptorSet, 0);
