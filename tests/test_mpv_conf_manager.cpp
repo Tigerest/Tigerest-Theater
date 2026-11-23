@@ -30,6 +30,8 @@ private slots:
   void subtitleFontCoversChinese();
   void editorReplacesAProfilesShaderChain();
   void editorDeletesOnlyProfilesMadeHere();
+  void keymapKeepsUserBindings();
+  void keymapKeepsHandEditedFile();
 
 private:
   QTemporaryDir m_root;
@@ -356,6 +358,56 @@ void TestMpvConfManager::editorDeletesOnlyProfilesMadeHere()
       "[tigerest-user-second]\n"
       "profile-desc=second\n"
       "profile=tigerest-default\n"));
+}
+
+void TestMpvConfManager::keymapKeepsUserBindings()
+{
+  QVERIFY(MpvConfigManager::prepare());
+  QVERIFY(MpvConfigManager::saveUserKeymap(QString()).value(QStringLiteral("ok")).toBool());
+  const QString path = MpvConfigManager::inputConfPath();
+  QVERIFY(QFile::exists(path));
+  const QString generated = QString::fromUtf8(read(path));
+  QVERIFY(generated.contains(MpvConfigManager::defaultKeymap().trimmed()));
+  QVERIFY(generated.contains(QStringLiteral("你的自定义")));
+  QCOMPARE(MpvConfigManager::userKeymap(), QString());
+  QVERIFY(!MpvConfigManager::userKeymapHasBinding(QStringLiteral("F5")));
+
+  QString error;
+  const QVariantMap saved = MpvConfigManager::saveUserKeymap(
+      QStringLiteral("# 我的快捷键\nF5 seek 10\nESC cycle pause\n"), &error);
+  QVERIFY2(saved.value(QStringLiteral("ok")).toBool(), qPrintable(error));
+  QVERIFY(MpvConfigManager::userKeymapHasBinding(QStringLiteral("F5")));
+  QVERIFY(MpvConfigManager::userKeymapHasBinding(QStringLiteral("ESC")));
+  QVERIFY(!MpvConfigManager::userKeymapHasBinding(QStringLiteral("SPACE")));
+
+  // A restart keeps the user block and comments out the default of a key the
+  // user rebound, so both spellings never fight over one key.
+  QVERIFY(MpvConfigManager::prepare());
+  const QString restarted = QString::fromUtf8(read(path));
+  QVERIFY(restarted.contains(QStringLiteral("F5 seek 10")));
+  QVERIFY(restarted.contains(QStringLiteral("# 已由你的自定义覆盖：ESC stop")));
+  QVERIFY(restarted.contains(QStringLiteral("\nSPACE cycle pause\n")));
+  QVERIFY(MpvConfigManager::userKeymapHasBinding(QStringLiteral("ESC")));
+  QCOMPARE(MpvConfigManager::userKeymap(), QStringLiteral("# 我的快捷键\nF5 seek 10\nESC cycle pause\n"));
+
+  QVERIFY(MpvConfigManager::saveUserKeymap(QString()).value(QStringLiteral("ok")).toBool());
+  QCOMPARE(MpvConfigManager::userKeymap(), QString());
+  QVERIFY(!MpvConfigManager::userKeymapHasBinding(QStringLiteral("ESC")));
+  QVERIFY(QString::fromUtf8(read(path)).contains(QStringLiteral("\nESC stop\n")));
+}
+
+void TestMpvConfManager::keymapKeepsHandEditedFile()
+{
+  QVERIFY(MpvConfigManager::prepare());
+  // A file without the markers is a hand edit: keep it whole as the user block.
+  write(MpvConfigManager::inputConfPath(), "F7 seek 30\n");
+  QVERIFY(MpvConfigManager::prepare());
+  QCOMPARE(MpvConfigManager::userKeymap(), QStringLiteral("F7 seek 30\n"));
+  QVERIFY(MpvConfigManager::userKeymapHasBinding(QStringLiteral("F7")));
+  const QString rewritten = QString::fromUtf8(read(MpvConfigManager::inputConfPath()));
+  QVERIFY(rewritten.contains(QStringLiteral("F7 seek 30")));
+  QVERIFY(rewritten.contains(QStringLiteral("# 已由你的自定义覆盖：")));
+  QVERIFY(MpvConfigManager::saveUserKeymap(QString()).value(QStringLiteral("ok")).toBool());
 }
 
 QTEST_GUILESS_MAIN(TestMpvConfManager)

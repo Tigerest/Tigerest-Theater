@@ -1,4 +1,6 @@
 #include "MpvVideoItem.h"
+
+#include "player/MpvConfigManager.h"
 #include "PlayerComponent.h"
 #include "settings/SettingsComponent.h"
 #include <MpvController>
@@ -698,6 +700,16 @@ void MpvVideoItem::keyPressEvent(QKeyEvent* event)
         return;
     }
 
+    // A key the user binds in the custom area of mpv/input.conf belongs to the
+    // user: hand it to mpv before any of the host's fallback actions (Esc,
+    // Space, F11, Ctrl+J, Alt+1..3), so the file can rebind them as well.
+    const QString boundKey = keyName(event);
+    if (!boundKey.isEmpty() && MpvConfigManager::userKeymapHasBinding(boundKey)) {
+        commandAsync({QStringLiteral("keydown"), boundKey});
+        event->accept();
+        return;
+    }
+
     // Alt+1..3 select the three bundled quality profiles. The player applies
     // them from the current mpv.conf, as the uosc menu and the settings page do.
     if (event->modifiers() == Qt::AltModifier &&
@@ -753,9 +765,8 @@ void MpvVideoItem::keyPressEvent(QKeyEvent* event)
         return;
     }
 
-    const QString key = keyName(event);
-    if (!key.isEmpty())
-        commandAsync({QStringLiteral("keydown"), key});
+    if (!boundKey.isEmpty())
+        commandAsync({QStringLiteral("keydown"), boundKey});
     event->accept();
 }
 
