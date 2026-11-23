@@ -381,6 +381,29 @@ def test_mpv_bundle() -> None:
     shaders = json.loads(read("resources/mpvconf/shaders.json"))
     require({item["path"] for item in shaders["shaders"]} == shipped,
             "shader catalog is stale; run tools/generate_mpv_shader_catalog.py")
+    regenerated = subprocess.run([sys.executable, "-B", "-X", "utf8", str(ROOT / "tools/generate_mpv_shader_catalog.py"),
+                                  "--check"], capture_output=True, text=True)
+    require(regenerated.returncode == 0,
+            "shader catalog or manifest differs from its sources; run tools/generate_mpv_shader_catalog.py: "
+            + regenerated.stderr.strip())
+    # First-compile seconds on Direct3D 11 come from the measurement, only
+    # for the slow ones, and are shown on Windows in the editor, the "+"
+    # picker, pro mode and the AI guide.
+    compiles = json.loads(read("resources/mpvconf/shader-compile-d3d11.json"))
+    slow = {item["path"]: item["firstCompileSeconds"] for item in shaders["shaders"] if "firstCompileSeconds" in item}
+    require(slow and all(value >= 5 for value in slow.values()), "slow first compiles are not marked")
+    require(set(slow) == {path for path, value in compiles["results"].items() if value is not None and value >= 5},
+            "firstCompileSeconds does not follow shader-compile-d3d11.json")
+    require("ArtCNN/ArtCNN_C4F32.glsl" in slow and shaders.get("firstCompileNote") and shaders.get("firstCompileMeasuredOn"),
+            "the ArtCNN C4F32 first compile (about 100 s on Direct3D 11) is not in the catalog")
+    editor_script, pro_script = read("native/mpvConfEditor.js"), read("native/proMode.js")
+    require(len(re.findall(r"(?<!function )mpvConfFirstCompile\(shader\)", editor_script)) == 2 and
+            "firstCompileNote" in editor_script and
+            pro_script.count("proFirstCompile(info)") == 1 and "firstCompileNote" in pro_script and
+            "isWindows === true && shader?.firstCompileSeconds" in editor_script and
+            "isWindows === true && info?.firstCompileSeconds" in pro_script and
+            re.search(r'#ifdef Q_OS_WIN\s+if \(shader\.value\(QStringLiteral\("firstCompileSeconds"\)\)', manager),
+            "first-compile seconds must be shown on Windows in the editor, pro mode and the AI guide")
     controller = read("external/mpvqt/src/mpvcontroller.cpp")
     require("TIGEREST_MPV_FALLBACK_CONFIG" in controller and "TIGEREST_MPV_CONFIG_FALLBACK_USED" in controller,
             "libmpv must fall back to the default configuration instead of aborting")

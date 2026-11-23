@@ -192,7 +192,23 @@ void TestMpvConfManager::shaderLibraryKeepsUserFiles()
   QVERIFY(QFile::exists(path("shaders/Anime4K_Thin_HQ.glsl")));
   QCOMPARE(read(path("shaders/user/mine.glsl")), QByteArray("// mine\n"));
   QVERIFY(QFile::exists(path("shaders/user/说明.txt")));
-  QVERIFY(QString::fromUtf8(read(MpvConfigManager::aiGuidePath())).contains("~~/shaders/user/mine.glsl"));
+  const QString guide = QString::fromUtf8(read(MpvConfigManager::aiGuidePath()));
+  QVERIFY(guide.contains("~~/shaders/user/mine.glsl"));
+  // ArtCNN C4F32 compiles for about 100 s on Direct3D 11; the guide warns
+  // about it on Windows only, in the shader's own line.
+  const QString slow = guide.section(QStringLiteral("- ~~/shaders/ArtCNN/ArtCNN_C4F32.glsl "), 1, 1)
+                           .section(QLatin1Char('\n'), 0, 0);
+  QVERIFY(!slow.isEmpty());
+  const QString quick = guide.section(QStringLiteral("- ~~/shaders/SSim/SSimSuperRes_RT.glsl "), 1, 1)
+                            .section(QLatin1Char('\n'), 0, 0);
+  QVERIFY(!quick.isEmpty());
+  QVERIFY(!quick.contains(QStringLiteral("首次启用要编译")));
+#ifdef Q_OS_WIN
+  QVERIFY2(slow.contains(QStringLiteral("首次启用要编译约")), qPrintable(slow));
+  QVERIFY(guide.contains(QStringLiteral("- Windows：标了「首次启用要编译约 N 秒」的着色器")));
+#else
+  QVERIFY(!guide.contains(QStringLiteral("首次启用要编译")));
+#endif
 }
 
 void TestMpvConfManager::reportsMissingShaders()

@@ -19,6 +19,10 @@ const PRO_DEFAULT_PROFILE = 'tigerest-default';
 const PRO_DANMAKU = 'user-data/uosc_danmaku/';
 
 const proRange = (key, min, max, step, more) => Object.assign({key, kind: 'range', min, max, step}, more);
+// Windows renders through Direct3D 11, where the large CNN shaders take
+// seconds to minutes to compile the first time (catalog firstCompileSeconds).
+const proFirstCompile = info => window.api?.system?.isWindows === true && info?.firstCompileSeconds
+    ? `首次启用要编译约 ${info.firstCompileSeconds} 秒，期间画面停住，之后有缓存` : '';
 
 // Keys without a title come from the mpv.conf option catalog (title, help,
 // choices, and whether a profile or the global part holds them). `save` says
@@ -945,7 +949,7 @@ function createProMode(player) {
                     add.textContent = '已在链中';
                 });
                 const meta = [info.purpose, info.content, info.cost && `开销${info.cost}`,
-                    info.measuredMs > 0 && `实测 ${info.measuredMs} ms`, info.trigger].filter(Boolean).join(' · ');
+                    info.measuredMs > 0 && `实测 ${info.measuredMs} ms`, proFirstCompile(info), info.trigger].filter(Boolean).join(' · ');
                 pick.append(el('div', '', info.title), add, el('small', '', meta || info.path));
                 pick.title = [info.path, info.note].filter(Boolean).join('\n');
                 results.appendChild(pick);
@@ -958,6 +962,8 @@ function createProMode(player) {
         content.append(search, results);
         const note = conf?.shaders?.costNote;
         if (note) content.appendChild(el('p', 'note', note));
+        if (window.api?.system?.isWindows === true && conf?.shaders?.firstCompileNote)
+            content.appendChild(el('p', 'note', conf.shaders.firstCompileNote));
         openSheet('挂载着色器', content, [['完成', 'primary', close => close()]]);
         search.focus();
     }

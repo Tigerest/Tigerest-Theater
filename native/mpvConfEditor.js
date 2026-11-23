@@ -18,6 +18,13 @@ function mpvConfProfileToPreset(profile) {
     return MPVCONF_PRESETS[profile] || profile;
 }
 
+// Windows renders through Direct3D 11, where the large CNN shaders take
+// seconds to minutes to compile the first time (catalog firstCompileSeconds).
+function mpvConfFirstCompile(shader) {
+    return window.api?.system?.isWindows === true && shader?.firstCompileSeconds
+        ? `首次启用要编译约 ${shader.firstCompileSeconds} 秒，期间画面停住，之后有缓存` : '';
+}
+
 // Line diff (longest common subsequence) for the paste and default-update
 // dialogs. Files are a few hundred lines, so the quadratic table is fine.
 function mpvConfDiff(before, after) {
@@ -377,7 +384,9 @@ function createMpvConfEditor({element, player, settings, saveSetting, notify}) {
         library.querySelector('.wrap')?.remove();
         const wrap = element('div', 'wrap');
         const note = element('p', 'tgs-conf-note',
-            `${state?.shaders?.costNote || ''}${state?.shaders?.measuredOn ? `实测设备：${state.shaders.measuredOn}。` : ''} 自己的着色器放在 ${state?.userShaderDir || 'shaders/user'}，写成 glsl-shader=~~/shaders/user/文件名.glsl；升级不会改动这个目录。`);
+            `${state?.shaders?.costNote || ''}${state?.shaders?.measuredOn ? `实测设备：${state.shaders.measuredOn}。` : ''}${
+                window.api?.system?.isWindows === true && state?.shaders?.firstCompileNote
+                    ? ` ${state.shaders.firstCompileNote}${state.shaders.firstCompileMeasuredOn ? `编译测试电脑：${state.shaders.firstCompileMeasuredOn}。` : ''}` : ''} 自己的着色器放在 ${state?.userShaderDir || 'shaders/user'}，写成 glsl-shader=~~/shaders/user/文件名.glsl；升级不会改动这个目录。`);
         const table = element('table');
         const head = element('tr');
         for (const label of ['着色器', '作用', '适合', '触发条件', '开销', '强度', '说明']) head.appendChild(element('th', '', label));
@@ -388,7 +397,8 @@ function createMpvConfEditor({element, player, settings, saveSetting, notify}) {
             name.append(element('div', '', shader.title), element('div', 'tgs-conf-source', shader.path));
             row.appendChild(name);
             for (const value of [shader.purpose, shader.content, shader.trigger,
-                shader.measuredMs != null ? `${shader.cost}（约 ${shader.measuredMs} ms）` : shader.cost, shader.strength, shader.note]) {
+                [shader.measuredMs != null ? `${shader.cost}（约 ${shader.measuredMs} ms）` : shader.cost,
+                    mpvConfFirstCompile(shader)].filter(Boolean).join('；'), shader.strength, shader.note]) {
                 row.appendChild(element('td', '', value));
             }
             table.appendChild(row);
@@ -579,7 +589,8 @@ function createMpvConfEditor({element, player, settings, saveSetting, notify}) {
                         : (state?.shaders?.groups || []).find(g => g.id === group)?.title || group));
                     for (const shader of shaders) {
                         details.appendChild(pickerItem(`${shader.title}`, [shader.path, shader.purpose, shader.content && `适合${shader.content}`,
-                            shader.trigger, shader.cost && `开销${shader.cost}${shader.measuredMs != null ? `（约 ${shader.measuredMs} ms）` : ''}`, shader.strength && `强度${shader.strength}`, shader.note].filter(Boolean).join(' · '),
+                            shader.trigger, shader.cost && `开销${shader.cost}${shader.measuredMs != null ? `（约 ${shader.measuredMs} ms）` : ''}`,
+                            mpvConfFirstCompile(shader), shader.strength && `强度${shader.strength}`, shader.note].filter(Boolean).join(' · '),
                             '添加', () => done({type: 'shader', path: shader.path, comment: `${shader.title}：${shader.note || shader.purpose}`}),
                             target === 'default' ? '着色器建议写在档位里；写在全局部分时，切档会被清空。' : ''));
                     }

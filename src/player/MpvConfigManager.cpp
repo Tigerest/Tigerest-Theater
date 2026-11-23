@@ -1104,18 +1104,29 @@ QString MpvConfigManager::aiGuide()
   out << QStringLiteral("- 写在档位段里：先写 glsl-shaders= 清空，再用 glsl-shader= 逐个追加，按书写顺序执行。写在全局部分的着色器会在切档时被清空。");
   out << QStringLiteral("- 内置着色器写 glsl-shader=~~/shaders/<组>/<文件>.glsl；用户自己的放在 shaders/user/ 目录（%1），写 glsl-shader=~~/shaders/user/<文件>.glsl。").arg(userShaderDir());
   out << QStringLiteral("- 作用于同一阶段的着色器不要叠加（例如两个亮度放大）；Anime4K 的常见顺序：高光钳制 → 修复 → 放大 → 预缩小 → 放大 → 线条处理。");
+  const QJsonObject shaders = QJsonDocument::fromJson(readBytes(QStringLiteral(":/mpvconf/shaders.json"))).object();
   out << QStringLiteral("- 性能开销是相对档位（低 / 中 / 高 / 极高）；实测毫秒数来自 %1，放大到 1920×1080 时测得，仅供比较量级。放大类只在输出比片源大时运行。")
-             .arg(QJsonDocument::fromJson(readBytes(QStringLiteral(":/mpvconf/shaders.json"))).object()
-                      .value(QStringLiteral("measuredOn")).toString(QStringLiteral("开发者设备")));
+             .arg(shaders.value(QStringLiteral("measuredOn")).toString(QStringLiteral("开发者设备")));
+#ifdef Q_OS_WIN
+  // Direct3D 11 compiles the large CNN shaders for seconds to minutes the
+  // first time; the user should hear that before such a shader is suggested.
+  out << QStringLiteral("- Windows：标了「首次启用要编译约 N 秒」的着色器，第一次用时要先编译（%1 上测得，CPU 越慢越久），期间画面停住；"
+                        "编译结果会缓存，之后再用不用等。推荐这类着色器时先告诉用户。")
+             .arg(shaders.value(QStringLiteral("firstCompileMeasuredOn")).toString(QStringLiteral("开发者电脑")));
+#endif
   out << QString();
   out << QStringLiteral("### 内置着色器");
-  const QJsonObject shaders = QJsonDocument::fromJson(readBytes(QStringLiteral(":/mpvconf/shaders.json"))).object();
   for (const QJsonValue& value : shaders.value(QStringLiteral("shaders")).toArray())
   {
     const QJsonObject shader = value.toObject();
     QString cost = shader.value(QStringLiteral("cost")).toString();
     if (shader.value(QStringLiteral("measuredMs")).isDouble())
       cost += QStringLiteral("（实测约 %1 ms）").arg(shader.value(QStringLiteral("measuredMs")).toDouble());
+#ifdef Q_OS_WIN
+    if (shader.value(QStringLiteral("firstCompileSeconds")).isDouble())
+      cost += QStringLiteral("，首次启用要编译约 %1 秒，期间画面停住，之后有缓存")
+                  .arg(shader.value(QStringLiteral("firstCompileSeconds")).toInt());
+#endif
     out << QStringLiteral("- ~~/shaders/%1 — %2；%3；适合%4；%5；开销%6，强度%7。%8")
                .arg(shader.value(QStringLiteral("path")).toString(), shader.value(QStringLiteral("title")).toString(),
                     shader.value(QStringLiteral("purpose")).toString(), shader.value(QStringLiteral("content")).toString(),
