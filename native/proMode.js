@@ -1885,7 +1885,8 @@ function createProMode(player) {
             ['解码', `${video.hwdec && video.hwdec !== 'no' ? video.hwdec : '软解'} · ${video.hw_pixelformat || video.pixelformat || ''}`],
             ['画面', output.w ? `${pictureW}×${pictureH}（窗口 ${output.w}×${output.h}）` : '—'],
             ['色彩', `${dynamicRange(video)} ${video.primaries || ''} → ${dynamicRange(output)} ${output.primaries || ''}`],
-            ['显示', `${(screen.fps || 0).toFixed(2)} Hz`],
+            // The signal to the display as the driver sends it (Windows only).
+            ['显示', `${(screen.fps || 0).toFixed(2)} Hz${screen.bits ? ` · ${screen.bits} bit ${screen.encoding || ''}`.trimEnd() : ''}`],
             ['同步', screen.sync || '—'],
             ['缓冲', `${(cache.seconds || 0).toFixed(1)} s · ${((cache.speed || 0) / 1048576).toFixed(1)} MB/s${cache.buffering ? ' · 缓冲中' : ''}`],
             ['音频', `${audio.codec || '—'} ${audio.channels || ''} → ${audio.out_channels || ''} ${audio.device || ''}`]

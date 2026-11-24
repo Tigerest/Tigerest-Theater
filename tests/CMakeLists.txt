@@ -80,7 +80,7 @@ add_test(NAME test_main_thread_watchdog COMMAND test_main_thread_watchdog)
 
 if(WIN32)
   add_executable(test_windows_hdr_switch test_windows_hdr_switch.cpp)
-  target_link_libraries(test_windows_hdr_switch jmp_core Qt6::Test)
+  target_link_libraries(test_windows_hdr_switch jmp_core Qt6::Test dxgi)
   target_include_directories(test_windows_hdr_switch PRIVATE ${TEST_INCLUDE_DIRS})
   target_compile_definitions(test_windows_hdr_switch PRIVATE ${TEST_COMPILE_DEFS})
   add_test(NAME test_windows_hdr_switch COMMAND test_windows_hdr_switch)

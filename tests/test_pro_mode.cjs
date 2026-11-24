@@ -339,6 +339,14 @@ async function until(check, label, limit = 150) {
             await until(() => evaluate('window.tigerestProMode.shaders().length === 3 && window.proTest.root().querySelectorAll(".shader").length === 3'), 'the mirrored shader chain');
             assert.deepEqual(await evaluate('window.tigerestProMode.changes()'), [], 'entering changes nothing');
 
+            // ---- the signal to the display, which the client adds to mpv's figures
+            const screen = (await evaluate('window.proTest.stats')).display;
+            if (screen.bits !== undefined)
+                assert.ok([6, 8, 10, 12, 16].includes(screen.bits) && /^(RGB|YCbCr 4:[024]:[024])$/.test(screen.encoding), 'the display signal: ' + JSON.stringify(screen));
+            const shownRow = await until(() => evaluate('[...window.proTest.root().querySelectorAll(".rows dt")].find(node => node.textContent === "显示")?.nextElementSibling.textContent'), 'the 显示 row');
+            assert.match(shownRow, screen.bits ? new RegExp(`^[\\d.]+ Hz · ${screen.bits} bit ${screen.encoding}$`) : /^[\d.]+ Hz$/, 'the 显示 row: ' + shownRow);
+            console.log('显示 row: ' + shownRow);
+
             // ---- render timings in stages; a click opens a stage ------------
             const stageTitles = () => evaluate('[...window.proTest.root().querySelectorAll(".steps .step:not(.sub) span")].map(node => node.textContent)');
             await until(async () => (await stageTitles()).some(title => title.startsWith('滤镜')), 'the shader stage');

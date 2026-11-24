@@ -1671,19 +1671,25 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       {
         if (m_proMode && prop->format == MPV_FORMAT_NODE)
         {
-          const QVariantMap data = mpv::qt::node_to_variant(static_cast<mpv_node*>(prop->data)).toMap();
+          QVariantMap data = mpv::qt::node_to_variant(static_cast<mpv_node*>(prop->data)).toMap();
           if (strcmp(prop->name + 23, "stats") == 0)
           {
+#ifdef Q_OS_WIN
+            addDisplaySignal(data);
+#endif
             emit proStats(data);
             if (m_proStatsSeen++ % 10 == 0)
             {
               const QVariantMap video = data.value(QStringLiteral("video")).toMap(), frames = data.value(QStringLiteral("frames")).toMap(),
                   display = data.value(QStringLiteral("display")).toMap(), passes = data.value(QStringLiteral("passes")).toMap();
-              qInfo().noquote() << QStringLiteral("Professional mode: %1 fps out, display %2 of %3 Hz, video-sync %4, dropped %5, delayed %6, mistimed %7, render %8 ms")
+              const int bits = display.value(QStringLiteral("bits")).toInt();
+              const QString signal = bits > 0 ? QStringLiteral(", %1 bit %2").arg(bits).arg(display.value(QStringLiteral("encoding")).toString()).trimmed() : QString();
+              qInfo().noquote() << QStringLiteral("Professional mode: %1 fps out, display %2 of %3 Hz%9, video-sync %4, dropped %5, delayed %6, mistimed %7, render %8 ms")
                   .arg(video.value(QStringLiteral("output_fps")).toDouble(), 0, 'f', 2).arg(display.value(QStringLiteral("measured")).toDouble(), 0, 'f', 1)
                   .arg(display.value(QStringLiteral("fps")).toDouble(), 0, 'f', 1).arg(display.value(QStringLiteral("sync")).toString())
                   .arg(frames.value(QStringLiteral("dropped")).toLongLong()).arg(frames.value(QStringLiteral("delayed")).toLongLong())
-                  .arg(frames.value(QStringLiteral("mistimed")).toLongLong()).arg(passes.value(QStringLiteral("fresh_total")).toDouble() / 1e6, 0, 'f', 2);
+                  .arg(frames.value(QStringLiteral("mistimed")).toLongLong()).arg(passes.value(QStringLiteral("fresh_total")).toDouble() / 1e6, 0, 'f', 2)
+                  .arg(signal);
             }
           }
           else if (strcmp(prop->name + 23, "options") == 0)
@@ -4717,6 +4723,9 @@ void PlayerComponent::setProMode(bool active)
     return;
   m_proMode = active;
   m_proVideoRect = QRect();
+#ifdef Q_OS_WIN
+  m_proDisplayChecked.invalidate();
+#endif
   qInfo() << "Professional mode:" << active;
   updateWebVisibility();
 #if defined(Q_OS_WIN) || defined(Q_OS_MAC)
@@ -4969,6 +4978,31 @@ void PlayerComponent::applyIccSetting(bool wait)
   else
     m_mpv->setPropertyAsync("icc-profile-auto", wanted);
 }
+
+#ifdef Q_OS_WIN
+// The panel's 显示 row: the bit depth and encoding the driver sends the
+// display the window is on. The DisplayConfig query takes well under a
+// millisecond; two seconds keeps it off the half-second statistics.
+void PlayerComponent::addDisplaySignal(QVariantMap& stats)
+{
+  if (!m_proDisplayChecked.isValid() || m_proDisplayChecked.hasExpired(2000))
+  {
+    m_proDisplayChecked.start();
+    const WindowsHdr::Display display = WindowsHdr::forWindow(m_window ? m_window->winId() : 0);
+    m_proDisplaySignal.clear();
+    if (display.bitsPerColor > 0)
+    {
+      m_proDisplaySignal.insert(QStringLiteral("bits"), display.bitsPerColor);
+      m_proDisplaySignal.insert(QStringLiteral("encoding"), display.colorEncoding);
+    }
+  }
+  if (m_proDisplaySignal.isEmpty())
+    return;
+  QVariantMap display = stats.value(QStringLiteral("display")).toMap();
+  display.insert(m_proDisplaySignal);
+  stats.insert(QStringLiteral("display"), display);
+}
+#endif
 
 QVariantMap PlayerComponent::proIccState()
 {

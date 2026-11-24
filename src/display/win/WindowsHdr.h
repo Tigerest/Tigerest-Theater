@@ -20,6 +20,12 @@ namespace WindowsHdr
     double refreshRate = 0;
     // Windows' Auto Color Management is colour-managing this SDR display.
     bool autoColorManaged = false;
+    // The signal the graphics driver sends the display: bits per colour
+    // channel (0 when the driver does not say) and its encoding ("RGB",
+    // "YCbCr 4:2:2", ...). Windows shows the same as 位深度 in its advanced
+    // display settings.
+    int bitsPerColor = 0;
+    QString colorEncoding;
   };
 
   // The display under the largest part of the window; empty path if unknown.

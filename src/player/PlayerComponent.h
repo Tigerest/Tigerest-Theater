@@ -685,6 +685,13 @@ private:
   // The setting's choice for mpv's icc-profile-auto; nothing with advanced overrides.
   void applyIccSetting(bool wait);
   uint32_t m_proStatsSeen = 0;
+#ifdef Q_OS_WIN
+  // The signal to the window's display, added to the statistics: mpv does not
+  // report it. Read again every two seconds; the window can change displays.
+  QVariantMap m_proDisplaySignal;
+  QElapsedTimer m_proDisplayChecked;
+  void addDisplaySignal(QVariantMap& stats);
+#endif
   QRect m_proVideoRect;
   bool m_videoOnlyMode = false;
   void updateWebVisibility();
