@@ -42,6 +42,8 @@ class SettingsStore(context: Context) {
                 val androidHelp = mapOf("hardwareDecoding" to "使用安卓 MediaCodec 解码；遇到异常可选择复制模式或关闭硬件解码。", "sync_mode" to "选择音视频同步时钟。弹幕始终按实际播放时间独立渲染。", "enableDanmaku" to "按播放器时间显示弹幕，可在播放页搜索、导入、屏蔽来源或调整偏移。", "cache" to "网络视频缓存上限，单位 MB。", "audio_delay.normal" to "正值延迟音频，负值提前音频，单位毫秒。")
                 androidHelp[key]?.let { description.put("help",it) }
                 if(name == "danmaku" && key == "bold") description.put("help","切换滚动与固定弹幕的粗体显示，立即应用。")
+                // Android reads one provider; the desktop and iPad take an ordered list.
+                if(name == "danmaku" && key == "apiServer") description.put("help","留空自动使用大河弹幕服务；也可填写兼容 Dandanplay API 的 HTTP(S) 服务地址，地址可以带路径。")
                 if(name == "audio" && key == "channels") description.put("help","限制播放器可使用的声道数；安卓默认自动检测。")
                 if(name == "subtitles" && key == "bold") description.put("help","用字体的粗体显示 SRT 等纯文本字幕；ASS 字幕保留脚本自带样式。安卓默认关闭。")
                 if(name == "subtitles" && key == "vertical_position") description.put("help","0–150 的整数：100 贴着画面底部，数值越小越靠上；-1 表示按下面的「字幕位置」。")
@@ -62,8 +64,6 @@ class SettingsStore(context: Context) {
             defaults.put(name,JSONObject(raw.toString())); values.put(name,raw)
             if (supported.containsKey(name)) { descriptions.put(name,visible); sections.put(JSONObject().put("key",name).put("order",group.optInt("order",i))) }
         }
-        defaults.getJSONObject("danmaku").put("apiServer",""); values.getJSONObject("danmaku").put("apiServer","")
-        descriptions.getJSONArray("danmaku").put(JSONObject().put("key","apiServer").put("displayName","弹幕服务地址").put("help","留空自动使用大河弹幕服务；也可填写兼容 Dandanplay API 的 HTTP(S) 服务地址。"))
         val saved = runCatching { JSONObject(prefs.getString("values","{}")!!) }.getOrDefault(JSONObject())
         for (section in supported.keys) {
             val savedSection = saved.optJSONObject(section) ?: continue

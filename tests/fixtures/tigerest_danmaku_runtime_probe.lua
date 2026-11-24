@@ -522,6 +522,61 @@ function cases.gateway_cooldown_keeps_third_party_automatic_matching_available()
     assert(s.env.COMMENTS and #s.env.COMMENTS == 1 and #s.requests == 4,
         'Third-party automatic matching must complete while the NAS remains in cooldown')
 end
+-- 弹幕服务地址 (the player's user-data/tigerest/danmaku/custom-api-servers).
+function cases.provider_setting_replaces_our_service_with_the_listed_providers()
+    local s = sandbox(true, true)
+    s.props['user-data/tigerest/danmaku/custom-api-servers'] = ' HTTPS://first.example.test/token/ |首选, garbage,'
+        .. ' http://user@bad.example.test, ftp://ftp.example.test, http://second.example.test:7768#备用 '
+    s.emit('file-loaded')
+    assert(#s.requests == 2, 'Without our service there is no shared lookup; each usable provider is searched')
+    local first, second = s.request_args[1][#s.request_args[1]], s.request_args[2][#s.request_args[2]]
+    assert(first:find('https://first.example.test/token/api/v2/search/anime?', 1, true),
+        'The deployment path stays in front of the API path: ' .. first)
+    assert(second:find('http://second.example.test:7768/api/v2/search/anime?', 1, true),
+        'Providers are searched in the configured order, notes removed: ' .. second)
+    for index = 1, 2 do
+        for _, arg in ipairs(s.request_args[index]) do
+            assert(not tostring(arg):find('X-Tigerest-Client', 1, true), 'Other providers receive no client headers')
+        end
+    end
+    s.respond(1, {animes={{type='tvseries', animeTitle='Fixture series', bangumiId='42'}}})
+    s.respond(2, {animes={}})
+    s.respond(3, {bangumi={episodes={{episodeNumber='3', episodeTitle='Episode three', episodeId=420003}}}})
+    assert(s.request_args[4] and s.request_args[4][#s.request_args[4]]:find(
+        'https://first.example.test/token/api/v2/comment/420003?', 1, true), 'Comments come from the matching provider')
+    s.respond(4, {count=1, comments={{p='10,1,16777215',m='Third-party comment'}}})
+    assert(s.env.COMMENTS and #s.env.COMMENTS == 1, 'Comments from a configured provider must load')
+    assert(s.env.DANMAKU.api_server == 'https://first.example.test/token', 'The match records its provider')
+end
+function cases.provider_setting_lists_the_providers_in_manual_search()
+    local s = sandbox(true, true)
+    s.props['user-data/tigerest/danmaku/custom-api-servers'] = 'https://first.example.test|首选,https://second.example.test'
+    s.env.uosc_available = true
+    s.env.update_menu_uosc = function(_, _, items) return require('mp.utils').format_json({items=items}) end
+    s.env.get_animes('Fixture series')
+    assert(#s.requests == 2 and s.request_args[1][#s.request_args[1]]:find('https://first.example.test/api/v2/search/anime?', 1, true)
+        and s.request_args[2][#s.request_args[2]]:find('https://second.example.test/api/v2/search/anime?', 1, true),
+        'Manual search asks every configured provider')
+end
+function cases.empty_or_unusable_provider_setting_keeps_our_service()
+    for _, value in ipairs({false, '', '   ', 'danmu.example.test/token, ftp://ftp.example.test, https://x.example.test/?k=1'}) do
+        local s = sandbox(true, true)
+        if value then s.props['user-data/tigerest/danmaku/custom-api-servers'] = value end
+        s.emit('file-loaded')
+        local url = s.request_args[1] and s.request_args[1][#s.request_args[1]]
+        assert(#s.requests == 1 and url:find('https://nas.tigerest.top:18446/api/tigerest/v1/danmaku', 1, true),
+            'Our service and its shared lookup remain the default: ' .. tostring(value))
+    end
+end
+function cases.provider_setting_naming_our_service_follows_the_connection()
+    local s = sandbox(true, true)
+    s.props['user-data/tigerest/danmaku/api-server'] = 'http://192.168.5.150:18443'
+    s.props['user-data/tigerest/danmaku/custom-api-servers'] = 'https://nas.tigerest.top:18446/|大河,https://third.example.test'
+    s.emit('file-loaded')
+    local url = s.request_args[1] and s.request_args[1][#s.request_args[1]]
+    assert(#s.requests == 1 and url:find('http://192.168.5.150:18443/api/tigerest/v1/danmaku', 1, true),
+        'A listed address of our service keeps the shared lookup on the active entry: ' .. tostring(url))
+end
 function cases.empty_legacy_response_reports_empty_comments_and_unsaved_binding()
     local s = sandbox(true, true)
     local notice

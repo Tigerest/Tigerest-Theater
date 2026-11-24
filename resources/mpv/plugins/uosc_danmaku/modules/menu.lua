@@ -196,7 +196,7 @@ function get_animes(query, playback_token)
     if not menu_is_current(playback_token) then return end
     latest_menu_anime_token = playback_token
     local encoded_query = url_encode(query)
-    local server_metas = get_api_server_list(options.api_server, true)
+    local server_metas = get_api_server_list(api_server_setting(), true)
     local servers = {}
     local server_notes = {}
     for _, m in ipairs(server_metas) do

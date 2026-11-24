@@ -96,8 +96,6 @@ import AppleCore
                 sections.append(.object(["key": .string(name), "order": group["order"].number.map(JSONValue.number) ?? .number(Double(index))]))
             }
         }
-        values["danmaku", default: [:]]["apiServer"] = .string("")
-        descriptions["danmaku"] = .array((descriptions["danmaku"]?.array ?? []) + [.object(["key": .string("apiServer"), "displayName": .string("弹幕服务地址"), "help": .string("留空使用大河弹幕服务。多个接口按顺序用逗号分隔，可在地址后用 | 或 # 添加备注，与 PC 端一致。")])])
         policy = SettingsPolicy(defaults: values)
         if let saved = try? JSONDecoder().decode([String: [String: JSONValue]].self, from: Data(contentsOf: file)) {
             for (section, entries) in saved { for (key, value) in entries { if supported[section]?.contains(key) == true, let valid = try? policy.validate(section: section, key: key, value: value) { values[section]?[key] = valid } } }

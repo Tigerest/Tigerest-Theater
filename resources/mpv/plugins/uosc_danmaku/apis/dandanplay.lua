@@ -37,7 +37,7 @@ function prepare_episode_id(input, selected_server)
         if DANMAKU.api_server ~= nil then
             selected_server = DANMAKU.api_server
         else
-            local servers = get_api_server_list(options.api_server)
+            local servers = get_api_server_list(api_server_setting())
             if servers and #servers > 0 then
                 selected_server = servers[1]
             end
@@ -56,7 +56,7 @@ end
 function set_episode_id(input, from_menu, api_server, bangumi_id, playback_token, anime_title, episode_title)
     if from_menu and not begin_manual_danmaku_selection(playback_token) then return end
     local selected_server = resolve_api_server(api_server or DANMAKU.api_server
-        or get_api_server_list(options.api_server)[1])
+        or get_api_server_list(api_server_setting())[1])
     local function legacy(save_failed)
         local notice = mapping_rate_limit_message(selected_server)
         if notice then show_message(notice, 5); return end
@@ -343,7 +343,7 @@ local function match_anime()
     if not title or not episode_num then msg.info('无法解析剧集信息'); return end
     if title:match('OVA') or title:match('OAD') then anime_type = 'ova' end
     local encoded_query = url_encode(title)
-    local servers = get_api_server_list(options.api_server)
+    local servers = get_api_server_list(api_server_setting())
     local searches_finished, pending_candidates, matched = false, 0, false
     local candidates, incomplete = {}, false
     local expected_title = ''
@@ -504,7 +504,7 @@ local function match_file(file_path, file_name, callback)
         file_name = title
     end
 
-    local servers = get_api_server_list(options.api_server)
+    local servers = get_api_server_list(api_server_setting())
 
     local matched = false
     local cancel_fn = nil
@@ -726,7 +726,7 @@ function add_danmaku_source_online(query, from_menu)
     show_message("弹幕加载中...", 30)
     msg.verbose("尝试获取弹幕：" .. query)
 
-    local servers = get_api_server_list(options.api_server)
+    local servers = get_api_server_list(api_server_setting())
 
     -- 过滤掉指向 dandanplay.net 的服务器
     local filtered = {}

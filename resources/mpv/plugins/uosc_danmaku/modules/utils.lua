@@ -517,6 +517,36 @@ function get_api_server_list(api_server_str, meta)
     return urls
 end
 
+-- 一项第三方弹幕接口：完整的 HTTP(S) 地址，可以带路径（部署时设的令牌），
+-- 不能带账号、查询参数或空白。返回去掉末尾斜杠的地址，不合格时返回 nil。
+local function third_party_api_url(text)
+    local scheme, authority, path = text:match('^(%a+)://([^/?#%s\\]+)([^?#%s\\]*)$')
+    if not scheme then return nil end
+    scheme = scheme:lower()
+    if scheme ~= 'http' and scheme ~= 'https' then return nil end
+    local port = authority:match('^[%w%.%-_]+:?(%d*)$') or authority:match('^%[[%x:%.]+%]:?(%d*)$')
+    if not port or (port ~= '' and (tonumber(port) < 1 or tonumber(port) > 65535)) then return nil end
+    if authority:sub(-1) == ':' then return nil end
+    return ((scheme .. '://' .. authority .. path):gsub('/+$', ''))
+end
+
+-- 「设置 → 弹幕样式 → 弹幕服务地址」：播放器每次开播发布用户填写的接口列表
+-- （与 iPad 相同：逗号分隔、按顺序，地址后可用 | 或 # 加备注）。留空时用
+-- 打包的默认值，也就是我们的服务；不合格的项不会被请求。
+function api_server_setting()
+    local custom = mp.get_property_native('user-data/tigerest/danmaku/custom-api-servers')
+    if type(custom) ~= 'string' then return options.api_server end
+    local entries = {}
+    for part in custom:gmatch('[^,]+') do
+        local address, note = part:match('^%s*([^|#]-)%s*([|#].-)%s*$')
+        address = address or part:match('^%s*(.-)%s*$')
+        local url = third_party_api_url(address)
+        if url then entries[#entries + 1] = url .. (note or '') end
+    end
+    if #entries == 0 then return options.api_server end
+    return table.concat(entries, ',')
+end
+
 --读history 和 写history
 function read_file(file_path)
     local file = io.open(file_path, "r") -- 打开文件，"r"表示只读模式

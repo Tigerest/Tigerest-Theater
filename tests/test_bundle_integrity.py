@@ -269,11 +269,16 @@ def test_settings() -> None:
         "opacity": 0.7,
         "displayarea": 0.2,
     }
-    require(set(danmaku_values) == set(expected_danmaku_defaults),
+    # 弹幕服务地址 is not a style option: empty keeps the plugin's own default
+    # provider, and the player publishes it for each playback.
+    require(set(danmaku_values) == set(expected_danmaku_defaults) | {"apiServer"},
             "danmaku style settings do not match the bundled plugin options")
     for key, expected in expected_danmaku_defaults.items():
         require(danmaku_values[key]["default"] == expected,
                 f"danmaku {key} default does not match the bundled plugin")
+    require(danmaku_values["apiServer"]["default"] == "" and
+            danmaku_values["apiServer"].get("input_type") == "text",
+            "the danmaku provider address must default to empty (our service)")
 
 
 def test_mpv_bundle() -> None:
@@ -367,6 +372,14 @@ def test_mpv_bundle() -> None:
     danmaku_options = read("resources/mpv/plugins/uosc_danmaku/modules/options.lua")
     require(re.search(r"^\s*displayarea\s*=\s*0\.2\s*,", danmaku_options, re.MULTILINE),
             "bundled danmaku display area must default to 0.2")
+    player = read("src/player/PlayerComponent.cpp")
+    danmaku_root = ROOT / "resources/mpv/plugins/uosc_danmaku"
+    danmaku_lua = "\n".join(path.read_text(encoding="utf-8") for path in sorted(danmaku_root.rglob("*.lua")))
+    require('"user-data/tigerest/danmaku/custom-api-servers"' in player and
+            'SETTINGS_SECTION_DANMAKU, "apiServer"' in player and
+            "'user-data/tigerest/danmaku/custom-api-servers'" in danmaku_lua and
+            "get_api_server_list(options.api_server" not in danmaku_lua,
+            "the danmaku script must read the providers from 弹幕服务地址")
     for marker in ("load-stats-overlay", "~~/plugins/stats.lua", "加载 uosc", "加载弹幕搜索"):
         require(marker in manager, f"managed tail lacks {marker}")
     require("mpvConfEditorMigrated" in manager and "旧版自定义配置备份" in manager and
@@ -705,6 +718,7 @@ def test_settings_ui() -> None:
         "'danmaku.scrolltime'",
         "'danmaku.opacity'",
         "'danmaku.displayarea'",
+        "function tigerestDanmakuApiServers(text)",
     ):
         require(marker in shell, f"persistent danmaku settings UI marker missing: {marker}")
     for marker in (

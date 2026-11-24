@@ -875,7 +875,7 @@ function getTigerestSettingsCategories() {
         danmaku: {
             title: '弹幕样式',
             icon: '&#xe0b7;', // chat
-            subtitle: '内置 uosc_danmaku 的长期默认外观'
+            subtitle: '弹幕服务地址与内置 uosc_danmaku 的长期默认外观'
         }
     };
     if (window.tigerestAndroidApi || window.tigerestIPadApi) {
@@ -883,11 +883,36 @@ function getTigerestSettingsCategories() {
         sectionMeta.audio.subtitle = '声道与音量均衡';
         sectionMeta.mpv.title = '播放器';
         sectionMeta.mpv.subtitle = '音轨偏好、HDR、缓存与弹幕';
-        sectionMeta.danmaku.subtitle = '字号、描边、速度、透明度与显示范围';
+        sectionMeta.danmaku.subtitle = '服务地址、字号、描边、速度、透明度与显示范围';
     }
     return [...jmpInfo.sections].sort((a, b) => a.order - b.order)
         .filter(entry => sectionMeta[entry.key] && jmpInfo.settingsDescriptions[entry.key])
         .map(entry => ({...entry, ...sectionMeta[entry.key]}));
+}
+
+// 弹幕服务地址 on the desktop: Dandanplay-compatible providers in order,
+// separated by commas, each optionally followed by a note after | or #. The
+// danmaku script appends /api/v2/... to each address, so a path (the token a
+// self-hosted provider is deployed with) is kept. Returns the tidied value or
+// the reason it cannot be used.
+function tigerestDanmakuApiServers(text) {
+    const entries = [];
+    for (const part of String(text ?? '').replaceAll('，', ',').split(',')) {
+        const entry = part.trim();
+        if (!entry) continue;
+        const separator = entry.search(/[|#]/);
+        const address = (separator < 0 ? entry : entry.slice(0, separator)).trim();
+        const note = separator < 0 ? '' : entry.slice(separator).trim();
+        let url = null;
+        if (/^https?:\/\/[^\s\\]+$/i.test(address)) {
+            try { url = new URL(address); } catch (error) { url = null; }
+        }
+        if (!url || url.username || url.password || url.search || !url.hostname) {
+            return {error: `「${address || entry}」不是可用的弹幕服务地址：请填写以 http:// 或 https:// 开头的完整地址，不要带账号或查询参数；多个地址用逗号分隔。`};
+        }
+        entries.push(url.origin + url.pathname.replace(/\/+$/, '') + note);
+    }
+    return {value: entries.join(',')};
 }
 
 // Settings categories that configure the player. Emby's drawer only knows
@@ -1367,7 +1392,8 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
     };
 
     // Messages from the player about the user's mpv.conf (RIFE pausing or
-    // restoring conflicting lines) stay visible longer than a plain save.
+    // restoring conflicting lines) and rejected input stay visible longer
+    // than a plain save.
     const showMpvConfMessage = message => {
         showSaved(message);
         clearTimeout(showSaved.timer);
@@ -1423,7 +1449,8 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
             rifeExtensionPanel?.refreshPreferences();
         }
         showSaved(restartSettings.has(`${section}.${key}`) ? '已保存；此项将在重启后生效。'
-            : section === 'video' && (key.startsWith('aiRife') || key.startsWith('vfg') || key.startsWith('nativeInterpolation')) ? '已保存；重新打开视频后生效。' : '已保存并应用。');
+            : section === 'video' && (key.startsWith('aiRife') || key.startsWith('vfg') || key.startsWith('nativeInterpolation'))
+                || section === 'danmaku' && key === 'apiServer' ? '已保存；重新打开视频后生效。' : '已保存并应用。');
     };
 
     let rifeCallout = null;
@@ -1526,7 +1553,26 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
         const input = element('input', 'tgs-control');
         input.type = setting.inputType === 'number' || typeof currentValue === 'number' ? 'number' : 'text';
         input.value = currentValue == null ? '' : currentValue;
+        // The phone and iPad hosts check 弹幕服务地址 themselves.
+        const danmakuApiServer = section === 'danmaku' && key === 'apiServer'
+            && !window.tigerestAndroidApi && !window.tigerestIPadApi;
+        if (danmakuApiServer) {
+            input.spellcheck = false;
+            input.placeholder = '留空使用大河弹幕服务';
+        }
         input.addEventListener('change', () => {
+            if (danmakuApiServer) {
+                const checked = tigerestDanmakuApiServers(input.value);
+                if (checked.error) {
+                    input.setAttribute('aria-invalid', 'true');
+                    showMpvConfMessage(checked.error);
+                    return;
+                }
+                input.removeAttribute('aria-invalid');
+                input.value = checked.value;
+                saveSetting(section, key, checked.value);
+                return;
+            }
             saveSetting(section, key, input.type === 'number' ? Number(input.value) : input.value);
         });
         return input;

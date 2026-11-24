@@ -164,7 +164,7 @@ end
 function lookup_shared_danmaku(fallback)
     local token, source = mapping_playback_token(), mapping_source()
     if not source then fallback(); return end
-    local servers = get_api_server_list(options.api_server)
+    local servers = get_api_server_list(api_server_setting())
     local server
     for _, candidate in ipairs(servers) do if trusted(candidate) then server = resolve_api_server(candidate); break end end
     if not server then fallback(); return end

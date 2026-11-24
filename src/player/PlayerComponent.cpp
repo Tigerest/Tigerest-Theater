@@ -948,6 +948,10 @@ bool PlayerComponent::loadMedia(const QString& url, const QVariantMap& options,
     MpvConfigManager::danmakuApiServer(
       settings.value(SETTINGS_SECTION_MAIN, "userWebClient").toString(),
       settings.value(SETTINGS_SECTION_MAIN, "serverConnectionMode").toString()));
+  // 弹幕服务地址: the user's own Dandanplay-compatible providers, read by the
+  // script for this playback. Empty keeps our service.
+  setIdentityProperty(QStringLiteral("user-data/tigerest/danmaku/custom-api-servers"),
+                      settings.value(SETTINGS_SECTION_DANMAKU, "apiServer").toString().trimmed());
   // The script sends these only to our own danmaku service.
   setIdentityProperty(QStringLiteral("user-data/tigerest/danmaku/client-headers"),
                       CommunityBridge::clientHeaders());

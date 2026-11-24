@@ -145,6 +145,25 @@ withBrowser({
  assert.deepEqual(await evaluate('resets'),['danmaku']);
  assert.equal(await evaluate('jmpInfo.settings.danmaku.opacity'),0.7,'reset restores defaults');
  assert.equal(await evaluate('document.querySelectorAll("#tigerest-settings-style").length'),1,'reset releases prior style and controls');
+ // 弹幕服务地址: tidied before it is saved; an unusable address is refused with its reason.
+ const apiServer=`document.querySelector('[data-setting="danmaku.apiServer"] input')`;
+ const typeApiServer=value=>evaluate(`(()=>{const input=${apiServer};input.value=${JSON.stringify(value)};input.dispatchEvent(new Event('change'));return true})()`);
+ assert.equal(await evaluate(`${apiServer}.placeholder`),'留空使用大河弹幕服务','the empty provider address names the default');
+ const savesBefore=await evaluate('saves.length');
+ await typeApiServer(' HTTPS://Danmu.Example.test/token/ |自建， http://192.168.1.5:7768#备用 ');
+ assert.deepEqual(await evaluate('saves.at(-1)'),['danmaku','apiServer','https://danmu.example.test/token|自建,http://192.168.1.5:7768#备用'],
+  'providers are saved in order with paths and notes, Chinese commas accepted');
+ assert.equal(await evaluate(`${apiServer}.value`),'https://danmu.example.test/token|自建,http://192.168.1.5:7768#备用');
+ assert.match(await evaluate('document.querySelector(".tgs-status").textContent'),/重新打开视频后生效/);
+ for(const rejected of ['danmu.example.test/token','https://user:pass@danmu.example.test','https://danmu.example.test/?token=1','ftp://danmu.example.test']){
+  await typeApiServer(`https://ok.example.test,${rejected}`);
+  assert.equal(await evaluate('saves.length'),savesBefore+1,`unusable address is not saved: ${rejected}`);
+  assert.match(await evaluate('document.querySelector(".tgs-status").textContent'),/不是可用的弹幕服务地址/);
+  assert.equal(await evaluate(`${apiServer}.getAttribute('aria-invalid')`),'true','the field is marked invalid');
+ }
+ await typeApiServer('  ');
+ assert.deepEqual(await evaluate('saves.at(-1)'),['danmaku','apiServer',''],'clearing returns to our service');
+ assert.equal(await evaluate(`${apiServer}.hasAttribute('aria-invalid')`),false);
  await evaluate('renderSettingsDrawer();new Promise(resolve=>setTimeout(resolve,20))');
  assert.equal(await evaluate('document.querySelectorAll(".mainDrawer [data-settings-category]").length'),7,'rerender does not duplicate native menu entries');
  assert.equal(await evaluate('document.querySelector(".mainDrawer [aria-current=page]").dataset.settingsCategory'),'danmaku','reset/rerender preserve selected category');
