@@ -1,5 +1,48 @@
 # 更新记录
 
+## v3.1.0 — 2026-11-24
+
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| Windows 安装版 | [3.1.0 EXE](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.1.0/TigerestTheater-3.1.0-x64.exe) | Windows 10 1903+ / Windows 11，x64 |
+| Windows 便携版 | [3.1.0 ZIP](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.1.0/TigerestTheater-3.1.0-x64.zip) | 同上；完整解压后运行 |
+| Android | [3.1.0 APK](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.1.0/TigerestTheater-3.1.0-android.apk) | Android 15+，arm64-v8a / x86_64 |
+| Apple Silicon Mac | [3.0.0 DMG](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-arm64.dmg) | macOS 26+，M 系列芯片 |
+| iPad / iPhone | [3.0.0 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-universal.ipa) | iPadOS / iOS 26+，须自行签名安装 |
+| Apple TV | [3.0.0 IPA](https://github.com/Tigerest/Tigerest-Theater/releases/download/v3.0.0/TigerestTheater-3.0.0-tvos.ipa) | tvOS 26+，须为 Apple TV 签名安装 |
+
+Windows 与 Android 更新到 3.1.0。Mac、iPhone／iPad 与 Apple TV 这次没有新版本，仍是 3.0.0。
+
+**首次使用引导（Windows 与 Android）**
+
+- 新安装或新建配置后，客户端用一段引导介绍媒体库、推荐海报、作品列表、作品页、一起看、评论区、客户端菜单、消息和播放器，Windows 还有专业模式和补帧：页面变暗，正在讲的部分保持亮着，旁边的气泡写着标题、两三行说明和进度，用「上一步」「下一步」翻页。
+- 新安装和新配置要看完引导（Esc 和返回键回到上一步）；从旧版升级后也会出现同一段引导，可以点 × 跳过。「客户端 → 客户端设置 → 重新打开引导」随时再看一遍。
+- Windows 的「播放器」「专业模式」「补帧」三步配有真实客户端的截图，图上的编号和说明对应；窗口太小放不下图时只显示文字。Android 的播放器一步讲手势。
+- 页面上没有的部分（例如还没有作品、窗口太窄时收起的顶栏按钮）直接跳过，进度跟着变。开始播放或离开页面会中断引导，下次回到首页时重新开始。
+
+**第三方弹幕服务（#44）**
+
+- Windows 的「设置 → 弹幕样式」新增「弹幕服务地址」：留空照旧使用大河弹幕服务；也可以填写兼容弹弹play API 的第三方弹幕服务，例如自己部署的 misaka_danmu_server 或 danmu_api。地址可以带路径，比如部署时设的令牌。
+- 可以填多个接口，按顺序用逗号分隔，地址后可以用 `|` 或 `#` 加备注。自动匹配同时查询所有接口；手动搜索按填写顺序列出各接口的结果。填写后只使用列出的接口；共享匹配和共享校准只来自大河弹幕服务。
+- 设置页会检查地址：带账号、查询参数或缺少 `http(s)://` 时提示原因，不保存。新地址从下一个视频开始使用。第三方服务只收到匹配要用的作品名、集数和「从源添加弹幕」里填的网址，收不到 Emby 登录信息或大河账号。
+- Android 原来就有这一项，仍只读取一个地址；说明里补上了地址可以带路径。
+
+**NVIDIA VFG 帧生成不再需要 RIFE 扩展（Windows）**
+
+- 安装包自带 VFG 用的 Python 3.13.15 和 VapourSynth R79（程序目录的 `vapoursynth`，约 32 MB，许可文件在 `licenses\vapoursynth`），没装 RIFE 扩展也能用 VFG。装了 RIFE 扩展时，VFG 仍用扩展里同一版本的 VapourSynth。安装版因此从约 377 MB 增大到约 389 MB，便携包从约 502 MB 增大到约 518 MB。
+- 没有 RIFE 扩展时，显卡是否支持 VFG 改为直接问 NVIDIA 驱动。不能用时设置页写明原因，例如显卡不是 RTX 40／50 系、没有找到 NVIDIA 的驱动。
+- RTX 视频超分辨率（VSR）和 RTX Video HDR 由显卡驱动通过 mpv 的 d3d11vpp 滤镜处理，一直不需要 RIFE 扩展。
+
+**全屏显示器（Windows）**
+
+- 「设置 → 指定全屏显示器」选了另一块屏幕时，全屏以前留在窗口所在的屏幕，退出全屏时窗口才跳到选中的屏幕；刷新率又按选中的屏幕设置，两块屏幕刷新率不同时会大量丢帧。现在全屏直接出现在选中的屏幕上，退出后窗口回到原来的位置，播放内核也按这块屏幕读取刷新率和 ICC 配置。
+
+**专业模式与着色器（Windows）**
+
+- 「信号」卡片的「显示」一行在刷新率后面加上显卡送给这块屏幕的位深度和编码，例如「240.00 Hz · 10 bit RGB」，可以看出 10 bit 视频是否真的送到屏幕，或者 HDR 是否因为线材带宽不够只能输出 8 bit。
+- 首次编译超过 5 秒的着色器（例如 ArtCNN C4F32 约 110 秒、C4F16 约 16 秒），在着色器库、「＋」选择列表、专业模式和 AI 指南里注明「首次启用要编译约 N 秒，期间画面停住，之后有缓存」。时间是在 i9-14900K 上测的。
+- 播放内核修正了 libplacebo 在 Direct3D 11 上分配常量缓冲区的方式：FSRCNNX_x2_56_16_4_1 和四个 ArtCNN_Legacy_C4F32 着色器以前在 Windows 上编译失败（「Too many constant buffers in shader」），现在可以正常使用。原来能编译的着色器得到同样的结果，已有的着色器缓存继续有效。
+
 ## v3.0.0 — 2026-11-18
 
 | 平台 | 安装包 | 系统要求 |

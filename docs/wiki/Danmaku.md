@@ -88,7 +88,7 @@ Android 在「来源、屏蔽与时间偏移」中管理已有来源；「添加
 
 ## 使用第三方弹幕服务
 
-「设置 → 弹幕样式 → 弹幕服务地址」留空时使用大河弹幕服务。也可以填写兼容弹弹play API 的第三方弹幕服务，例如自己部署的 [misaka_danmu_server](https://github.com/l429609201/misaka_danmu_server) 或 [danmu_api](https://github.com/huangxd-/danmu_api)。
+「设置 → 弹幕样式 → 弹幕服务地址」留空时使用大河弹幕服务。Windows 3.1.0 起有这一项，Mac 要等下一个 Mac 版本；Android 和 iPad 以前就有。也可以填写兼容弹弹play API 的第三方弹幕服务，例如自己部署的 [misaka_danmu_server](https://github.com/l429609201/misaka_danmu_server) 或 [danmu_api](https://github.com/huangxd-/danmu_api)。
 
 - 填写以 `http://` 或 `https://` 开头的完整地址。服务部署时设了令牌、地址带路径的，把路径一起填上，例如 `https://你的弹幕服务/你的令牌`；客户端在它后面接 `/api/v2/…`。
 - Windows、Mac 和 iPad 可以填多个接口，按顺序用逗号分隔，地址后可以用 `|` 或 `#` 加备注，例如 `https://a.example.com|自建,https://b.example.com#备用`。自动匹配同时查询所有接口；手动搜索按填写顺序列出各接口的结果，备注显示在结果旁。Android 只读取一个地址。
