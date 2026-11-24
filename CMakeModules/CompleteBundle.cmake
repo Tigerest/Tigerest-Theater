@@ -28,6 +28,18 @@ elseif(WIN32)
   else()
     message(STATUS "TIGEREST_NVIDIA_VFX_RUNTIME_DIR is not set: this package will not include NVIDIA frame generation's runtime")
   endif()
+  # Optional like the NVIDIA runtime; release packages set it
+  # (dev/windows/vapoursynth/README.md).
+  set(TIGEREST_VAPOURSYNTH_RUNTIME_DIR "$ENV{TIGEREST_VAPOURSYNTH_RUNTIME_DIR}" CACHE PATH
+      "Directory containing the hash-pinned Python and VapourSynth runtime for VapourSynth filters")
+  file(TO_CMAKE_PATH "${TIGEREST_VAPOURSYNTH_RUNTIME_DIR}" TIGEREST_VAPOURSYNTH_RUNTIME_DIR)
+  if(TIGEREST_VAPOURSYNTH_RUNTIME_DIR)
+    include("${CMAKE_SOURCE_DIR}/CMakeModules/DeployWindowsVapourSynth.cmake")
+    tigerest_validate_vapoursynth("${TIGEREST_VAPOURSYNTH_RUNTIME_DIR}"
+                                  "${CMAKE_SOURCE_DIR}/dev/windows/vapoursynth/runtime-lock.json")
+  else()
+    message(STATUS "TIGEREST_VAPOURSYNTH_RUNTIME_DIR is not set: VapourSynth filters will need the RIFE extension")
+  endif()
   set(TIGEREST_MPV_RUNTIME_DIR "$ENV{TIGEREST_MPV_RUNTIME_DIR}" CACHE PATH
       "Directory containing both release-pinned RIFE-capable Windows mpv DLLs")
   file(TO_CMAKE_PATH "${TIGEREST_MPV_RUNTIME_DIR}" TIGEREST_MPV_RUNTIME_DIR)

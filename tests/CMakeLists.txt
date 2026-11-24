@@ -297,6 +297,7 @@ if(WIN32 AND Python3_Interpreter_FOUND)
     ENVIRONMENT "INSTALLER_HANDOFF_HOST=$<TARGET_FILE:installer_handoff_host>;ISCC=${TIGEREST_TEST_ISCC}")
   add_test(NAME test_openssl_runtime_deployment COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${CMAKE_CURRENT_SOURCE_DIR}/test_openssl_runtime_deployment.py")
   add_test(NAME test_nvidia_vfx_deployment COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${CMAKE_CURRENT_SOURCE_DIR}/test_nvidia_vfx_deployment.py")
+  add_test(NAME test_vapoursynth_runtime_deployment COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${CMAKE_CURRENT_SOURCE_DIR}/test_vapoursynth_runtime_deployment.py")
   add_executable(rife_extension_manager_host rife_extension_manager_host.cpp)
   target_link_libraries(rife_extension_manager_host PRIVATE tigerest_rife_control)
   add_test(NAME test_rife_extension_manager COMMAND "${Python3_EXECUTABLE}" -B -X utf8

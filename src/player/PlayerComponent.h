@@ -445,6 +445,12 @@ private:
   std::unique_ptr<rife::RifeRuntimeManager> m_windowsRifeRuntime;
   QString m_windowsRifeRoot,m_windowsRifeError;
   bool m_windowsRifeActivated=false;
+  // The Python and VapourSynth that vapoursynth filters (NVIDIA frame
+  // generation) run on: the RIFE extension's once it is activated, otherwise
+  // the copy installed with the player. Empty when neither could be activated.
+  QString m_vapoursynthRoot,m_vapoursynthSource,m_vapoursynthError;
+  // Ends the startup gate, activating the installed copy before mpv exists.
+  void finishWindowsRifeStartup();
   struct WindowsRecoveryLoad {
     QVariantList command,httpHeaders;
     QVariant audioStream,subtitleStream;

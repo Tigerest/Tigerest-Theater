@@ -1693,10 +1693,9 @@ async function mountTigerestSettings(host = null, initialSection = null, onRetur
                 input?.setAttribute('aria-describedby', help.id);
                 row.appendChild(help);
             }
-            if (section === 'video' && setting.key === 'vfg' && mpvDiagnostics.vfg.gpuSupported === false)
-                row.appendChild(element('div', 'tgs-help', `当前不可用：VFG 需要 RTX 40 或 RTX 50 系显卡（这块显卡的 CUDA 算力是 ${mpvDiagnostics.vfg.computeCapability}）。`));
-            else if (section === 'video' && setting.key === 'vfg' && !mpvDiagnostics.vfg.runtime)
-                row.appendChild(element('div', 'tgs-help', '当前不可用：VFG 借用 RIFE 扩展里的运行库，请先安装 RIFE 扩展并重启客户端。'));
+            // The player's own reason: no VapourSynth runtime, or not an RTX 40/50 card.
+            if (section === 'video' && setting.key === 'vfg' && (mpvDiagnostics.vfg.gpuSupported === false || !mpvDiagnostics.vfg.runtime))
+                row.appendChild(element('div', 'tgs-help', `当前不可用：${mpvDiagnostics.vfg.reason}。`));
             group.appendChild(row);
         }
 

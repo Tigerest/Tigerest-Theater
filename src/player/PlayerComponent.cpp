@@ -179,9 +179,10 @@ PlayerComponent::PlayerComponent(QObject* parent)
     if(ready&&m_mpv){ready=false;m_windowsRifeError=QStringLiteral("RIFE runtime requires restart before mpv creation");}
     if(ready)ready=rife::activateVSScriptRuntime(m_windowsRifeRoot,&m_windowsRifeError);
     m_windowsRifeActivated=ready;
+    if(ready){m_vapoursynthRoot=m_windowsRifeRoot;m_vapoursynthSource=QStringLiteral("extension");m_vapoursynthError.clear();}
     emit windowsRifeReady(ready,m_windowsRifeError);
     emit rifeExtensionStatusChanged(rifeExtensionStatus());
-    if(m_windowsRifeStartupPending){m_windowsRifeStartupPending=false;emit windowsRifeStartupFinished();}
+    if(m_windowsRifeStartupPending)finishWindowsRifeStartup();
   });
 #endif
 }
@@ -211,6 +212,7 @@ QVariantMap PlayerComponent::windowsRifeStatus() const
 {
   auto status=m_windowsRifeRuntime->diagnostics();
   status["activated"]=m_windowsRifeActivated;status["error"]=m_windowsRifeError;
+  status["vapoursynth"]=QVariantMap{{"source",m_vapoursynthSource},{"root",m_vapoursynthRoot},{"error",m_vapoursynthError}};
   if(m_rife)status["playback"]=m_rife->diagnostics();
   if(m_windowsRifePlayback){
     status["itemGeneration"]=qulonglong(m_windowsRifePlayback->generation());
@@ -251,11 +253,27 @@ void PlayerComponent::initializeWindowsRife(const QString& extensionRoot,const Q
       return;
     }
     if(!ok)m_windowsRifeError=error;
-    m_windowsRifeStartupPending=false;
     emit rifeExtensionStatusChanged(rifeExtensionStatus());
-    emit windowsRifeStartupFinished();
+    finishWindowsRifeStartup();
   });
   m_rifeExtension->initialize();
+}
+void PlayerComponent::finishWindowsRifeStartup()
+{
+  m_windowsRifeStartupPending=false;
+  // One VSScript runtime per process, activated before mpv_create: without the
+  // extension's, vapoursynth filters use the one installed with the player.
+  if(m_vapoursynthRoot.isEmpty()&&!m_mpv){
+    const auto installed=QCoreApplication::applicationDirPath()+QStringLiteral("/vapoursynth");
+    if(!QFileInfo(installed).isDir())
+      m_vapoursynthError=QStringLiteral("This package has no VapourSynth runtime");
+    else if(rife::activateVSScriptRuntime(installed,&m_vapoursynthError)){
+      m_vapoursynthRoot=QFileInfo(installed).canonicalFilePath();
+      m_vapoursynthSource=QStringLiteral("installed");
+    }
+    qInfo()<<"VapourSynth runtime:"<<(m_vapoursynthRoot.isEmpty()?m_vapoursynthError:m_vapoursynthSource+" "+m_vapoursynthRoot);
+  }
+  emit windowsRifeStartupFinished();
 }
 QVariantMap PlayerComponent::rifeExtensionStatus() const
 {
@@ -5039,12 +5057,13 @@ QStringList PlayerComponent::proFontFamilies()
 
 #ifdef Q_OS_WIN
 /////////////////////////////////////////////////////////////////////////////////////////
-// The CUDA compute capability the RIFE extension's probe found ("8.9"),
-// empty before it ran. NVIDIA's frame generation needs Ada (8.9) or newer.
+// NVIDIA's frame generation needs Ada (8.9) or newer: the RIFE extension's
+// probe tells, or else the driver.
 QString PlayerComponent::vfgComputeCapability() const
 {
-  return m_windowsRifeRuntime ? m_windowsRifeRuntime->diagnostics().value(QStringLiteral("gpu")).toMap()
-                                    .value(QStringLiteral("computeCapability")).toString() : QString();
+  const QString probed = m_windowsRifeRuntime ? m_windowsRifeRuntime->diagnostics().value(QStringLiteral("gpu")).toMap()
+                                                    .value(QStringLiteral("computeCapability")).toString() : QString();
+  return probed.isEmpty() ? rife::cudaComputeCapability() : probed;
 }
 
 QString PlayerComponent::vfgUnavailable() const
@@ -5052,9 +5071,13 @@ QString PlayerComponent::vfgUnavailable() const
   const VfgFiles files = vfgFiles();
   if (!files.complete())
     return QStringLiteral("缺少 VFG 的文件：%1").arg(QDir::toNativeSeparators(files.missing()));
-  if (!m_windowsRifeActivated)
-    return QStringLiteral("VFG 借用 RIFE 扩展里的 VapourSynth 运行库：请先安装 RIFE 扩展并重启客户端");
+  if (m_vapoursynthRoot.isEmpty())
+    return QFileInfo(QCoreApplication::applicationDirPath() + QStringLiteral("/vapoursynth")).isDir()
+        ? QStringLiteral("VFG 用的 VapourSynth 运行库没能加载（%1）：请重启客户端").arg(m_vapoursynthError)
+        : QStringLiteral("这个安装包没有带 VFG 用的 VapourSynth 运行库：请安装 RIFE 扩展并重启客户端");
   const QString capability = vfgComputeCapability();
+  if (capability.isEmpty())
+    return QStringLiteral("VFG 需要 NVIDIA 的 RTX 40 或 RTX 50 系显卡（没有找到 NVIDIA 的 CUDA 驱动）");
   const QStringList parts = capability.split(QLatin1Char('.'));
   if (parts.size() == 2 && parts[0].toInt() * 10 + parts[1].toInt() < 89)
     return QStringLiteral("VFG 需要 RTX 40 或 RTX 50 系显卡（这块显卡的 CUDA 算力是 %1）").arg(capability);
@@ -5069,12 +5092,14 @@ QVariantMap PlayerComponent::proVfgState()
     reason = QStringLiteral("播放视频后可用");
   const QString capability = vfgComputeCapability();
   const QStringList parts = capability.split(QLatin1Char('.'));
-  const QVariant gpuSupported = parts.size() == 2 ? QVariant(parts[0].toInt() * 10 + parts[1].toInt() >= 89) : QVariant();
+  const QVariant gpuSupported = parts.size() == 2 ? QVariant(parts[0].toInt() * 10 + parts[1].toInt() >= 89)
+                                                  : QVariant(false);
   return {{QStringLiteral("configured"), configured}, {QStringLiteral("available"), reason.isEmpty()},
           {QStringLiteral("reason"), reason}, {QStringLiteral("mode"), m_proVfgMode},
           {QStringLiteral("factor"), m_proVfgMode >= 0 ? m_proVfgFactor : 0.0},
           {QStringLiteral("effectiveFactor"), m_proVfgMode >= 0 ? m_proVfgEffectiveFactor : 0.0},
-          {QStringLiteral("runtime"), m_windowsRifeActivated}, {QStringLiteral("setting"), vfgSettingMode()},
+          {QStringLiteral("runtime"), !m_vapoursynthRoot.isEmpty()},
+          {QStringLiteral("runtimeSource"), m_vapoursynthSource}, {QStringLiteral("setting"), vfgSettingMode()},
           {QStringLiteral("settingFactor"), vfgSettingFactor()},
           {QStringLiteral("computeCapability"), capability}, {QStringLiteral("gpuSupported"), gpuSupported}};
 }
@@ -5129,7 +5154,7 @@ QVariantMap PlayerComponent::proSetVfg(int mode, double requestedFactor)
   const bool ntsc = std::abs(fps * 1.001 - std::round(fps * 1.001)) < 0.005;
   const VfgFiles files = vfgFiles();
   QJsonObject options{
-    {QStringLiteral("runtime_path"), m_windowsRifeRoot},
+    {QStringLiteral("runtime_path"), m_vapoursynthRoot},
     {QStringLiteral("vfg_runtime_path"), files.runtime},
     {QStringLiteral("vfg_plugin_path"), files.plugin},
     {QStringLiteral("mode"), mode},

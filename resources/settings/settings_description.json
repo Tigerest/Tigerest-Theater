@@ -401,7 +401,7 @@
       {
         "value": "vfg",
         "display_name": "NVIDIA 帧生成（VFG）",
-        "help": "用 NVIDIA 的帧生成模型（Video Effects SDK）补帧，开启后由它代替 RIFE 处理视频；输出倍数见下一项。档位越高画质越好、显卡开销越大。需要 RTX 40 或 50 系显卡（驱动 570.65 或更新）、已安装的 RIFE 扩展（借用其中的 VapourSynth 运行库），以及「硬解后复制回显」或软件解码。重新打开视频后生效，也可以在播放时用专业模式（F2）切换。NVIDIA 的运行库随客户端安装，按 NVIDIA 的许可条款使用（安装目录下 licenses\\nvidia-vfx）。",
+        "help": "用 NVIDIA 的帧生成模型（Video Effects SDK）补帧，开启后由它代替 RIFE 处理视频；输出倍数见下一项。档位越高画质越好、显卡开销越大。需要 RTX 40 或 50 系显卡（驱动 570.65 或更新），以及「硬解后复制回显」或软件解码；不需要 RIFE 扩展。重新打开视频后生效，也可以在播放时用专业模式（F2）切换。NVIDIA 的运行库和它用的 VapourSynth 都随客户端安装，NVIDIA 的部分按 NVIDIA 的许可条款使用（安装目录下 licenses\\nvidia-vfx）。",
         "default": "off",
         "platforms": "windows",
         "possible_values": [["off", "关闭"], ["low", "低"], ["medium", "中"], ["high", "高"]]

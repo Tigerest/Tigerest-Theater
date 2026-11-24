@@ -863,11 +863,17 @@ def test_nvidia_video_features() -> None:
     for path in ("src/player/interpolation/windows/vfg/VfgVsPlugin.cpp", "src/player/interpolation/windows/vfg/VfgApi.h",
                  "resources/mpv/vfg/interpolate_vfg.vpy", "dev/windows/nvidia-vfx/runtime-lock.json",
                  "dev/windows/nvidia-vfx/NOTICE.txt", "dev/windows/nvidia-vfx/prepare_nvidia_vfx_runtime.py",
-                 "CMakeModules/DeployWindowsNvidiaVfx.cmake"):
+                 "CMakeModules/DeployWindowsNvidiaVfx.cmake", "dev/windows/vapoursynth/runtime-lock.json",
+                 "dev/windows/vapoursynth/prepare_vapoursynth_runtime.py", "CMakeModules/DeployWindowsVapourSynth.cmake"):
         require((ROOT / path).is_file(), f"{path} is missing")
     player = read("src/player/PlayerComponent.cpp")
     require('applicationDirPath() + QStringLiteral("/vfg")' in player and 'QStringLiteral("nvidia")' in player,
             "the player does not look for frame generation next to the program")
+    # Without the RIFE extension, frame generation runs on the VapourSynth
+    # installed next to the program (test_vapoursynth_runtime_deployment.py).
+    require('applicationDirPath()+QStringLiteral("/vapoursynth")' in player and
+            '{QStringLiteral("runtime_path"), m_vapoursynthRoot}' in player,
+            "frame generation does not fall back to the VapourSynth installed with the player")
     # RTX video: the d3d11vpp filter, its two settings and the panel's switches.
     require('QStringLiteral("@tigerest-rtx:")' in player and "scaling-mode=nvidia" in player and "nvidia-true-hdr=yes" in player,
             "the RTX video filter is not built by the player")

@@ -147,8 +147,8 @@
         try { diagnostics = await Promise.race([api.player.mpvDiagnostics(), sleep(1500).then(() => null)]); } catch (error) { /* unknown */ }
         if (platform === 'mac') { env.interpolation = !!(diagnostics?.rife || diagnostics?.native); return env; }
         // Windows interpolation (RIFE's TensorRT engine, RTX video, VFG) needs an
-        // NVIDIA card. The RIFE probe knows its CUDA compute capability once the
-        // extension ran; the page's own GPU name covers the time before that.
+        // NVIDIA card. The player reads its CUDA compute capability from the RIFE
+        // probe or the driver; the page's own GPU name covers a failed read.
         const renderer = webglRenderer(), named = /NVIDIA/i.test(renderer);
         const capability = parseFloat(diagnostics?.vfg?.computeCapability) || 0;
         env.interpolation = named || capability > 0;
