@@ -118,14 +118,29 @@ hwdec 与 queue 的指针/局部副本补丁修复了两个位置，但 f9b11b1 
 
 `libplacebo-d3d11-cbv-slots.patch` 修 libplacebo 4d82c68 的 D3D11 常量缓冲区槽位。
 libplacebo 让寄存器号等于 SPIR-V 绑定号，而 UBO 排在一个 pass 的所有纹理之后；
-绑 14 张以上纹理的 pass（FSRCNNX_x2_56、ArtCNN 的 `*_YCbCr` 与 Legacy C4F32 共 5 个
-内置着色器）因此把 UBO 放到 b14 以后，D3DCompile 报 X4567（只有 14 个槽），整条着色器
+绑 14 张以上纹理的 pass（FSRCNNX_x2_56_16_4_1 和 ArtCNN_Legacy_C4F32 的 Chroma、DS_YCbCr、
+RGB、YCbCr 共 5 个内置着色器）因此把 UBO 放到 b14 以后，D3DCompile 报 X4567（只有 14 个槽），整条着色器
 不生效。补丁只在绑定号放不进 14 个槽时改用最低的空槽，并避开本阶段其他 UBO 的绑定号；
 放得下的仍然寄存器号等于绑定号，原来能编译的 pass 字节码不变，用户已有的着色器缓存继续
 有效。上游 master 到 2026-11-23 仍是同样的代码。CI 冻结阶段用锁定的 libplacebo 源码
 跑 `test_rife_mpv_build.py`，检查补丁能应用、槽位分配正确。配方改动了 libplacebo，
-7a2b62d 的媒体缓存基线从此不再匹配，不会拿没打补丁的 libplacebo 去复用。新内核和其他
-内核一样，按上面的真实媒体验收通过后才能换进 `mpv-runtime-lock.json`。
+7a2b62d 的媒体缓存基线从此不再匹配，不会拿没打补丁的 libplacebo 去复用。
+
+3.1.0 起两个 DLL 角色换成加了这个补丁的同一份普通 x64 内核（宿主源码 a9f213f，CI 45292956863，
+归档 `Tigerest-mpv-rife-x64-a9f213f.zip` 附在 v3.1.0 发行页；2.9.5.1–3.0.0 用的是上面的 5122104
+内核）。2026-11-24 在同一台 RTX 4090、4K 240 Hz 上按上面的方法验收：真实 EOF/色彩及 tiny TRT
+流式测试连续 10 轮通过，Player 生命周期、mpv 早/晚激活、VSScript 和 TRT 帧图测试也都通过；
+同一 1080p 23.976 fps 片源三个模型各完成 600 秒默认 4K 输出（2.5×、audio 同步、默认 3 个
+Shader），全程 Active，没有性能回退。lite 和 heavy 稳态 0 掉帧，音画偏差最大 0.09 ms 和 0.04 ms；
+4.25 稳态掉 101 帧（0.29%），集中在三次突发，音画偏差最大 40 ms。测试时机器上还开着一个客户端，
+同样条件下用旧内核 ea0d590e 再跑 4.25，也有掉帧突发（16 帧，出现在别的时间点），所以突发来自
+机器，不是内核。这一次的测试宿主（`test_rife_player_playback`、`rife_player_benchmark`）都在报告
+写完、`QGuiApplication` 析构时崩在 `qwindows.dll`，换成旧内核、10 月的宿主也一样。10-30 验收时
+没有，之后这台机器装过 Windows 更新，原因还没查清；客户端本身没有自己的崩溃处理，系统日志里
+两周内没有它的崩溃记录。`tools/measure_mpv_shader_compile_d3d11.py` 用这份内核重测了全部 87 个
+内置着色器：没有编译失败的，原来报 X4567 的 5 个每个 pass 都出了画面（FSRCNNX_x2_56_16_4_1
+首次编译 2.5 秒，四个 Legacy C4F32 4.6–5.7 秒）；其他着色器和旧内核测的相差在机器负载的范围内
+（ArtCNN C4F32 从约 104 秒变成约 109 秒，这次测量时机器更忙）。
 
 发布打包通过 `mpv-runtime-lock.json` 固定实际验收的内核 SHA、大小及 CI 来源，
 不从开发机的 import library 目录恢复 stock DLL。准备独立目录后设置

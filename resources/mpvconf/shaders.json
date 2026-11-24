@@ -881,7 +881,7 @@
       "strength": "中",
       "note": "两倍放大亮度通道；与其他亮度放大着色器二选一",
       "measuredMs": 0.0,
-      "firstCompileSeconds": 16
+      "firstCompileSeconds": 17
     },
     {
       "path": "ArtCNN/ArtCNN_C4F16_DN.glsl",
@@ -932,7 +932,7 @@
       "strength": "中",
       "note": "两倍放大亮度通道；与其他亮度放大着色器二选一",
       "measuredMs": 2.7,
-      "firstCompileSeconds": 100
+      "firstCompileSeconds": 110
     },
     {
       "path": "ArtCNN/ArtCNN_C4F32_DN.glsl",
@@ -949,7 +949,7 @@
       "strength": "中",
       "note": "两倍放大亮度通道；与其他亮度放大着色器二选一",
       "measuredMs": 4.2,
-      "firstCompileSeconds": 100
+      "firstCompileSeconds": 110
     },
     {
       "path": "ArtCNN/ArtCNN_C4F32_DS.glsl",
@@ -966,7 +966,7 @@
       "strength": "强",
       "note": "两倍放大亮度通道；与其他亮度放大着色器二选一",
       "measuredMs": 1.8,
-      "firstCompileSeconds": 100
+      "firstCompileSeconds": 110
     },
     {
       "path": "ArtCNN/ArtCNN_Legacy_C4F16_DS_YCbCr.glsl",
@@ -1033,7 +1033,8 @@
       "cost": "高",
       "strength": "中",
       "note": "用神经网络重建 4:2:0 色度；与其他色度重建着色器二选一",
-      "measuredMs": 4.9
+      "measuredMs": 4.9,
+      "firstCompileSeconds": 6
     },
     {
       "path": "ArtCNN/ArtCNN_Legacy_C4F32_DS_YCbCr.glsl",
