@@ -112,6 +112,20 @@ withBrowser({
  await until(evaluate,'!!document.querySelector(".tgs-conf-modal .tgs-conf-tabs")','"+" did not open the picker');
  assert.match(await evaluate('document.querySelector(".tgs-conf-modal .tgs-conf-note").textContent'),/默认（Anime AA 高强度）/);
  await evaluate('[...document.querySelectorAll(".tgs-conf-modal .tgs-conf-tabs button")].find(b=>b.textContent==="着色器").click()');
+ // ArtCNN C4F32 compiles for about 100 s on Direct3D 11: the picker and the
+ // shader library say so on Windows, and only for the slow shaders.
+ const windows=await evaluate('window.api?.system?.isWindows===true');
+ const firstCompile=/首次启用要编译约 \d+ 秒，期间画面停住，之后有缓存/;
+ const pickText=file=>evaluate(`[...document.querySelectorAll(".tgs-conf-modal .tgs-conf-pick")].find(i=>i.textContent.includes(${JSON.stringify(file)}))?.textContent||""`);
+ const rowText=file=>evaluate(`[...document.querySelectorAll(".tgs-conf-library tr")].find(r=>r.querySelector(".tgs-conf-source")?.textContent===${JSON.stringify(file)})?.textContent||""`);
+ for(const [file,slow] of [['ArtCNN/ArtCNN_C4F32.glsl',windows],['SSim/SSimSuperRes_RT.glsl',false]]){
+  const pick=await pickText(file),row=await rowText(file);
+  assert.ok(pick&&row,'the shader is listed: '+file);
+  assert.equal(firstCompile.test(pick),slow,'"+" picker, first compile of '+file+': '+pick);
+  assert.equal(firstCompile.test(row),slow,'shader library, first compile of '+file+': '+row);
+ }
+ assert.equal((await evaluate('document.querySelector(".tgs-conf-library .tgs-conf-note").textContent')).includes('首次启用要编译约 N 秒'),windows,
+  'the library explains the first compile on Windows');
  await evaluate(`(()=>{const items=[...document.querySelectorAll(".tgs-conf-modal .tgs-conf-pick")];const pick=items.find(i=>i.textContent.includes("SSim/SSimSuperRes_RT.glsl"));pick.closest("details").open=true;pick.querySelector("button").click();})()`);
  await until(evaluate,'!document.querySelector(".tgs-conf-modal")','picker did not close after adding');
  await until(evaluate,'document.querySelector(".tgs-conf-status").textContent.startsWith("已保存")','shader insert was not saved');

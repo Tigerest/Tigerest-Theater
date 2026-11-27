@@ -291,6 +291,7 @@ void WindowManager::setFullScreen(bool enable)
   }
   else
   {
+    returnFromForcedScreen();
     // Exit fullscreen: restore to previous state
     qDebug() << "setFullScreen(false): m_previousVisibility=" << m_previousVisibility
              << "(Maximized=" << QWindow::Maximized << ")";
@@ -745,6 +746,9 @@ void WindowManager::onVisibilityChanged(QWindow::Visibility visibility)
     prepareFullscreenComposition();
   bool wasFS = m_isFullScreen;
   m_isFullScreen = isFS;
+  // Fullscreen ended some other way than setFullScreen(false): nothing to return.
+  if (!isFS)
+    m_fullScreenReturnScreen = nullptr;
 
   if (m_playbackSessionActive && isFS && !m_playbackSessionStartedFullScreen)
     m_playbackSessionEnteredFullScreen = true;
@@ -1273,25 +1277,99 @@ QScreen* WindowManager::loadLastScreen()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void WindowManager::updateForcedScreen()
+QScreen* WindowManager::forcedFullScreenScreen() const
 {
-  QString forcedScreen = SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "forceFSScreen").toString();
-
-  if (forcedScreen.isEmpty() || !isFullScreen())
-    return;
+  const QString forcedScreen = SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "forceFSScreen").toString();
+  if (forcedScreen.isEmpty())
+    return nullptr;
 
   for (QScreen* screen : QGuiApplication::screens())
   {
     if (screen->name() == forcedScreen)
-    {
-      qDebug() << "Forcing fullscreen to screen:" << forcedScreen;
-      m_window->setScreen(screen);
-      m_window->setVisibility(QWindow::FullScreen);
-      return;
-    }
+      return screen;
   }
 
   qDebug() << "Forced screen not found:" << forcedScreen;
+  return nullptr;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::updateForcedScreen()
+{
+  if (!m_window || !isFullScreen())
+    return;
+
+  QScreen* screen = forcedFullScreenScreen();
+  if (!screen)
+    return;
+
+#if defined(Q_OS_WIN)
+  // Windows fullscreen covers the monitor the window is on (Qt asks
+  // MonitorFromWindow). setScreen() would only change the screen Qt records,
+  // so fullscreen stayed where it was, and leaving it put the window on the
+  // forced screen instead; the refresh rate meanwhile followed the recorded
+  // screen while the video was still on the old one. Move the fullscreen
+  // window itself, and keep where it came from for the way back.
+  QScreen* current = findCurrentScreen();
+  if (current == screen)
+    return;
+  qDebug() << "Forcing fullscreen to screen:" << screen->name() << "from" << (current ? current->name() : QString());
+  if (!m_fullScreenReturnScreen)
+    m_fullScreenReturnScreen = current;
+  moveFullScreenWindow(screen);
+#else
+  qDebug() << "Forcing fullscreen to screen:" << screen->name();
+  m_window->setScreen(screen);
+  m_window->setVisibility(QWindow::FullScreen);
+#endif
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::moveFullScreenWindow(QScreen* screen)
+{
+#if defined(Q_OS_WIN)
+  if (!m_window || !screen)
+    return;
+  // QWindow::setGeometry moves the window and its recorded screen together,
+  // sizes it for the new screen's DPI and keeps the fullscreen state while it
+  // does. The screen change refreshes the playback refresh rate (queued, so
+  // it reads the window where it has arrived).
+  m_window->setGeometry(screen->geometry());
+  // Then exactly the rectangle Qt gives a fullscreen window: the monitor's,
+  // which also holds the one-pixel border of composed OpenGL fullscreen.
+  const HWND handle = reinterpret_cast<HWND>(m_window->winId());
+  MONITORINFO monitor{};
+  monitor.cbSize = sizeof(monitor);
+  if (GetMonitorInfoW(MonitorFromWindow(handle, MONITOR_DEFAULTTONEAREST), &monitor))
+  {
+    const RECT& r = monitor.rcMonitor;
+    SetWindowPos(handle, nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top,
+                 SWP_NOZORDER | SWP_NOACTIVATE);
+  }
+#else
+  Q_UNUSED(screen);
+#endif
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::returnFromForcedScreen()
+{
+  QPointer<QScreen> screen = m_fullScreenReturnScreen;
+  m_fullScreenReturnScreen = nullptr;
+#if defined(Q_OS_WIN)
+  // Qt restores the window's pre-fullscreen geometry on the screen it has
+  // recorded, and moves it to that screen's corner when they do not meet.
+  // Bring the fullscreen window back first, so the restore happens where the
+  // window came from, within one monitor (no DPI change on the way).
+  if (!screen || !m_window || !isFullScreen() || !QGuiApplication::screens().contains(screen.data()))
+    return;
+  if (findCurrentScreen() == screen)
+    return;
+  qDebug() << "Returning fullscreen window to screen:" << screen->name();
+  moveFullScreenWindow(screen);
+#else
+  Q_UNUSED(screen);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

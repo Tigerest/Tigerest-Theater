@@ -339,6 +339,14 @@ async function until(check, label, limit = 150) {
             await until(() => evaluate('window.tigerestProMode.shaders().length === 3 && window.proTest.root().querySelectorAll(".shader").length === 3'), 'the mirrored shader chain');
             assert.deepEqual(await evaluate('window.tigerestProMode.changes()'), [], 'entering changes nothing');
 
+            // ---- the signal to the display, which the client adds to mpv's figures
+            const screen = (await evaluate('window.proTest.stats')).display;
+            if (screen.bits !== undefined)
+                assert.ok([6, 8, 10, 12, 16].includes(screen.bits) && /^(RGB|YCbCr 4:[024]:[024])$/.test(screen.encoding), 'the display signal: ' + JSON.stringify(screen));
+            const shownRow = await until(() => evaluate('[...window.proTest.root().querySelectorAll(".rows dt")].find(node => node.textContent === "显示")?.nextElementSibling.textContent'), 'the 显示 row');
+            assert.match(shownRow, screen.bits ? new RegExp(`^[\\d.]+ Hz · ${screen.bits} bit ${screen.encoding}$`) : /^[\d.]+ Hz$/, 'the 显示 row: ' + shownRow);
+            console.log('显示 row: ' + shownRow);
+
             // ---- render timings in stages; a click opens a stage ------------
             const stageTitles = () => evaluate('[...window.proTest.root().querySelectorAll(".steps .step:not(.sub) span")].map(node => node.textContent)');
             await until(async () => (await stageTitles()).some(title => title.startsWith('滤镜')), 'the shader stage');
@@ -396,6 +404,21 @@ async function until(check, label, limit = 150) {
                 return {left: area.left, videoRight: video.right, picks: sheet.querySelectorAll('.pick').length};
             })()`), 'the shader picker');
             assert.ok(sheet.left >= sheet.videoRight && sheet.picks > 50, 'the picker lists the library beside the video: ' + JSON.stringify(sheet));
+            // ArtCNN C4F32 compiles for about 100 s on Direct3D 11; on Windows
+            // the picker says so, for the slow shaders only.
+            const compileNotes = await evaluate(`(() => {
+                const meta = file => [...window.proTest.root().querySelectorAll('.sheet .pick')]
+                    // The panel moves each title into its own hint (data-tip): path, then note.
+                    .find(pick => (pick.dataset.tip || pick.title).split('\\n')[0] === file)?.querySelector('small')?.textContent || '';
+                return {slow: meta('ArtCNN/ArtCNN_C4F32.glsl'), quick: meta('SSim/SSimSuperRes_RT.glsl'),
+                        windows: window.api?.system?.isWindows === true,
+                        note: [...window.proTest.root().querySelectorAll('.sheet .note')].map(note => note.textContent).join('\\n')};
+            })()`);
+            const firstCompile = /首次启用要编译约 \d+ 秒，期间画面停住，之后有缓存/;
+            assert.ok(compileNotes.slow && compileNotes.quick, 'both shaders are listed: ' + JSON.stringify(compileNotes));
+            assert.equal(firstCompile.test(compileNotes.slow), compileNotes.windows, 'the first compile on Windows: ' + JSON.stringify(compileNotes));
+            assert.equal(firstCompile.test(compileNotes.quick), false, 'only the slow shaders carry it: ' + JSON.stringify(compileNotes));
+            assert.equal(compileNotes.note.includes('首次启用要编译约 N 秒'), compileNotes.windows, 'the sheet explains it on Windows');
             await evaluate('window.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true, cancelable: true}))');
             assert.equal(await evaluate('Boolean(window.proTest.root().querySelector(".sheet")) || !window.tigerestProMode.isActive()'), false, 'Escape closes the dialog, not the mode');
 

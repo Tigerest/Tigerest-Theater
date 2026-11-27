@@ -12,6 +12,9 @@ test('every injected script exists, once, and the server skin filter follows emb
  assert.ok(injected.indexOf('serverKind.js')<injected.indexOf('serverSkinFilter.js'),'TigerestServer exists before the filter runs');
  // Without localPlayer.js the server page has no first screen or local playback (tests/test_server_onboarding.js).
  for(const desktop of ['localPlayer.js','proMode.js','mpvConfEditor.js'])assert.ok(!injected.includes(desktop),desktop);
+ // The first-run usage tour is shared with the desktop client.
+ assert.ok(injected.includes('onboardingTour.js'));
+ assert.ok(fs.readFileSync(path.join(root,'src/system/SystemComponent.cpp'),'utf8').includes('extension/onboardingTour.js'));
 });
 
 function watchPlugin(player){

@@ -1,25 +1,25 @@
 {
   "schemaVersion": 1,
   "archive": {
-    "releaseTag": "v2.9.5.1",
-    "assetName": "Tigerest-mpv-rife-x64-5122104.zip",
-    "size": 55838490,
-    "sha256": "f997f81ec8cb4977cfa0f737a7c211809b53ecde5a16898f8c7f4721e5b47947"
+    "releaseTag": "v3.1.0",
+    "assetName": "Tigerest-mpv-rife-x64-a9f213f.zip",
+    "size": 55839406,
+    "sha256": "5079b147e17e64b470af6738043e020a80f6dc1fc11dae2db8d8504af364b8ad"
   },
   "primary": {
     "architecture": "x86-64",
-    "size": 136925710,
-    "sha256": "ea0d590e86bd643ba17f2a7608a658b5a9d907c55c2d0c61a91c9fd51957bcda",
-    "hostSourceSha": "51221047cdd3698779113e66961d5de8d49bb5c1",
-    "buildRunId": 40937947776,
-    "artifactId": 12928908041
+    "size": 136926222,
+    "sha256": "5d462dc9d2d6d834b310379908c3516e7f057fc0a0c1792eeb6e2d17ccbacc91",
+    "hostSourceSha": "a9f213f96e87d9e2dd209212ec133c518d07dffc",
+    "buildRunId": 45292956863,
+    "artifactId": 14878074603
   },
   "fallback": {
     "architecture": "x86-64",
-    "size": 136925710,
-    "sha256": "ea0d590e86bd643ba17f2a7608a658b5a9d907c55c2d0c61a91c9fd51957bcda",
-    "hostSourceSha": "51221047cdd3698779113e66961d5de8d49bb5c1",
-    "buildRunId": 40937947776,
-    "artifactId": 12928908041
+    "size": 136926222,
+    "sha256": "5d462dc9d2d6d834b310379908c3516e7f057fc0a0c1792eeb6e2d17ccbacc91",
+    "hostSourceSha": "a9f213f96e87d9e2dd209212ec133c518d07dffc",
+    "buildRunId": 45292956863,
+    "artifactId": 14878074603
   }
 }

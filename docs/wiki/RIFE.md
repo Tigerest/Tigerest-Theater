@@ -7,7 +7,7 @@ RIFE 在原视频帧之间生成中间帧，提高运动画面的输出帧率。
 | 平台 | 组件 | 支持输入 |
 | --- | --- | --- |
 | Windows x64，受支持的 NVIDIA GPU | NVIDIA 1.0.0 可选扩展，TensorRT | 最高逐行 SDR 4K / 60 fps |
-| Windows x64，RTX 40／50 系（NVIDIA VFG，3.0.0 起） | 安装包自带的 NVIDIA 运行库，另需上面的 RIFE 扩展 | 逐行、恒定帧率的 SDR，见[下文](#nvidia-vfg-帧生成windows-300-起) |
+| Windows x64，RTX 40／50 系（NVIDIA VFG，3.0.0 起） | 安装包自带的 NVIDIA 运行库和 VapourSynth，不需要 RIFE 扩展（3.1.0 起） | 逐行、恒定帧率的 SDR，见[下文](#nvidia-vfg-帧生成windows-300-起) |
 | Apple Silicon Mac | 包内模型与插件，Core ML / Metal | 最高逐行 SDR 1080p / 30 fps、恒定帧率 |
 | iPad | 包内原生滤镜，Core ML / Metal | 1920×1080、BT.709 SDR（8 位或 10 位）、23–30 fps，固定两倍 |
 | Mac、iPhone／iPad、Apple TV（系统原生补帧，3.0.0 起） | 系统自带的 VideoToolbox 帧处理器 | 逐行 SDR 1080p 以内、30 fps 以内，见[下文](#系统原生补帧maciphoneipadapple-tv-300-起) |
@@ -97,9 +97,10 @@ NVIDIA Video Frame Generation（VFG）是 RIFE 之外的另一种补帧：用 NV
 需要：
 
 - RTX 40 或 RTX 50 系显卡，驱动 570.65 或更新。
-- 已安装的 Windows RIFE 扩展（见上文[在线安装](#windows-在线安装)），装好后完全退出并重启客户端。VFG 借用扩展里的 VapourSynth 运行库，不需要开启「AI 补帧（RIFE）」。
 - 软件解码，或「复制」方式的硬件解码：「设置 → 视频 → 硬件解码方式」保持默认的「硬解后复制回显」，或选「关闭硬件解码」。
 - NVIDIA 的运行库随 Windows 安装包提供，在程序目录的 `vfg\nvidia`（约 200 MB），按 NVIDIA 的许可原样分发，许可文件在 `licenses\nvidia-vfx`，不用另外下载。
+
+VFG 跑在 VapourSynth 上。3.1.0 起安装包自带一份（程序目录的 `vapoursynth`），不需要 RIFE 扩展；3.0.0 要先安装 RIFE 扩展，借用扩展里的那份。装了 RIFE 扩展时，VFG 仍用扩展里同一版本的 VapourSynth，也不需要开启「AI 补帧（RIFE）」。
 
 「设置 → 视频」里有两项：
 
@@ -114,7 +115,7 @@ NVIDIA Video Frame Generation（VFG）是 RIFE 之外的另一种补帧：用 NV
 
 不能用时，客户端会写明原因：
 
-- 设置页「NVIDIA 帧生成（VFG）」下方显示「当前不可用：」和原因，例如没有安装 RIFE 扩展、显卡不是 RTX 40／50 系。程序目录里缺 VFG 的文件时，设置页不显示这两项。
+- 设置页「NVIDIA 帧生成（VFG）」下方显示「当前不可用：」和原因，例如显卡不是 RTX 40／50 系、没有找到 NVIDIA 的驱动。程序目录里缺 VFG 的文件时，设置页不显示这两项。
 - 开着 VFG 播放却没能启动时（例如硬件解码方式不对），画面上提示「NVIDIA 帧生成没有启动：」和原因。
 - 专业模式「补帧」页同样写出原因；运行时显示源帧率 → 输出帧率、每帧推理耗时和每秒生成的帧数。
 

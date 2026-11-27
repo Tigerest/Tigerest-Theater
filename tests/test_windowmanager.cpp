@@ -27,6 +27,17 @@ void clearOverrideCursor()
   while (QGuiApplication::overrideCursor())
     QGuiApplication::restoreOverrideCursor();
 }
+
+#if defined(Q_OS_WIN)
+// Stands for mpv's renderer window below the native host.
+int g_rendererDisplayChanges = 0;
+LRESULT CALLBACK rendererFixtureProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
+{
+  if (message == WM_DISPLAYCHANGE)
+    ++g_rendererDisplayChanges;
+  return DefWindowProcW(window, message, wParam, lParam);
+}
+#endif
 }
 
 class TestWindowManager : public QObject
@@ -52,6 +63,9 @@ private slots:
   void testCustomChromeKeepsNativeSnapAndRestore();
   void testWindowsEdgeDragSnap_data();
   void testWindowsEdgeDragSnap();
+  void testForcedFullscreenScreen_data();
+  void testForcedFullscreenScreen();
+  void testScreenChangeTellsNativeRenderer();
   void testPlaybackInheritsHostFullscreen_data();
   void testPlaybackInheritsHostFullscreen();
   void testNativeVideoAnchorDoesNotPaintOverScene();
@@ -313,6 +327,153 @@ void TestWindowManager::testWindowsEdgeDragSnap()
   QTRY_VERIFY(!IsZoomed(handle));
   QTRY_COMPARE(window.visibility(), QWindow::Windowed);
   QTRY_COMPARE(window.size(), normalSize);
+  window.hide();
+}
+
+void TestWindowManager::testForcedFullscreenScreen_data()
+{
+  QTest::addColumn<int>("home");
+  QTest::addColumn<int>("forced");
+  QTest::addColumn<bool>("maximized");
+  QTest::addColumn<bool>("changedWhileFullscreen");
+  const int count = int(QGuiApplication::screens().size());
+  for (int home = 0; home < count && home < 2; ++home) {
+    const int forced = (home + 1) % count;
+    if (forced == home)
+      continue;
+    const QString route = QStringLiteral("%1-to-%2").arg(home).arg(forced);
+    QTest::newRow(qPrintable(route + "-windowed")) << home << forced << false << false;
+    QTest::newRow(qPrintable(route + "-maximized")) << home << forced << true << false;
+    QTest::newRow(qPrintable(route + "-chosen-while-fullscreen")) << home << forced << false << true;
+  }
+}
+
+// 设置 → 指定全屏显示器: fullscreen covers the chosen display (not the one the
+// window was on), the playback refresh rate is asked again once the window is
+// there, and leaving fullscreen puts the window back where it was.
+void TestWindowManager::testForcedFullscreenScreen()
+{
+  QFETCH(int, home);
+  QFETCH(int, forced);
+  QFETCH(bool, maximized);
+  QFETCH(bool, changedWhileFullscreen);
+  if (QGuiApplication::platformName() != QStringLiteral("windows"))
+    QSKIP("Fullscreen placement requires the Windows platform plugin");
+  const auto screens = QGuiApplication::screens();
+  if (screens.size() < 2)
+    QSKIP("Needs two displays");
+  QScreen* homeScreen = screens[home];
+  QScreen* forcedScreen = screens[forced];
+  auto& settings = SettingsComponent::Get();
+  const auto clearSetting = qScopeGuard([&]() { settings.setValue("main", "forceFSScreen", QString()); });
+  settings.setValue("main", "forceFSScreen", changedWhileFullscreen ? QString() : forcedScreen->name());
+
+  QQuickWindow window;
+  WindowManager manager;
+  manager.m_window = &window;
+  manager.m_previousVisibility = maximized ? QWindow::Maximized : QWindow::Windowed;
+  manager.m_isFullScreen = false;
+  connect(&window, SIGNAL(visibilityChanged(QWindow::Visibility)),
+          &manager, SLOT(onVisibilityChanged(QWindow::Visibility)));
+  auto& display = DisplayComponent::Get();
+  display.setApplicationWindow(&window);
+  // Where the window is each time playback asks for the refresh rate again.
+  QList<QScreen*> refreshedOn;
+  connect(&display, &DisplayComponent::refreshRateChanged, &window, [&]() {
+    refreshedOn << QGuiApplication::screenAt(window.geometry().center());
+  });
+
+  window.setScreen(homeScreen);
+  window.setGeometry(QRect(homeScreen->availableGeometry().center() - QPoint(320, 200), QSize(640, 400)));
+  window.showNormal();
+  QVERIFY(QTest::qWaitForWindowExposed(&window));
+  const QRect normalGeometry = window.geometry();
+  if (maximized) {
+    window.showMaximized();
+    QTRY_COMPARE(window.visibility(), QWindow::Maximized);
+  }
+  const QRect startGeometry = window.geometry();
+  const HWND handle = reinterpret_cast<HWND>(window.winId());
+  // The window covers a whole monitor, in Windows' own physical pixels.
+  const auto coversMonitor = [&]() {
+    MONITORINFO monitor{sizeof(MONITORINFO)};
+    RECT rect{};
+    return GetMonitorInfo(MonitorFromWindow(handle, MONITOR_DEFAULTTONEAREST), &monitor) &&
+           GetWindowRect(handle, &rect) && EqualRect(&rect, &monitor.rcMonitor);
+  };
+
+  manager.setFullScreen(true);
+  QTRY_COMPARE(window.visibility(), QWindow::FullScreen);
+  if (changedWhileFullscreen) {
+    QTRY_VERIFY(coversMonitor());
+    QCOMPARE(window.geometry(), homeScreen->geometry());
+    settings.setValue("main", "forceFSScreen", forcedScreen->name());
+    QVariantMap changed;
+    changed.insert(QStringLiteral("forceFSScreen"), forcedScreen->name());
+    QVERIFY(QMetaObject::invokeMethod(&manager, "updateMainSectionSettings", Qt::DirectConnection,
+                                      Q_ARG(QVariantMap, changed)));
+  }
+  QTRY_COMPARE(window.geometry(), forcedScreen->geometry());
+  QCOMPARE(window.screen(), forcedScreen);
+  QVERIFY(coversMonitor());
+  QCOMPARE(window.visibility(), QWindow::FullScreen);
+  QTRY_COMPARE(refreshedOn.isEmpty() ? nullptr : refreshedOn.last(), forcedScreen);
+
+  manager.setFullScreen(false);
+  QTRY_COMPARE(window.visibility(), maximized ? QWindow::Maximized : QWindow::Windowed);
+  QTRY_COMPARE(window.geometry(), startGeometry);
+  QCOMPARE(window.screen(), homeScreen);
+  QVERIFY(!manager.m_fullScreenReturnScreen);
+  QTRY_COMPARE(refreshedOn.last(), homeScreen);
+  if (maximized) {
+    window.showNormal();
+    QTRY_COMPARE(window.geometry(), normalGeometry);
+  }
+  window.hide();
+}
+
+// mpv's renderer keeps its place inside the host when the whole window moves
+// between two screens of the same size, so it is told to look for its monitor
+// again: after the move, not when Qt announces the new screen.
+void TestWindowManager::testScreenChangeTellsNativeRenderer()
+{
+  if (QGuiApplication::platformName() != QStringLiteral("windows"))
+    QSKIP("Native child windows require the Windows platform plugin");
+  WNDCLASSW rendererClass{};
+  rendererClass.lpfnWndProc = rendererFixtureProc;
+  rendererClass.hInstance = GetModuleHandleW(nullptr);
+  rendererClass.lpszClassName = L"TigerestRendererFixture";
+  RegisterClassW(&rendererClass);
+
+  QQuickWindow window;
+  window.setGeometry(100, 100, 640, 360);
+  QWindow* nativeHost = new QWindow(&window);
+  MpvVideoItem item(window.contentItem());
+  const bool nativeGpuNext = item.m_nativeGpuNext;
+  const auto restoreBackend = qScopeGuard([&]() { item.m_nativeGpuNext = nativeGpuNext; });
+  item.m_nativeHostWindow = nativeHost;
+  item.m_nativeGpuNext = true;
+  item.setSize(QSizeF(300, 170));
+  window.show();
+  QTRY_VERIFY(nativeHost->isVisible());
+  const HWND renderer = CreateWindowExW(0, L"TigerestRendererFixture", L"", WS_CHILD | WS_VISIBLE,
+                                        0, 0, 300, 170, reinterpret_cast<HWND>(nativeHost->winId()),
+                                        nullptr, GetModuleHandleW(nullptr), nullptr);
+  QVERIFY(renderer);
+  const auto destroyRenderer = qScopeGuard([&]() { DestroyWindow(renderer); });
+
+  g_rendererDisplayChanges = 0;
+  QVERIFY(QMetaObject::invokeMethod(&window, "screenChanged", Qt::DirectConnection,
+                                    Q_ARG(QScreen*, window.screen())));
+  QCOMPARE(g_rendererDisplayChanges, 0);
+  QTRY_COMPARE(g_rendererDisplayChanges, 1);
+
+  // Render API playback draws in the scene: no renderer window to tell.
+  item.m_nativeGpuNext = false;
+  QVERIFY(QMetaObject::invokeMethod(&window, "screenChanged", Qt::DirectConnection,
+                                    Q_ARG(QScreen*, window.screen())));
+  QTest::qWait(100);
+  QCOMPARE(g_rendererDisplayChanges, 1);
   window.hide();
 }
 

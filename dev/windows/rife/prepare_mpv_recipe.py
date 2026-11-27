@@ -31,6 +31,14 @@ def prepare(recipe, lock):
                                 '${CMAKE_SOURCE_DIR}/tigerest-mpv-win64-hwdec-pointer.patch '
                                 '${CMAKE_SOURCE_DIR}/tigerest-mpv-win64-queue-pointer.patch '
                                 '${CMAKE_SOURCE_DIR}/tigerest-mpv-win32-precise-flip.patch', 1)
+        if relative == 'packages/libplacebo.cmake':
+            # D3D11 passes with 14+ textures put their UBO past the last
+            # constant buffer slot (FSRCNNX_x2_56, ArtCNN *_YCbCr / Legacy).
+            text = text.replace('    UPDATE_COMMAND ""',
+                                '    PATCH_COMMAND git apply ${CMAKE_SOURCE_DIR}/tigerest-libplacebo-d3d11-cbv-slots.patch\n'
+                                '    UPDATE_COMMAND ""', 1)
+            if 'tigerest-libplacebo-d3d11-cbv-slots.patch' not in text:
+                raise ValueError('Unexpected libplacebo recipe: no UPDATE_COMMAND to patch before')
         if relative == 'packages/ngtcp2.cmake':
             text = text.replace('    UPDATE_COMMAND ""',
                                 '    PATCH_COMMAND git apply ${CMAKE_SOURCE_DIR}/tigerest-ngtcp2-static-openssl.patch\n'
@@ -52,6 +60,7 @@ def prepare(recipe, lock):
     shutil.copyfile(HERE / 'mpv-win64-hwdec-pointer.patch', recipe / 'tigerest-mpv-win64-hwdec-pointer.patch')
     shutil.copyfile(HERE / 'mpv-win64-queue-pointer.patch', recipe / 'tigerest-mpv-win64-queue-pointer.patch')
     shutil.copyfile(HERE / 'mpv-win32-precise-flip.patch', recipe / 'tigerest-mpv-win32-precise-flip.patch')
+    shutil.copyfile(HERE / 'libplacebo-d3d11-cbv-slots.patch', recipe / 'tigerest-libplacebo-d3d11-cbv-slots.patch')
     shutil.copyfile(HERE / 'ngtcp2-static-openssl.patch', recipe / 'tigerest-ngtcp2-static-openssl.patch')
     shutil.copyfile(HERE / 'curl-static-openssl.patch', recipe / 'tigerest-curl-static-openssl.patch')
     # The recipe's UTF-8 patch uses a context line from a newer LuaJIT tree.

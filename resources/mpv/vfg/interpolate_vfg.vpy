@@ -3,7 +3,8 @@
 mpv loads this file with vf=vapoursynth and hands over `video_in` and the
 `user_data` JSON string, like interpolate_trt.vpy. Keys:
 
-  runtime_path      the RIFE extension's runtime root (private Python and VapourSynth)
+  runtime_path      the root of the private Python and VapourSynth: the RIFE
+                    extension's runtime, or the player's own vapoursynth directory
   vfg_runtime_path  directory with NVVideoEffects.dll, NVCVImage.dll and the VFG feature DLL
   vfg_plugin_path   tigerest-vfg-vs.dll
   mode              0 low, 1 medium, 2 high (default 2)

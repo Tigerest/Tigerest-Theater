@@ -7,4 +7,8 @@ namespace rife {
 bool activateVSScriptRuntime(const QString& verifiedRoot,QString* error=nullptr);
 // Read-only check for playback hooks. Never activates a runtime after startup.
 bool validateVSScriptRuntime(const QString& verifiedRoot,QString* error=nullptr);
+// CUDA device 0's compute capability from the NVIDIA driver ("8.9"), the
+// device the RIFE probe and NVIDIA's runtime use; empty without a CUDA
+// driver. Asked once, on the first call, which loads the driver.
+QString cudaComputeCapability();
 }

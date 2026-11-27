@@ -41,6 +41,18 @@ QVector<DISPLAYCONFIG_PATH_INFO> activePaths()
   return paths;
 }
 
+QString encodingName(DISPLAYCONFIG_COLOR_ENCODING encoding)
+{
+  switch (encoding)
+  {
+    case DISPLAYCONFIG_COLOR_ENCODING_RGB: return QStringLiteral("RGB");
+    case DISPLAYCONFIG_COLOR_ENCODING_YCBCR444: return QStringLiteral("YCbCr 4:4:4");
+    case DISPLAYCONFIG_COLOR_ENCODING_YCBCR422: return QStringLiteral("YCbCr 4:2:2");
+    case DISPLAYCONFIG_COLOR_ENCODING_YCBCR420: return QStringLiteral("YCbCr 4:2:0");
+    default: return QString();
+  }
+}
+
 WindowsHdr::Display describe(const DISPLAYCONFIG_PATH_INFO& path)
 {
   WindowsHdr::Display display;
@@ -62,6 +74,8 @@ WindowsHdr::Display describe(const DISPLAYCONFIG_PATH_INFO& path)
     display.supported = color.advancedColorSupported && !color.wideColorEnforced;
     display.enabled = display.supported && color.advancedColorEnabled;
     display.autoColorManaged = color.advancedColorEnabled && color.wideColorEnforced;
+    display.bitsPerColor = int(color.bitsPerColorChannel);
+    display.colorEncoding = encodingName(color.colorEncoding);
   }
   return display;
 }

@@ -1,6 +1,6 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 // MAJOR.MINOR.PATCH, plus a fourth number (1-99) for an Android-only fix such as 2.9.5.1.
-val appVersion = "3.0.0"
+val appVersion = "3.1.0"
 val versionParts = appVersion.split('.').map(String::toInt)
 check(versionParts.size in 3..4 && versionParts.drop(1).take(2).all { it in 0..99 } && versionParts.getOrElse(3) { 1 } in 1..99) { "Invalid app version $appVersion" }
 // The commit this build comes from, shown with the version on the update page.

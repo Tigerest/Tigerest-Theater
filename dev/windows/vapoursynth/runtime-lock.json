@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 1,
+  "runtime": "vapoursynth",
+  "versions": {
+    "python": "3.13.15",
+    "vapoursynth": "R79"
+  },
+  "source": "CPython's embeddable package and VapourSynth's portable wheel, unmodified, as pinned by dev/windows/rife/runtime-lock.json; python/python313._pth is written by this tool",
+  "licenses": {
+    "python": "python/LICENSE.txt",
+    "vapoursynth": "python/Lib/site-packages/vapoursynth-79.dist-info/licenses/COPYING.LESSER"
+  },
+  "files": {
+    "python/_asyncio.pyd": {
+      "size": 72928,
+      "sha256": "6941e2aeed3aad1a4658774ecb60309170066a040c2118a5efd16458ac3bed00"
+    },
+    "python/_bz2.pyd": {
+      "size": 86752,
+      "sha256": "261545bd24f15a783fc0c82568b766a4ab569dde14507a81701cccf5293e6e54"
+    },
+    "python/_ctypes.pyd": {
+      "size": 134368,
+      "sha256": "9d6dccb4cd84a44a107f9b06b91c0a44e85766d9bf4debb6abbde8fda7494c2c"
+    },
+    "python/_decimal.pyd": {
+      "size": 286944,
+      "sha256": "1e6a5707163d3c103e0eb4695eefedbea4b855fb227c61cc265b168970d6c6f0"
+    },
+    "python/_elementtree.pyd": {
+      "size": 135904,
+      "sha256": "26c5c2f3f2b8dac1499f07a50d7afd14315c20a6a541abbe4e306bcd9df404f1"
+    },
+    "python/_hashlib.pyd": {
+      "size": 69344,
+      "sha256": "79a26289aef0d92545a082507c7021f10e219621d137cb726c4d0fbbfd4b46ae"
+    },
+    "python/_lzma.pyd": {
+      "size": 159456,
+      "sha256": "ee224aacf5cf9c9974a1b842aac8d89d5d9b7eeebbf4d76619ae0ce4da8ecd96"
+    },
+    "python/_multiprocessing.pyd": {
+      "size": 38112,
+      "sha256": "db19972cf033b598f5826f8219bc2608412b84061d294f5972b43c2ab95f7af5"
+    },
+    "python/_overlapped.pyd": {
+      "size": 57568,
+      "sha256": "9db08b5449e18088754ce57e315657d00b46575e0151cd379efef8847488a606"
+    },
+    "python/_queue.pyd": {
+      "size": 35552,
+      "sha256": "4404c2569443ffb54e7cfffdca8ddf58c9a609175305970728ec12bc1c147b43"
+    },
+    "python/_socket.pyd": {
+      "size": 86752,
+      "sha256": "ccbd0f83df3784da08147b8e8765e28c978de28b5c0eddcfba5567b59d43fef9"
+    },
+    "python/_sqlite3.pyd": {
+      "size": 131296,
+      "sha256": "4c5fa9341a76ac525fd36e2cb23260934ad9b9f6825725ff139b26c8dc72436d"
+    },
+    "python/_ssl.pyd": {
+      "size": 181984,
+      "sha256": "8d2f51fa1dc929073a2ad8d1c7c0c911e8f695870dcf4dda2846f4b75a7f77fb"
+    },
+    "python/_uuid.pyd": {
+      "size": 27872,
+      "sha256": "b93832742a2348d6659fd62e8a8aff061594693fc537da74c7d2d1cdf83a8475"
+    },
+    "python/_wmi.pyd": {
+      "size": 39648,
+      "sha256": "db45362354fd4965329cb14bd974e60b26525045d09fb4fdfb1674a93b79d60c"
+    },
+    "python/_zoneinfo.pyd": {
+      "size": 50912,
+      "sha256": "6650db91accc05e625d3c5d8a40e15127a040ea1135e40e875fd78d8a7665a84"
+    },
+    "python/Lib/site-packages/vapoursynth/__init__.py": {
+      "size": 1677,
+      "sha256": "ca517623ccd5c82ff4d1c4c4d9b00ee0e9ecf176fec0448911cf0e847d2055c1"
+    },
+    "python/Lib/site-packages/vapoursynth/__main__.py": {
+      "size": 84,
+      "sha256": "a2f9fcbfa43be79e692ffc019ed1fc1a24903df82e83cf67827e876f7c95fe97"
+    },
+    "python/Lib/site-packages/vapoursynth/_cli.py": {
+      "size": 4196,
+      "sha256": "9b05f5fa5a398a6ba663ea6ef16e352db6b7eb16df130ebd79c613e1081f4bc7"
+    },
+    "python/Lib/site-packages/vapoursynth/_shell.py": {
+      "size": 8349,
+      "sha256": "36dee2a930cc54e6b90a8f9eb04f24ceddc133f6f6747604f34b869543b0af6e"
+    },
+    "python/Lib/site-packages/vapoursynth/_utils.py": {
+      "size": 16795,
+      "sha256": "4875d47fb54f58adbe2eb410c2afa0305bbcc7a3b0869aa20c8e1c9ce0ad5fcd"
+    },
+    "python/Lib/site-packages/vapoursynth/include/VapourSynth4.h": {
+      "size": 31729,
+      "sha256": "ba486da1599cfa3358188760fbd5095e0dc1d19c39cd56bc0f368fb8904bc80b"
+    },
+    "python/Lib/site-packages/vapoursynth/include/VSConstants4.h": {
+      "size": 2992,
+      "sha256": "ac6c48d6615fd6adb6e283b7549f4e8c182a04ec5f54d8c49a7450259d73f65f"
+    },
+    "python/Lib/site-packages/vapoursynth/include/VSHelper4.h": {
+      "size": 8506,
+      "sha256": "73bfdccee359b2a07e5fe30dc95017991378dddc854f82f48befc976ef2afa3a"
+    },
+    "python/Lib/site-packages/vapoursynth/include/VSScript4.h": {
+      "size": 5447,
+      "sha256": "e8a30bfe5422bb1bc04bc7cab65044f02ac3feb62d8ed022e569ab6b317478bf"
+    },
+    "python/Lib/site-packages/vapoursynth/libvapoursynth.dll": {
+      "size": 1278464,
+      "sha256": "4f340dcb1e71f4540b1756719c44d8a3db8e75352661ba43b33f6bdb7de4ed2c"
+    },
+    "python/Lib/site-packages/vapoursynth/libvapoursynthfilters.dll": {
+      "size": 2509312,
+      "sha256": "2058402a20f6e7f64cc7d2b9e8964dc19ba910e548b73e4b1924df866533ea25"
+    },
+    "python/Lib/site-packages/vapoursynth/libvapoursynthfilters_avx2.dll": {
+      "size": 2583040,
+      "sha256": "752091d078d465861a6df50ad1eae1bd478e09e1d13aa4ef92a92d03161bc1ac"
+    },
+    "python/Lib/site-packages/vapoursynth/libvapoursynthfilters_zn4.dll": {
+      "size": 2891264,
+      "sha256": "7c72c195f0b37a841d92a284495040235e50c51143d11b6d9a6a160962e6d93c"
+    },
+    "python/Lib/site-packages/vapoursynth/pkgconfig/vapoursynth.pc": {
+      "size": 162,
+      "sha256": "7501051b4d98381946f76c00b1c37fed02612860620db357448f4733407ed60e"
+    },
+    "python/Lib/site-packages/vapoursynth/plugins/avscompat.dll": {
+      "size": 243712,
+      "sha256": "908be62561b77482efa2577758e16dc752e881d40cc66a6f5c1a75d92e282bd3"
+    },
+    "python/Lib/site-packages/vapoursynth/vapoursynth.pyd": {
+      "size": 693760,
+      "sha256": "d7e531bf0c3bc1f459f6de11ee38db738b6a37b262944dabb6a48fc244e1ccef"
+    },
+    "python/Lib/site-packages/vapoursynth/vapoursynth.pyi": {
+      "size": 38657,
+      "sha256": "fb3af018cd0a90604b20e81ff8bb00faf1472d18ed974e867590ba8ff69b6625"
+    },
+    "python/Lib/site-packages/vapoursynth/vspipe.exe": {
+      "size": 360448,
+      "sha256": "6a7e48d103f18ae2c552de89d643560dab11ea8fccaaed894766adab4a05e5dc"
+    },
+    "python/Lib/site-packages/vapoursynth/vsscript.dll": {
+      "size": 69120,
+      "sha256": "41fac3764db8f6c7412c743734e7462ef68af42722dc41f5de931f8822e22a30"
+    },
+    "python/Lib/site-packages/vapoursynth/vsvfw.dll": {
+      "size": 195072,
+      "sha256": "c121cfc6f2dac1d57219369a951a1ad09e3d85ef1ac03e2acf5ec306b2b18c75"
+    },
+    "python/Lib/site-packages/vapoursynth-79.dist-info/entry_points.txt": {
+      "size": 83,
+      "sha256": "26f3a2242395d8f2e4bc0795be87a2c05dea238f27387014ca9023acdb7b33fa"
+    },
+    "python/Lib/site-packages/vapoursynth-79.dist-info/licenses/COPYING.LESSER": {
+      "size": 27028,
+      "sha256": "92a759ec0febde4750821736bbde642a3b835c0604fc81bee62f9e428f86981f"
+    },
+    "python/Lib/site-packages/vapoursynth-79.dist-info/METADATA": {
+      "size": 2070,
+      "sha256": "41cf0c62b3766502f7a3d93d4bad5f0b0b67758298b305c90ab1180d93e0bcac"
+    },
+    "python/Lib/site-packages/vapoursynth-79.dist-info/RECORD": {
+      "size": 2626,
+      "sha256": "0cb05a741d982cfd9c0d0b10c55376232cf88e38cdedc46d1e89f021fddfaed7"
+    },
+    "python/Lib/site-packages/vapoursynth-79.dist-info/WHEEL": {
+      "size": 86,
+      "sha256": "659b40dd81a050152de28dad688be3d8ada5ad6d47b111fc6b41c4aa595a0814"
+    },
+    "python/libcrypto-3.dll": {
+      "size": 5238520,
+      "sha256": "09499e186cf0e434ffa17ad153aa9a66d6048c54a2c03b823e2a06c49d9affe4"
+    },
+    "python/libffi-8.dll": {
+      "size": 39696,
+      "sha256": "eff52743773eb550fcc6ce3efc37c85724502233b6b002a35496d828bd7b280a"
+    },
+    "python/libssl-3.dll": {
+      "size": 794872,
+      "sha256": "28c395290279fa4f4f54a57b85cd66d853895f925fefb8f6fdebc0d8b1cdd07c"
+    },
+    "python/LICENSE.txt": {
+      "size": 33861,
+      "sha256": "62bec384df47b0328307db41455ff6ea2559e5546b394ac69148561b21703120"
+    },
+    "python/pyexpat.pyd": {
+      "size": 221920,
+      "sha256": "b9c9c5a9f52af559a7eb4e8ddfd60558185bfc7794f32840bed1747d1ec9026a"
+    },
+    "python/python.cat": {
+      "size": 578418,
+      "sha256": "49eb507453b924ff70c19c8b8940b033ac5865f11cdd637447024725ed105bef"
+    },
+    "python/python.exe": {
+      "size": 105696,
+      "sha256": "85b71d8c6ec1905935f74be0c9869aae198d00e98f39df699ec66f9c5a84cecd"
+    },
+    "python/python3.dll": {
+      "size": 72416,
+      "sha256": "76e7fd69a01081726308317d6e502721c2ba6792b48880dc1ef649c755788db7"
+    },
+    "python/python313._pth": {
+      "size": 34,
+      "sha256": "134e3db8d93baf87ff1fb6868de1a48f7dd3e1da7a8183972a1d458ead7ce19c"
+    },
+    "python/python313.dll": {
+      "size": 6135008,
+      "sha256": "e820bf024efd2b56bb2b82791e6b6ddc7303f070f8e72cba7637482a8a906238"
+    },
+    "python/python313.zip": {
+      "size": 3825631,
+      "sha256": "1916abd946d2044ec8c04c3319f96c8415d5b6fce01e125622827f2b7756cbab"
+    },
+    "python/pythonw.exe": {
+      "size": 104160,
+      "sha256": "146c01e5448a084ff15d63113a790b9aa75250baf862d984c51dd695ac4775bc"
+    },
+    "python/select.pyd": {
+      "size": 32992,
+      "sha256": "024f955349fe46cf1bb2c22c6b57fcf38cf5755d46166fbf63e7e5b92433b111"
+    },
+    "python/sqlite3.dll": {
+      "size": 1584864,
+      "sha256": "c6812eaf0f8605df273b9bf7e359b83fd65038ecc66455c3f7a933768cb92f3f"
+    },
+    "python/unicodedata.pyd": {
+      "size": 712928,
+      "sha256": "111e0fdfeef9887c04f6ebf1972ce1ccbec55b226012e4a288c2d4a0b17b216b"
+    },
+    "python/vcruntime140.dll": {
+      "size": 178616,
+      "sha256": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7"
+    },
+    "python/vcruntime140_1.dll": {
+      "size": 50112,
+      "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e"
+    },
+    "python/winsound.pyd": {
+      "size": 31968,
+      "sha256": "b078b7f5c53efd3c4201b63fa34a17c6747142e37298293f52c3a9ad643e69e2"
+    }
+  }
+}

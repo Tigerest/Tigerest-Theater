@@ -133,7 +133,7 @@ flowchart TB
   mpv -->|"GPU-Next 渲染"| video
   mpv --> lua["Lua 插件<br/>uosc 控制栏 · uosc_danmaku 弹幕 · 画质菜单 · 统计 · 专业模式数据"]
   mpv -.->|"开启 RIFE 时"| vs["VapourSynth 滤镜<br/>vs-mlrt + TensorRT"]
-  mpv -.->|"开启 VFG 时"| vfg["VapourSynth 滤镜 tigerest-vfg-vs<br/>RIFE 扩展的 VapourSynth + NVIDIA 运行库"]
+  mpv -.->|"开启 VFG 时"| vfg["VapourSynth 滤镜 tigerest-vfg-vs<br/>程序目录或 RIFE 扩展的 VapourSynth + NVIDIA 运行库"]
   mpv -.->|"开启 RTX 视频增强时"| rtx["d3d11vpp 滤镜，排在最后<br/>显卡驱动做 VSR / RTX Video HDR"]
   comps --> upd["更新器<br/>GitHub Releases"]
   comps --> store["Windows 凭据管理器<br/>保存评论登录"]
@@ -144,7 +144,7 @@ flowchart TB
 - **播放控件和弹幕**由 MPV 里的 Lua 插件绘制，不是网页元素：uosc 提供控制栏和菜单，uosc_danmaku 用 MPV 的 ASS 叠加层显示弹幕。
 - **配置档：** 每个配置档有独立的设置、网页数据和日志。安装版放在 `%LOCALAPPDATA%\Tigerest Theater`，便携版放在程序目录的 `data`。
 - **RIFE：** 可选的 NVIDIA 扩展包含 Python、VapourSynth、vs-mlrt（TensorRT）和三个模型。开启后 MPV 通过 VapourSynth 滤镜把视频交给推理链；第一次使用某个模型和尺寸时构建 TensorRT 引擎并缓存。客户端负责下载、校验扩展和判断片源是否符合条件。
-- **VFG（3.0.0 起）：** 同样是 MPV 的 VapourSynth 滤镜。`tigerest-vfg-vs` 插件和脚本随包放在程序目录的 `vfg`，借用 RIFE 扩展里的 Python 和 VapourSynth 运行，从 `vfg\nvidia` 加载 NVIDIA 的 Video Effects 运行库（原样随包分发，打包时逐个文件核对锁定的哈希）。加滤镜前客户端检查这些文件、RIFE 扩展是否已加载、显卡的 CUDA 算力（至少 8.9，即 RTX 40 系起）和解码方式（滤镜从内存取帧，要软解或回读）；这一集的 RIFE 随之让出。滤镜把画面转成 RGB 交给 NVIDIA 的帧生成，再转回原来的格式；HDR、隔行和变帧率的输入只重复原帧。
+- **VFG（3.0.0 起）：** 同样是 MPV 的 VapourSynth 滤镜。`tigerest-vfg-vs` 插件和脚本随包放在程序目录的 `vfg`，从 `vfg\nvidia` 加载 NVIDIA 的 Video Effects 运行库（原样随包分发，打包时逐个文件核对锁定的哈希）。它跑在私有的 Python 和 VapourSynth 上：一个进程只能加载一份，启动关卡在创建 MPV 之前选定——RIFE 扩展的运行库验证通过就用扩展的，否则用程序目录 `vapoursynth` 里随包的那份（3.1.0 起；CPython 嵌入包和 VapourSynth 便携包原样分发，和扩展里的是同一版本，打包时逐个文件核对锁定的哈希，许可文件在 `licenses\vapoursynth`）。加滤镜前客户端检查这些文件、VapourSynth 运行库是否已加载、显卡的 CUDA 算力（至少 8.9，即 RTX 40 系起；有 RIFE 扩展的探测结果就用它，否则直接问 NVIDIA 驱动）和解码方式（滤镜从内存取帧，要软解或回读）；这一集的 RIFE 随之让出。滤镜把画面转成 RGB 交给 NVIDIA 的帧生成，再转回原来的格式；HDR、隔行和变帧率的输入只重复原帧。
 - **RTX 视频增强（3.0.0 起）：** VSR 和 RTX Video HDR 由显卡驱动在 D3D11 视频处理器里完成。客户端在滤镜链里加 MPV 的 `d3d11vpp` 滤镜：VSR 用 `scaling-mode=nvidia` 和按屏幕分辨率算出的放大倍数（最多 4 倍），RTX Video HDR 用 `nvidia-true-hdr`。RIFE、VFG 和 SVP 的滤镜从内存取帧，而 d3d11vpp 把画面留在显存里交下去，所以客户端始终把它挪回滤镜链最后。每个视频开始后按它的尺寸和当前屏幕重新计算；驱动没有接受时，客户端从 MPV 日志里读出原因，显示在专业模式里。
 - **专业模式（3.0.0 起）：** 面板是扩展脚本 `native/proMode.js` 画的，原生层把视频子窗口缩到面板报告的区域里。MPV 里的数据脚本 `tigerest_pro.lua` 只在模式开着时工作：每 0.5 秒把渲染统计（各渲染步骤的耗时、帧率、丢帧、缓存、音频参数和滤镜链）写进 MPV 的 `user-data`，面板显示的选项一有变化也写一次，客户端观察这两个属性转给页面。CPU 与 GPU 占用由客户端每秒采样：GPU 读 Windows 性能计数器「GPU Engine」的利用率，CPU 按系统的处理器时间计算。面板里的改动通过原生桥直接写给正在播放的 MPV；「保存」时画质参数和着色器链经 mpv.conf 编辑器的同一套接口写进画质档位，其他写进客户端设置。
 - **打包：** CMake + MSVC 构建，Inno Setup 制作安装器；便携 ZIP 与安装版内容相同，都自带运行库。

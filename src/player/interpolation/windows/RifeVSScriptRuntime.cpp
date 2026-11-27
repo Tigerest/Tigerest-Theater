@@ -51,6 +51,8 @@ bool activateVSScriptRuntime(const QString& verifiedRoot,QString* error){
         return fail("Private isolated Python configuration is missing");
     std::vector<DLL_DIRECTORY_COOKIE> added;
     for(const auto& path:{python,vs,root+"/plugins",root+"/plugins/vsmlrt-cuda"}){
+        // The runtime bundled with the player has Python and VapourSynth only.
+        if(path.startsWith(root+"/plugins")&&!QFileInfo(path).isDir())continue;
         const auto cookie=AddDllDirectory(path.toStdWString().c_str());
         if(!cookie){for(const auto previous:added)RemoveDllDirectory(previous);return fail("Cannot register private DLL directories");}
         added.push_back(cookie);
@@ -83,5 +85,24 @@ bool activateVSScriptRuntime(const QString& verifiedRoot,QString* error){
     // must be set before that call: isolated _pth ignores PYTHONDONTWRITEBYTECODE.
     state.pythonLibrary=library;state.directories=std::move(added);state.pinnedRoot=root;
     return true;
+}
+QString cudaComputeCapability(){
+    static const QString capability=[]{
+        const HMODULE cuda=LoadLibraryExW(L"nvcuda.dll",nullptr,LOAD_LIBRARY_SEARCH_SYSTEM32);
+        if(!cuda)return QString();
+        using Init=int(__stdcall*)(unsigned);
+        using DeviceGet=int(__stdcall*)(int*,int);
+        using Attribute=int(__stdcall*)(int*,int,int);
+        const auto init=reinterpret_cast<Init>(GetProcAddress(cuda,"cuInit"));
+        const auto deviceGet=reinterpret_cast<DeviceGet>(GetProcAddress(cuda,"cuDeviceGet"));
+        const auto attribute=reinterpret_cast<Attribute>(GetProcAddress(cuda,"cuDeviceGetAttribute"));
+        // CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR and _MINOR.
+        int device=0,major=0,minor=0;
+        if(init&&deviceGet&&attribute&&init(0)==0&&deviceGet(&device,0)==0&&
+           attribute(&major,75,device)==0&&attribute(&minor,76,device)==0)
+            return QStringLiteral("%1.%2").arg(major).arg(minor);
+        return QString();
+    }();
+    return capability;
 }
 }

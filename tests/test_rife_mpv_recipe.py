@@ -22,12 +22,29 @@ class PinnedRecipeTests(unittest.TestCase):
             baseline.write_text(program, encoding='utf-8')
             command = [sys.executable, '-B', '-X', 'utf8', str(PREPARE), '--recipe', os.environ['RIFE_TEST_MPV_RECIPE'],
                 '--lock', str(ROOT / 'dev/windows/rife/mpv-source-lock.json'), '--verify-media-baseline', str(baseline)]
-            accepted = subprocess.run(command, capture_output=True, text=True)
-            self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
-            # A dependency recipe change must invalidate reuse even though mpv
-            # itself is rebuilt and its patch is allowed to differ.
+            # The baseline media were built before libplacebo carried the D3D11
+            # constant buffer patch. Only mpv is rebuilt on reuse, so reusing
+            # them would ship an unpatched libplacebo: reuse must be refused.
+            refused = subprocess.run(command, capture_output=True, text=True)
+            self.assertNotEqual(refused.returncode, 0, refused.stdout)
+            self.assertRegex(refused.stderr, r'Media dependency differs from cache baseline: '
+                             r'(packages[/\\]libplacebo\.cmake|tigerest-libplacebo-d3d11-cbv-slots\.patch)')
+            # Once the baseline prepares libplacebo the same way, only mpv
+            # differs and reuse is accepted...
             point = "    path = recipe / 'toolchain/rustup.cmake'"
             self.assertEqual(program.count(point), 1)
+            current = PREPARE.read_text(encoding='utf-8')
+            start = current.index("        if relative == 'packages/libplacebo.cmake':")
+            libplacebo = current[start:current.index("        if relative == 'packages/ngtcp2.cmake':", start)]
+            loop = "        path.write_text(text, encoding='utf-8')\n    shutil.copyfile("
+            self.assertEqual(program.count(loop), 1)
+            program = program.replace(loop, libplacebo + loop, 1).replace(point,
+                "    shutil.copyfile(HERE / 'libplacebo-d3d11-cbv-slots.patch', recipe / 'tigerest-libplacebo-d3d11-cbv-slots.patch')\n"
+                + point, 1)
+            baseline.write_text(program, encoding='utf-8')
+            accepted = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+            # ...while any other dependency recipe change still invalidates it.
             program = program.replace(point,
                 "    dependency = recipe / 'packages/ffmpeg.cmake'\n"
                 "    dependency.write_text(dependency.read_text() + '\\nset(FFMPEG_EXTRA_CFLAGS unsafe-cache-fixture)\\n')\n" + point)
@@ -35,6 +52,36 @@ class PinnedRecipeTests(unittest.TestCase):
             refused = subprocess.run(command, capture_output=True, text=True)
             self.assertNotEqual(refused.returncode, 0)
             self.assertIn('Media dependency differs from cache baseline: packages', refused.stderr)
+
+    @unittest.skipUnless(os.environ.get('RIFE_TEST_MPV_RECIPE') and os.environ.get('RIFE_TEST_LIBPLACEBO_SOURCE'),
+                         'requires pinned recipe and libplacebo source')
+    def test_libplacebo_recipe_applies_d3d11_constant_buffer_patch(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            recipe = base / 'recipe'
+            shutil.copytree(os.environ['RIFE_TEST_MPV_RECIPE'], recipe, ignore=shutil.ignore_patterns('.git'))
+            sha = json.loads((ROOT / 'dev/windows/rife/mpv-source-lock.json').read_text(encoding='utf-8'))[
+                'sources']['packages/libplacebo.cmake']['sourceSha']
+            lock = base / 'lock.json'
+            lock.write_text(json.dumps({'sources': {'packages/libplacebo.cmake': {'sourceSha': sha}},
+                                        'rustToolchain': 'nightly-2026-08-08'}))
+            run = subprocess.run([sys.executable, '-B', '-X', 'utf8', str(PREPARE), '--recipe', str(recipe), '--lock', str(lock)],
+                                 capture_output=True, text=True)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            text = (recipe / 'packages/libplacebo.cmake').read_text(encoding='utf-8')
+            self.assertIn('    GIT_TAG ' + sha + '\n', text)
+            # The patch step runs once after checkout, before meson configures.
+            self.assertIn('    PATCH_COMMAND git apply ${CMAKE_SOURCE_DIR}/tigerest-libplacebo-d3d11-cbv-slots.patch\n'
+                          '    UPDATE_COMMAND ""\n', text)
+            self.assertEqual(text.count('PATCH_COMMAND'), 1)
+            source = base / 'source'
+            target = source / 'src/d3d11/gpu_pass.c'
+            target.parent.mkdir(parents=True)
+            target.write_bytes((Path(os.environ['RIFE_TEST_LIBPLACEBO_SOURCE']) / 'src/d3d11/gpu_pass.c').read_bytes())
+            applied = subprocess.run(['git', '-C', str(source), 'apply', str(recipe / 'tigerest-libplacebo-d3d11-cbv-slots.patch')],
+                                     capture_output=True, text=True)
+            self.assertEqual(applied.returncode, 0, applied.stderr)
+            self.assertIn('static int cbv_register(', target.read_text(encoding='utf-8'))
 
     @unittest.skipUnless(os.environ.get('RIFE_TEST_MPV_RECIPE') and os.environ.get('RIFE_TEST_CURL_SOURCE_FILE'),
                          'requires pinned recipe and frozen curl source')

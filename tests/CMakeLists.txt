@@ -80,7 +80,7 @@ add_test(NAME test_main_thread_watchdog COMMAND test_main_thread_watchdog)
 
 if(WIN32)
   add_executable(test_windows_hdr_switch test_windows_hdr_switch.cpp)
-  target_link_libraries(test_windows_hdr_switch jmp_core Qt6::Test)
+  target_link_libraries(test_windows_hdr_switch jmp_core Qt6::Test dxgi)
   target_include_directories(test_windows_hdr_switch PRIVATE ${TEST_INCLUDE_DIRS})
   target_compile_definitions(test_windows_hdr_switch PRIVATE ${TEST_COMPILE_DEFS})
   add_test(NAME test_windows_hdr_switch COMMAND test_windows_hdr_switch)
@@ -297,6 +297,7 @@ if(WIN32 AND Python3_Interpreter_FOUND)
     ENVIRONMENT "INSTALLER_HANDOFF_HOST=$<TARGET_FILE:installer_handoff_host>;ISCC=${TIGEREST_TEST_ISCC}")
   add_test(NAME test_openssl_runtime_deployment COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${CMAKE_CURRENT_SOURCE_DIR}/test_openssl_runtime_deployment.py")
   add_test(NAME test_nvidia_vfx_deployment COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${CMAKE_CURRENT_SOURCE_DIR}/test_nvidia_vfx_deployment.py")
+  add_test(NAME test_vapoursynth_runtime_deployment COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${CMAKE_CURRENT_SOURCE_DIR}/test_vapoursynth_runtime_deployment.py")
   add_executable(rife_extension_manager_host rife_extension_manager_host.cpp)
   target_link_libraries(rife_extension_manager_host PRIVATE tigerest_rife_control)
   add_test(NAME test_rife_extension_manager COMMAND "${Python3_EXECUTABLE}" -B -X utf8
@@ -647,6 +648,12 @@ if(Node_EXECUTABLE)
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_home_gallery_ui.cjs
                    $<TARGET_FILE:${MAIN_TARGET}> --webengine)
   set_tests_properties(test_home_gallery_webengine PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+  # The first-run usage tour on a fixture home and item page (no Emby account),
+  # with the native new/upgrade decision.
+  add_test(NAME test_onboarding_tour_webengine
+           COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_onboarding_tour_ui.cjs
+                   $<TARGET_FILE:${MAIN_TARGET}> --webengine)
+  set_tests_properties(test_onboarding_tour_webengine PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE)
   add_test(NAME test_jellyfin_home_layout_webengine
            COMMAND ${Node_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_jellyfin_home_layout.cjs
                     $<TARGET_FILE:${MAIN_TARGET}> --webengine)

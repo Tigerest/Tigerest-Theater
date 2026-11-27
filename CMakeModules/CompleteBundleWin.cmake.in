@@ -91,6 +91,17 @@ if(TIGEREST_NVIDIA_VFX_RUNTIME_DIR)
 else()
   message(STATUS "Not deploying NVIDIA frame generation's runtime (TIGEREST_NVIDIA_VFX_RUNTIME_DIR is not set)")
 endif()
+# The VapourSynth runtime frame generation uses without the RIFE extension,
+# unmodified and hash-checked, when the build was configured with it.
+set(TIGEREST_VAPOURSYNTH_RUNTIME_DIR "@TIGEREST_VAPOURSYNTH_RUNTIME_DIR@")
+if(TIGEREST_VAPOURSYNTH_RUNTIME_DIR)
+  include("@PROJECT_SOURCE_DIR@/CMakeModules/DeployWindowsVapourSynth.cmake")
+  tigerest_deploy_vapoursynth("${TIGEREST_VAPOURSYNTH_RUNTIME_DIR}"
+                              "@PROJECT_SOURCE_DIR@/dev/windows/vapoursynth/runtime-lock.json"
+                              "${CMAKE_INSTALL_PREFIX}")
+else()
+  message(STATUS "Not deploying the VapourSynth runtime (TIGEREST_VAPOURSYNTH_RUNTIME_DIR is not set)")
+endif()
 file(INSTALL "@PROJECT_SOURCE_DIR@/external/miniz/LICENSE"
              "@PROJECT_SOURCE_DIR@/external/miniz/README.tigerest.md"
      DESTINATION "${CMAKE_INSTALL_PREFIX}/licenses/miniz")
@@ -125,8 +136,10 @@ endif()
 
 if(@DO_SIGN@)
   file(GLOB_RECURSE EXES ${CMAKE_INSTALL_PREFIX}/*.exe ${CMAKE_INSTALL_PREFIX}/*.dll)
-  # NVIDIA's runtime ships unmodified and stays signed by NVIDIA.
+  # NVIDIA's runtime ships unmodified and stays signed by NVIDIA; Python and
+  # VapourSynth keep their own signatures and the hashes the lock pins.
   list(FILTER EXES EXCLUDE REGEX "/vfg/nvidia/")
+  list(FILTER EXES EXCLUDE REGEX "/vapoursynth/")
   set(ENV{errorlevel} 1)
   foreach(e ${EXES})
     message("-- Signing: ${PROJECT_SOURCE_DIR}/scripts/WindowsSign.cmd ${e}")

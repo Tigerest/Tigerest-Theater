@@ -468,6 +468,101 @@ int main(void) {
             result = subprocess.run([compiler, *flags, str(unit)], capture_output=True)
             self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode("utf-8", errors="replace"))
 
+    @unittest.skipUnless(os.environ.get('RIFE_TEST_LIBPLACEBO_SOURCE'), 'requires pinned libplacebo checkout')
+    def test_libplacebo_d3d11_constant_buffers_stay_within_14_slots(self):
+        # UBOs are numbered after every texture of a pass, so FSRCNNX_x2_56 and
+        # the ArtCNN *_YCbCr / Legacy shaders put theirs at binding 14+ and
+        # D3DCompile rejects b14. The patched allocator keeps register ==
+        # binding when that works (unchanged bytecode, valid shader caches)
+        # and otherwise takes the lowest slot that no UBO claims.
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            relative = Path('src/d3d11/gpu_pass.c')
+            target = base / relative
+            target.parent.mkdir(parents=True)
+            target.write_bytes((Path(os.environ['RIFE_TEST_LIBPLACEBO_SOURCE']) / relative).read_bytes())
+            applied = subprocess.run(['git', '-C', str(base), 'apply',
+                str(ROOT / 'dev/windows/rife/libplacebo-d3d11-cbv-slots.patch')], capture_output=True)
+            self.assertEqual(applied.returncode, 0, applied.stderr.decode('utf-8', errors='replace'))
+            source = target.read_text(encoding='utf-8')
+            # Both CBV call sites go through the allocator; nothing indexes the
+            # slot array by binding any more.
+            self.assertEqual(source.count('cbv_register(gpu, pass_s, sc_comp,'), 2)
+            self.assertNotIn('cbvs.elem[binding] = binding', source)
+            self.assertNotIn('cbvs.elem[binding.binding]', source)
+            function = re.search(r'static int cbv_register\(.*?\n\}', source, re.S).group()
+            unit = base / 'cbv.c'
+            unit.write_text('''#include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
+#define D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT 14
+enum { HLSL_BINDING_NOT_USED = -1, HLSL_BINDING_NUM_WORKGROUPS = -2 };
+typedef enum { SpvDecorationBinding = 33, SpvDecorationDescriptorSet = 34 } SpvDecoration;
+typedef struct { unsigned id, base_type_id, type_id; const char *name; } spvc_reflected_resource;
+struct decorations { unsigned set[8], binding[8]; };
+typedef struct decorations *spvc_compiler;
+typedef const void *pl_gpu;
+struct d3d_pass_stage { struct { int *elem; int num; } cbvs; };
+static int debug_lines;
+#define PL_DEBUG(gpu, ...) ((void)(gpu), debug_lines++)
+static unsigned spvc_compiler_get_decoration(spvc_compiler c, unsigned id, SpvDecoration d) {
+    return d == SpvDecorationBinding ? c->binding[id] : c->set[id];
+}
+''' + function + '''
+static int elem[16];
+static struct d3d_pass_stage stage;
+static struct decorations ubo;
+static spvc_reflected_resource list[8];
+static void reset(void) { stage.cbvs.elem = elem; stage.cbvs.num = 0; debug_lines = 0; }
+// Same steps as the patched call sites.
+static int place(unsigned binding, int value, size_t ubos) {
+    int slot = cbv_register(NULL, &stage, &ubo, binding, ubos ? list : NULL, ubos);
+    if (slot < 0) return slot;
+    while (stage.cbvs.num <= slot) elem[stage.cbvs.num++] = HLSL_BINDING_NOT_USED;
+    elem[slot] = value;
+    return slot;
+}
+static void ubos(unsigned n, const unsigned *bindings, const unsigned *sets) {
+    for (unsigned i = 0; i < n; i++) { list[i].id = i; ubo.binding[i] = bindings[i]; ubo.set[i] = sets ? sets[i] : 0; }
+}
+int main(void) {
+    // A UBO that fits keeps its register: same HLSL as before the patch.
+    reset(); ubos(1, (unsigned[]){3}, NULL);
+    assert(place(3, 3, 1) == 3 && stage.cbvs.num == 4 && elem[0] == HLSL_BINDING_NOT_USED && !debug_lines);
+    // gl_NumWorkGroups after it keeps max_binding + 1 when that fits.
+    assert(place(4, HLSL_BINDING_NUM_WORKGROUPS, 0) == 4 && elem[4] == HLSL_BINDING_NUM_WORKGROUPS && !debug_lines);
+    // 14 textures, UBO at binding 14: slot b0, which binds descriptor 14.
+    reset(); ubos(1, (unsigned[]){14}, NULL);
+    assert(place(14, 14, 1) == 0 && stage.cbvs.num == 1 && elem[0] == 14 && debug_lines == 1);
+    // ...and gl_NumWorkGroups (binding 15) the next free slot.
+    assert(place(15, HLSL_BINDING_NUM_WORKGROUPS, 0) == 1 && elem[1] == HLSL_BINDING_NUM_WORKGROUPS);
+    // A late UBO never takes the slot another UBO of the stage holds by binding,
+    // whichever is reflected first.
+    reset(); ubos(2, (unsigned[]){15, 0}, NULL);
+    assert(place(15, 15, 2) == 1 && place(0, 0, 2) == 0 && elem[0] == 0 && elem[1] == 15);
+    // UBOs outside descriptor set 0 are skipped by the allocator and claim nothing.
+    reset(); ubos(2, (unsigned[]){16, 0}, (unsigned[]){0, 1});
+    assert(place(16, 16, 2) == 0);
+    // Several low bindings held back at once; the array stays dense.
+    reset(); ubos(3, (unsigned[]){0, 20, 1}, NULL);
+    assert(place(0, 0, 3) == 0 && place(20, 20, 3) == 2 && place(1, 1, 3) == 1);
+    assert(stage.cbvs.num == 3 && elem[2] == 20);
+    // Every slot taken: report it instead of emitting b14.
+    reset(); ubos(1, (unsigned[]){20}, NULL);
+    for (int i = 0; i < 14; i++) place(i, i, 0);
+    assert(stage.cbvs.num == 14 && place(20, 20, 1) == -1 && place(21, HLSL_BINDING_NUM_WORKGROUPS, 0) == -1);
+    assert(stage.cbvs.num == 14);
+    return 0;
+}
+''', encoding='utf-8')
+            executable = base / ('cbv.exe' if os.name == 'nt' else 'cbv')
+            compiler = os.environ.get('RIFE_TEST_C_COMPILER', 'cl' if os.name == 'nt' else 'cc')
+            flags = ['/nologo', '/TC', '/Fe:' + str(executable), '/Fo:' + str(base / 'cbv.obj')] if os.name == 'nt' else ['-std=c11', '-O2', '-o', str(executable)]
+            compiled = subprocess.run([compiler, *flags, str(unit)], capture_output=True)
+            self.assertEqual(compiled.returncode, 0, (compiled.stdout + compiled.stderr).decode('utf-8', errors='replace'))
+            executed = subprocess.run([str(executable)], capture_output=True)
+            self.assertEqual(executed.returncode, 0, executed.stderr)
+
     def run_check(self, source):
         with tempfile.TemporaryDirectory() as temp:
             report = Path(temp) / "report.json"

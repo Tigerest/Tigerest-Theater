@@ -269,11 +269,16 @@ def test_settings() -> None:
         "opacity": 0.7,
         "displayarea": 0.2,
     }
-    require(set(danmaku_values) == set(expected_danmaku_defaults),
+    # 弹幕服务地址 is not a style option: empty keeps the plugin's own default
+    # provider, and the player publishes it for each playback.
+    require(set(danmaku_values) == set(expected_danmaku_defaults) | {"apiServer"},
             "danmaku style settings do not match the bundled plugin options")
     for key, expected in expected_danmaku_defaults.items():
         require(danmaku_values[key]["default"] == expected,
                 f"danmaku {key} default does not match the bundled plugin")
+    require(danmaku_values["apiServer"]["default"] == "" and
+            danmaku_values["apiServer"].get("input_type") == "text",
+            "the danmaku provider address must default to empty (our service)")
 
 
 def test_mpv_bundle() -> None:
@@ -367,6 +372,14 @@ def test_mpv_bundle() -> None:
     danmaku_options = read("resources/mpv/plugins/uosc_danmaku/modules/options.lua")
     require(re.search(r"^\s*displayarea\s*=\s*0\.2\s*,", danmaku_options, re.MULTILINE),
             "bundled danmaku display area must default to 0.2")
+    player = read("src/player/PlayerComponent.cpp")
+    danmaku_root = ROOT / "resources/mpv/plugins/uosc_danmaku"
+    danmaku_lua = "\n".join(path.read_text(encoding="utf-8") for path in sorted(danmaku_root.rglob("*.lua")))
+    require('"user-data/tigerest/danmaku/custom-api-servers"' in player and
+            'SETTINGS_SECTION_DANMAKU, "apiServer"' in player and
+            "'user-data/tigerest/danmaku/custom-api-servers'" in danmaku_lua and
+            "get_api_server_list(options.api_server" not in danmaku_lua,
+            "the danmaku script must read the providers from 弹幕服务地址")
     for marker in ("load-stats-overlay", "~~/plugins/stats.lua", "加载 uosc", "加载弹幕搜索"):
         require(marker in manager, f"managed tail lacks {marker}")
     require("mpvConfEditorMigrated" in manager and "旧版自定义配置备份" in manager and
@@ -381,6 +394,29 @@ def test_mpv_bundle() -> None:
     shaders = json.loads(read("resources/mpvconf/shaders.json"))
     require({item["path"] for item in shaders["shaders"]} == shipped,
             "shader catalog is stale; run tools/generate_mpv_shader_catalog.py")
+    regenerated = subprocess.run([sys.executable, "-B", "-X", "utf8", str(ROOT / "tools/generate_mpv_shader_catalog.py"),
+                                  "--check"], capture_output=True, text=True)
+    require(regenerated.returncode == 0,
+            "shader catalog or manifest differs from its sources; run tools/generate_mpv_shader_catalog.py: "
+            + regenerated.stderr.strip())
+    # First-compile seconds on Direct3D 11 come from the measurement, only
+    # for the slow ones, and are shown on Windows in the editor, the "+"
+    # picker, pro mode and the AI guide.
+    compiles = json.loads(read("resources/mpvconf/shader-compile-d3d11.json"))
+    slow = {item["path"]: item["firstCompileSeconds"] for item in shaders["shaders"] if "firstCompileSeconds" in item}
+    require(slow and all(value >= 5 for value in slow.values()), "slow first compiles are not marked")
+    require(set(slow) == {path for path, value in compiles["results"].items() if value is not None and value >= 5},
+            "firstCompileSeconds does not follow shader-compile-d3d11.json")
+    require("ArtCNN/ArtCNN_C4F32.glsl" in slow and shaders.get("firstCompileNote") and shaders.get("firstCompileMeasuredOn"),
+            "the ArtCNN C4F32 first compile (about 100 s on Direct3D 11) is not in the catalog")
+    editor_script, pro_script = read("native/mpvConfEditor.js"), read("native/proMode.js")
+    require(len(re.findall(r"(?<!function )mpvConfFirstCompile\(shader\)", editor_script)) == 2 and
+            "firstCompileNote" in editor_script and
+            pro_script.count("proFirstCompile(info)") == 1 and "firstCompileNote" in pro_script and
+            "isWindows === true && shader?.firstCompileSeconds" in editor_script and
+            "isWindows === true && info?.firstCompileSeconds" in pro_script and
+            re.search(r'#ifdef Q_OS_WIN\s+if \(shader\.value\(QStringLiteral\("firstCompileSeconds"\)\)', manager),
+            "first-compile seconds must be shown on Windows in the editor, pro mode and the AI guide")
     controller = read("external/mpvqt/src/mpvcontroller.cpp")
     require("TIGEREST_MPV_FALLBACK_CONFIG" in controller and "TIGEREST_MPV_CONFIG_FALLBACK_USED" in controller,
             "libmpv must fall back to the default configuration instead of aborting")
@@ -711,6 +747,7 @@ def test_settings_ui() -> None:
         "'danmaku.scrolltime'",
         "'danmaku.opacity'",
         "'danmaku.displayarea'",
+        "function tigerestDanmakuApiServers(text)",
     ):
         require(marker in shell, f"persistent danmaku settings UI marker missing: {marker}")
     for marker in (
@@ -832,11 +869,17 @@ def test_nvidia_video_features() -> None:
     for path in ("src/player/interpolation/windows/vfg/VfgVsPlugin.cpp", "src/player/interpolation/windows/vfg/VfgApi.h",
                  "resources/mpv/vfg/interpolate_vfg.vpy", "dev/windows/nvidia-vfx/runtime-lock.json",
                  "dev/windows/nvidia-vfx/NOTICE.txt", "dev/windows/nvidia-vfx/prepare_nvidia_vfx_runtime.py",
-                 "CMakeModules/DeployWindowsNvidiaVfx.cmake"):
+                 "CMakeModules/DeployWindowsNvidiaVfx.cmake", "dev/windows/vapoursynth/runtime-lock.json",
+                 "dev/windows/vapoursynth/prepare_vapoursynth_runtime.py", "CMakeModules/DeployWindowsVapourSynth.cmake"):
         require((ROOT / path).is_file(), f"{path} is missing")
     player = read("src/player/PlayerComponent.cpp")
     require('applicationDirPath() + QStringLiteral("/vfg")' in player and 'QStringLiteral("nvidia")' in player,
             "the player does not look for frame generation next to the program")
+    # Without the RIFE extension, frame generation runs on the VapourSynth
+    # installed next to the program (test_vapoursynth_runtime_deployment.py).
+    require('applicationDirPath()+QStringLiteral("/vapoursynth")' in player and
+            '{QStringLiteral("runtime_path"), m_vapoursynthRoot}' in player,
+            "frame generation does not fall back to the VapourSynth installed with the player")
     # RTX video: the d3d11vpp filter, its two settings and the panel's switches.
     require('QStringLiteral("@tigerest-rtx:")' in player and "scaling-mode=nvidia" in player and "nvidia-true-hdr=yes" in player,
             "the RTX video filter is not built by the player")

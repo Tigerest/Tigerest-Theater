@@ -102,6 +102,8 @@ private:
     void noteNativeHostPointerActivity(const QPointF& position);
 #if defined(Q_OS_WIN)
     void trackNativeHostCursor();
+    // Tells mpv's renderer window to look for its monitor again.
+    void notifyNativeDisplayChange();
 #endif
     void sendMousePosition(const QPointF& position);
     void togglePause();

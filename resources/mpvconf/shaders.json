@@ -28,6 +28,8 @@
   ],
   "costNote": "开销档位（低 / 中 / 高 / 极高）按模型规模排序；括号里的毫秒数是在下面这台设备上实测的每帧 GPU 耗时，放大到 1920×1080 时测得，其他设备、分辨率会不同；1 ms 以下的差异受显卡自动降频影响，不能用来排序。",
   "measuredOn": "Apple M4 Pro，macOS 27.2，mpv gpu-next",
+  "firstCompileNote": "Windows 上，标了「首次启用要编译约 N 秒」的着色器第一次用时要先编译，期间画面停住；编译结果会缓存，之后再用不用等。秒数在开发者电脑上测得，CPU 越慢越久。",
+  "firstCompileMeasuredOn": "Intel(R) Core(TM) i9-14900K，Windows 11，Direct3D 11",
   "shaders": [
     {
       "path": "Anime4K/Anime4K_3DGraphics_AA_Upscale_x2_US.glsl",
@@ -845,7 +847,8 @@
       "cost": "极高",
       "strength": "强",
       "note": "一次放大到四倍，锐利但易出现伪细节；只适合低分辨率片源配高分辨率屏幕",
-      "measuredMs": null
+      "measuredMs": null,
+      "firstCompileSeconds": 6
     },
     {
       "path": "Anime4K/Anime4K_Upscale_Original_x2.glsl",
@@ -877,7 +880,8 @@
       "cost": "中",
       "strength": "中",
       "note": "两倍放大亮度通道；与其他亮度放大着色器二选一",
-      "measuredMs": 0.0
+      "measuredMs": 0.0,
+      "firstCompileSeconds": 17
     },
     {
       "path": "ArtCNN/ArtCNN_C4F16_DN.glsl",
@@ -893,7 +897,8 @@
       "cost": "中",
       "strength": "中",
       "note": "两倍放大亮度通道；与其他亮度放大着色器二选一",
-      "measuredMs": 0.0
+      "measuredMs": 0.0,
+      "firstCompileSeconds": 16
     },
     {
       "path": "ArtCNN/ArtCNN_C4F16_DS.glsl",
@@ -909,7 +914,8 @@
       "cost": "中",
       "strength": "强",
       "note": "两倍放大亮度通道；与其他亮度放大着色器二选一",
-      "measuredMs": 0.0
+      "measuredMs": 0.0,
+      "firstCompileSeconds": 16
     },
     {
       "path": "ArtCNN/ArtCNN_C4F32.glsl",
@@ -925,7 +931,8 @@
       "cost": "高",
       "strength": "中",
       "note": "两倍放大亮度通道；与其他亮度放大着色器二选一",
-      "measuredMs": 2.7
+      "measuredMs": 2.7,
+      "firstCompileSeconds": 110
     },
     {
       "path": "ArtCNN/ArtCNN_C4F32_DN.glsl",
@@ -941,7 +948,8 @@
       "cost": "高",
       "strength": "中",
       "note": "两倍放大亮度通道；与其他亮度放大着色器二选一",
-      "measuredMs": 4.2
+      "measuredMs": 4.2,
+      "firstCompileSeconds": 110
     },
     {
       "path": "ArtCNN/ArtCNN_C4F32_DS.glsl",
@@ -957,7 +965,8 @@
       "cost": "高",
       "strength": "强",
       "note": "两倍放大亮度通道；与其他亮度放大着色器二选一",
-      "measuredMs": 1.8
+      "measuredMs": 1.8,
+      "firstCompileSeconds": 110
     },
     {
       "path": "ArtCNN/ArtCNN_Legacy_C4F16_DS_YCbCr.glsl",
@@ -1024,7 +1033,8 @@
       "cost": "高",
       "strength": "中",
       "note": "用神经网络重建 4:2:0 色度；与其他色度重建着色器二选一",
-      "measuredMs": 4.9
+      "measuredMs": 4.9,
+      "firstCompileSeconds": 6
     },
     {
       "path": "ArtCNN/ArtCNN_Legacy_C4F32_DS_YCbCr.glsl",

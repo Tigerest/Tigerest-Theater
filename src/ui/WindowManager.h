@@ -121,7 +121,14 @@ private:
   void updateCurrentScreen();
   QScreen* findCurrentScreen();
   QScreen* loadLastScreen();
+  // 设置 → 指定全屏显示器: the screen fullscreen should cover, or nullptr
+  // when none is chosen or it is not connected.
+  QScreen* forcedFullScreenScreen() const;
   void updateForcedScreen();
+  // Windows: puts the fullscreen window over the whole of another screen,
+  // and before fullscreen ends, back on the screen it came from.
+  void moveFullScreenWindow(QScreen* screen);
+  void returnFromForcedScreen();
 
   // Settings
   void connectSettings();
@@ -139,6 +146,8 @@ private:
 
   // Window state
   QWindow::Visibility m_previousVisibility;  // State before fullscreen
+  // The screen the window was on before fullscreen moved it to the forced one.
+  QPointer<QScreen> m_fullScreenReturnScreen;
   bool m_isFullScreen;
   bool m_playbackSessionActive;
   bool m_playbackSessionStartedFullScreen;

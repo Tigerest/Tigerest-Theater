@@ -1,7 +1,9 @@
 # NVIDIA Video Effects runtime (frame generation)
 
 NVIDIA frame generation (VFG) runs as the VapourSynth filter `tigerest-vfg-vs`
-on the RIFE extension's private VapourSynth runtime. The filter loads NVIDIA's
+on a private VapourSynth runtime: the RIFE extension's when it is installed,
+otherwise the one the package ships in `vapoursynth`
+(`dev/windows/vapoursynth/README.md`). The filter loads NVIDIA's
 Video Effects runtime from `vfg\nvidia` next to the player. The Windows package
 ships that runtime unmodified, pinned by `runtime-lock.json`.
 

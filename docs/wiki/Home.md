@@ -1,6 +1,6 @@
 # Tigerest Theater 使用教程
 
-这里是 EMBY 大河版的中文使用说明，对应全部平台的 3.0.0（Windows、Android、Mac、iPhone／iPad 与 Apple TV）。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
+这里是 EMBY 大河版的中文使用说明，对应 Windows 与 Android 的 3.1.0，以及 Mac、iPhone／iPad 与 Apple TV 的 3.0.0。客户端支持 Windows、Apple Silicon Mac、Android、iPad／iPhone 和 Apple TV；播放内容和访问权限来自你连接的 Emby 或 Jellyfin 服务器。
 
 ## 第一次使用
 
@@ -30,6 +30,14 @@
 | [技术原理](https://github.com/Tigerest/Tigerest-Theater/wiki/Architecture) | 各客户端的实现与架构、播放链路、一起看同步、评论和弹幕的数据流 |
 | [引用来源与鸣谢](https://github.com/Tigerest/Tigerest-Theater/wiki/Credits) | 用到的开源项目、用途和许可证，源码与许可文件在哪里 |
 
+## 3.1.0 更新了什么（Windows、Android）
+
+- **首次使用引导：** 新安装或新建配置后，用一段引导介绍首页、作品页、客户端菜单、消息和播放器，Windows 还有专业模式和补帧（配有真实客户端的截图）。升级后也会出现一次，可以跳过；「客户端 → 客户端设置 → 重新打开引导」随时再看。
+- **第三方弹幕服务（Windows，#44）：** 「设置 → 弹幕样式 → 弹幕服务地址」可以填写兼容弹弹play API 的第三方服务，例如自己部署的 misaka_danmu_server 或 danmu_api，多个接口按顺序用逗号分隔。见[使用第三方弹幕服务](https://github.com/Tigerest/Tigerest-Theater/wiki/Danmaku#使用第三方弹幕服务)。
+- **VFG 不再需要 RIFE 扩展（Windows）：** 安装包自带 VFG 用的 Python 和 VapourSynth（约 32 MB）。RTX 视频超分辨率和 RTX Video HDR 一直不需要扩展。
+- **全屏显示器（Windows）：** 「指定全屏显示器」选了另一块屏幕时，全屏直接出现在那块屏幕上，退出后窗口回到原处，不再因为两块屏幕刷新率不同而大量丢帧。
+- **专业模式与着色器（Windows）：** 「信号」卡片的「显示」一行加上屏幕实际收到的位深度和编码（例如「240.00 Hz · 10 bit RGB」）；首次编译很慢的着色器注明大约要等多久；FSRCNNX_x2_56_16_4_1 和四个 ArtCNN_Legacy_C4F32 着色器在 Windows 上可以用了。
+
 ## 3.0.0 更新了什么
 
 - **专业模式（Mac）：** 和 Windows 一样按 `F2` 进入，窗口和全屏都能用；Mac 的「补帧」页是 RIFE 状态、系统原生补帧和 mpv 时间插帧。见[专业模式](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#专业模式windows-300-起)。
@@ -39,7 +47,7 @@
 - **Mac 也有了 Windows 这一版的共用改动：** 首屏的使用方式选择、「显示器 ICC 色彩配置」（Mac 上「自动」在 EDR 屏幕上交给系统）、「字幕垂直位置」和一起看的改动。
 
 - **专业模式（Windows）：** 播放时按 `F2`，画面缩到左边继续播放，右边分「画质」「补帧」「色彩」「声音」「字幕」「弹幕」「画面」七页列出能调的选项，改动立即作用到画面。可以按住对比改动前或原始画面，下方实时显示各阶段的渲染耗时、视频与屏幕的帧率、CPU／GPU 占用和丢帧。调好后保存回当前画质档位，或另存为新档位。见[专业模式](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#专业模式windows-300-起)。
-- **NVIDIA VFG 帧生成（Windows）：** RIFE 之外的另一种补帧，按 0.5 倍一档提高帧率（1.5×–5×，或按 RIFE 目标帧率自动选），分低、中、高三档质量。需要 RTX 40／50 系显卡和已安装的 RIFE 扩展；NVIDIA 的运行库随安装包提供。见 [RIFE 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE#nvidia-vfg-帧生成windows-300-起)。
+- **NVIDIA VFG 帧生成（Windows）：** RIFE 之外的另一种补帧，按 0.5 倍一档提高帧率（1.5×–5×，或按 RIFE 目标帧率自动选），分低、中、高三档质量。需要 RTX 40／50 系显卡；NVIDIA 的运行库和 VFG 用的 VapourSynth 都随安装包提供，3.1.0 起不再需要 RIFE 扩展。见 [RIFE 补帧](https://github.com/Tigerest/Tigerest-Theater/wiki/RIFE#nvidia-vfg-帧生成windows-300-起)。
 - **RTX 视频超分辨率与 RTX Video HDR（Windows）：** 由显卡驱动把视频放大到屏幕的分辨率、把 SDR 视频转换成 HDR 输出。默认关闭，在「设置 → 视频」或专业模式里打开，立即生效；需要 RTX 20 系或更新的显卡，并在 NVIDIA App 里打开对应的开关。见[播放与设置](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#nvidia-rtx-视频增强windows-300-起)。
 - **设置与首页（Windows）：** 新增「显示器 ICC 色彩配置」（系统已经在为屏幕管理色彩时，「自动」不再让 mpv 读取 ICC，免得校正两次）和「字幕垂直位置」。没有选定服务器时，打开后先选「本地播放」或「连接媒体服务器」，右上角固定有「设置」按钮。播放时 `Ctrl+V` 能粘贴进 uosc 的输入框。见[播放本地视频](https://github.com/Tigerest/Tigerest-Theater/wiki/Playback#播放本地视频windows-与-mac)。
 - **一起看（Windows、Mac、Android）：** 拖动进度条或按住方向键连续跳转时，房间只收到最后一次跳转（Windows 上停在它之前最近的关键帧），都解出画面后一起开始；房间里换上一集、下一集或在播放列表里选集时，整个房间一起换过去；同步在做什么会在画面上提示。Mac 2.9.5.9 的一起看修复这一版起也在 Windows 和 Android 上。见[一起看](https://github.com/Tigerest/Tigerest-Theater/wiki/Watch-Together)。
@@ -152,7 +160,7 @@
 
 2.6.1 起 Windows 网页界面按屏幕刷新率运行，并新增 iPad 客户端；2.7.0 起首页「继续观看」按观看记录排序，兼容 Emby 4.8–4.10 和 .strm 媒体库，并补充了 Apple TV 首版。完整记录见[更新记录](https://github.com/Tigerest/Tigerest-Theater/blob/main/CHANGELOG.md)。
 
-**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。3.0.0 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
+**已知问题：** 不开补帧、使用默认的「显示器重采样」时，部分 Windows 高刷新率环境下窗口播放可能持续卡顿、增加输出丢帧，而全屏正常。3.1.0 仍未修复；遇到此现象请先使用全屏播放。详见[故障排查](https://github.com/Tigerest/Tigerest-Theater/wiki/Troubleshooting)。评论服务已停用旧的专属评论接口，2.9.4 及更早版本中大河用户无法发表或回复评论，升级到 2.9.5 后恢复。
 
 ## 各平台功能范围
 

@@ -10,7 +10,10 @@ shaders/user/.
 Trigger conditions and pass counts are read from each shader's //!HOOK and
 //!WHEN headers. Descriptions, content fit, cost and strength come from the
 family rules below. Cost tiers are relative and unmeasured until the timing
-table in tools/measure_mpv_shaders.py fills them in.
+table in tools/measure_mpv_shaders.py fills them in. Shaders whose first
+compile on Windows (Direct3D 11) takes SLOW_COMPILE_SECONDS or longer get
+firstCompileSeconds from tools/measure_mpv_shader_compile_d3d11.py; the
+client shows it on Windows only.
 
 Run after adding, removing or updating a bundled shader:
     python3 tools/generate_mpv_shader_catalog.py
@@ -28,6 +31,9 @@ SHADERS = ROOT / "resources/mpv/shaders"
 CATALOG = ROOT / "resources/mpvconf/shaders.json"
 MANIFEST = SHADERS / "manifest.json"
 TIMINGS = ROOT / "resources/mpvconf/shader-timings.json"
+COMPILE = ROOT / "resources/mpvconf/shader-compile-d3d11.json"
+# Below this the first-frame wait is not worth a warning.
+SLOW_COMPILE_SECONDS = 5
 
 GROUPS = {
     "Anime4K": "动画修复、放大与线条处理（bloc97/Anime4K）",
@@ -196,10 +202,18 @@ def trigger(text):
     return "按着色器内置条件运行", hooks
 
 
+def compile_seconds(seconds):
+    # Whole seconds; tens from 20 s on, where the CPU decides more than the digit.
+    return int(round(seconds)) if seconds < 20 else int(round(seconds, -1))
+
+
 def build():
-    timings = json.loads(TIMINGS.read_text()) if TIMINGS.exists() else {"device": None, "results": {}}
+    timings = json.loads(TIMINGS.read_text(encoding="utf-8")) if TIMINGS.exists() else {"device": None, "results": {}}
+    compiles = json.loads(COMPILE.read_text(encoding="utf-8")) if COMPILE.exists() else {"device": None, "results": {}}
     entries, manifest = [], {}
-    for path in sorted(SHADERS.rglob("*.glsl")):
+    # Code-point order of the relative path: Windows paths compare without
+    # case, so sorting Path objects would give each platform its own order.
+    for path in sorted(SHADERS.rglob("*.glsl"), key=lambda p: p.relative_to(SHADERS).as_posix()):
         relative = path.relative_to(SHADERS).as_posix()
         data = path.read_bytes()
         manifest[relative] = hashlib.sha256(data).hexdigest()
@@ -210,7 +224,7 @@ def build():
         timing = timings.get("results", {}).get(relative)
         if timing is not None:
             timing = round(timing, 1)
-        entries.append({
+        entry = {
             "path": relative,
             "group": group,
             "title": title,
@@ -223,13 +237,20 @@ def build():
             "strength": strength,
             "note": note,
             "measuredMs": timing,
-        })
+        }
+        seconds = compiles.get("results", {}).get(relative)
+        if seconds is not None and seconds >= SLOW_COMPILE_SECONDS:
+            entry["firstCompileSeconds"] = compile_seconds(seconds)
+        entries.append(entry)
     catalog = {
         "version": 1,
         "groups": [{"id": key, "title": value} for key, value in GROUPS.items()],
         "costNote": "开销档位（低 / 中 / 高 / 极高）按模型规模排序；括号里的毫秒数是在下面这台设备上实测的每帧 GPU 耗时，"
                     "放大到 1920×1080 时测得，其他设备、分辨率会不同；1 ms 以下的差异受显卡自动降频影响，不能用来排序。",
         "measuredOn": timings.get("device"),
+        "firstCompileNote": "Windows 上，标了「首次启用要编译约 N 秒」的着色器第一次用时要先编译，期间画面停住；"
+                            "编译结果会缓存，之后再用不用等。秒数在开发者电脑上测得，CPU 越慢越久。",
+        "firstCompileMeasuredOn": compiles.get("device"),
         "shaders": entries,
     }
     # Bundles before 2.9.4 also shipped a byte-identical copy of every Anime4K
@@ -249,14 +270,14 @@ def main():
     catalog, manifest = build()
     if args.check:
         stale = [p for p, text in ((CATALOG, catalog), (MANIFEST, manifest))
-                 if not p.exists() or p.read_text() != text]
+                 if not p.exists() or p.read_text(encoding="utf-8") != text]
         if stale:
             print("stale: " + ", ".join(str(p.relative_to(ROOT)) for p in stale), file=sys.stderr)
             return 1
         return 0
     CATALOG.parent.mkdir(parents=True, exist_ok=True)
-    CATALOG.write_text(catalog)
-    MANIFEST.write_text(manifest)
+    CATALOG.write_text(catalog, encoding="utf-8", newline="\n")
+    MANIFEST.write_text(manifest, encoding="utf-8", newline="\n")
     return 0
 
 

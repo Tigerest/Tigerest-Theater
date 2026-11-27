@@ -144,6 +144,8 @@ class inputPlugin {
             }
 
             api.input.hostInput.connect((actions) => {
+                // The usage tour takes remote and gamepad keys while it is open.
+                if (window.TigerestTour?.active) actions = actions.filter(action => !window.TigerestTour.hostAction(action));
                 actions.forEach(action => {
                     if (typeof action === 'string' && action.startsWith('playlist-item:')) {
                         selectPlaylistItem(action.slice('playlist-item:'.length));

@@ -445,6 +445,12 @@ private:
   std::unique_ptr<rife::RifeRuntimeManager> m_windowsRifeRuntime;
   QString m_windowsRifeRoot,m_windowsRifeError;
   bool m_windowsRifeActivated=false;
+  // The Python and VapourSynth that vapoursynth filters (NVIDIA frame
+  // generation) run on: the RIFE extension's once it is activated, otherwise
+  // the copy installed with the player. Empty when neither could be activated.
+  QString m_vapoursynthRoot,m_vapoursynthSource,m_vapoursynthError;
+  // Ends the startup gate, activating the installed copy before mpv exists.
+  void finishWindowsRifeStartup();
   struct WindowsRecoveryLoad {
     QVariantList command,httpHeaders;
     QVariant audioStream,subtitleStream;
@@ -685,6 +691,13 @@ private:
   // The setting's choice for mpv's icc-profile-auto; nothing with advanced overrides.
   void applyIccSetting(bool wait);
   uint32_t m_proStatsSeen = 0;
+#ifdef Q_OS_WIN
+  // The signal to the window's display, added to the statistics: mpv does not
+  // report it. Read again every two seconds; the window can change displays.
+  QVariantMap m_proDisplaySignal;
+  QElapsedTimer m_proDisplayChecked;
+  void addDisplaySignal(QVariantMap& stats);
+#endif
   QRect m_proVideoRect;
   bool m_videoOnlyMode = false;
   void updateWebVisibility();
