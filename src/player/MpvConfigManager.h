@@ -20,6 +20,14 @@ namespace MpvConfigManager
   bool configureBundledVapourSynth(const QString& executableDirectory,const QString& registrationDirectory,bool preferBundled=false);
   QString activeConfigDir();
   QString userConfigPath();
+  // The key map mpv reads. mpv's --input-conf takes a single file, so the
+  // bundled bindings are its default block (rewritten on every start) and the
+  // user's own bindings follow them as the user block (kept verbatim).
+  QString inputConfPath();
+  QString defaultKeymap();
+  QString userKeymap();
+  QVariantMap saveUserKeymap(const QString& user, QString* errorMessage = nullptr);
+  bool userKeymapHasBinding(const QString& key);
   QString shaderDir();
   QString userShaderDir();
   bool ownsDefaultSvpIpc();

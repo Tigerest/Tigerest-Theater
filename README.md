@@ -320,7 +320,7 @@ vf-append=@user-1:cas=strength=0.4
 | 配置项 | 由谁决定 |
 | --- | --- |
 | `script`、`scripts`、`load-scripts`、`script-opts`、`script-opt` | 客户端按 uosc、弹幕设置加载脚本和脚本参数 |
-| `input-conf`、`input-default-bindings` | 客户端内置的 input.conf |
+| `input-conf`、`input-default-bindings` | 客户端管理的 `mpv` 目录下的 input.conf；键位写在它的「你的自定义」区，见 [播放文档](docs/wiki/Playback.md) |
 | `vo`、`wid`、`gpu-context`、`gpu-api` | 客户端窗口和「视频渲染后端」设置 |
 | `config`、`config-dir`、`include` | 只读取这一份 mpv.conf，不能再引入其他配置文件 |
 | `input-ipc-server` | SVP 连接接口，由客户端按 RIFE 设置开关 |

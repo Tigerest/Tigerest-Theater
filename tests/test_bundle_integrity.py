@@ -546,6 +546,12 @@ def test_native_player_composition() -> None:
     mpv_input = read("resources/mpv/input.conf")
     require("MBTN_LEFT_DBL ignore" in mpv_input and "MBTN_LEFT_DBL cycle" not in mpv_input,
             "mpv input.conf does not suppress the duplicate/default double-click action")
+    manager = read("src/player/MpvConfigManager.cpp")
+    require("KeymapUserBegin" in manager and
+            'relativePath == QStringLiteral("input.conf") && QFile::exists(targetPath)' in manager,
+            "the bundled input.conf would overwrite the user's own key bindings on every start")
+    require("userKeymapHasBinding" in mpv_item,
+            "the host's fallback keys do not yield to bindings in the user's input.conf")
     require("initializeController();" in mpv_item and
             'setPropertyBlocking(QStringLiteral("wid")' in mpv_item and
             'setPropertyBlocking(QStringLiteral("vo"), QStringLiteral("gpu-next"))' in mpv_item,
